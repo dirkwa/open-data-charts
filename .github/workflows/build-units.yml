@@ -128,7 +128,6 @@ jobs:
     if: >-
       always() && needs.plan.result == 'success' && needs.build.result != 'failure' &&
       needs.build.result != 'cancelled' &&
-      (needs.plan.outputs.build != '0' || needs.plan.outputs.removed != '0') &&
       (vars.ODC_PUBLISH == 'true' || inputs.publish)
     runs-on: ubuntu-latest
     environment:
@@ -138,7 +137,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: unit-inputs
-      - uses: actions/download-artifact@v4
+      - if: needs.plan.outputs.build != '0'
+        uses: actions/download-artifact@v4
         with:
           pattern: built-*
           path: built
@@ -154,17 +154,26 @@ jobs:
           shopt -s nullglob
           files=(built/*.mbtiles)
           if [ ${#files[@]} -gt 0 ]; then gh release upload "$tag" "${files[@]}" --clobber; fi
+      # Runs without changed units too: retired units still come due.
       - name: Write the index
+        id: index
         run: |
-          mkdir -p site && chmod 777 site
+          mkdir -p site built && chmod 777 site
           bash .github/scripts/mirror-assets.sh "units-$REGION" | jq '[.[].name]' > released.json
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
             odc-builder python3 -m odc.index "regions/$REGION.json" plan.json built old mirror released.json site
           cp schema/open-data-index.schema.json site/
-      - uses: actions/upload-pages-artifact@v3
+          changed=false
+          for f in open-data-index.json retired.json coverage.geojson; do
+            cmp -s "site/$f" "old/$f" || changed=true
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+      - if: steps.index.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
-      - uses: actions/deploy-pages@v4
+      - if: steps.index.outputs.changed == 'true'
+        uses: actions/deploy-pages@v4
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
