@@ -69,9 +69,14 @@ def discover(regions):
 
 
 def shard(todo, max_bytes):
-    """Largest first, each into the shard with the least bytes so far."""
+    """Largest first, each into the shard with the least bytes so far.
+
+    A survey larger than max_bytes cannot be split, so it gets a shard of its
+    own; leaving it out would keep it out of the mirror for good."""
     shards = []
     for survey in sorted(todo, key=lambda s: -s['size']):
+        if survey['size'] > max_bytes:
+            print(f'{survey["name"]}: {survey["size"]} bytes, over the shard limit; mirrored alone', flush=True)
         fits = [s for s in shards if s['bytes'] + survey['size'] <= max_bytes]
         target = min(fits, key=lambda s: s['bytes']) if fits else None
         if target is None:
@@ -171,8 +176,13 @@ def build_index(work, assets_path, old_index_path, out_dir):
         asset = assets.get(asset_name(survey))
         if asset:
             entries[survey['name']] = index_entry(survey, asset)
-        else:
-            missing.append(survey['name'])
+            continue
+        missing.append(survey['name'])
+        previous = old['surveys'].get(survey['name'])
+        # A survey whose new source failed to reduce keeps its last reduction
+        # until a run brings the replacement.
+        if previous and previous['reduced']['asset'] in assets:
+            entries[survey['name']] = previous
     index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries}
     footprints = {
         'type': 'FeatureCollection',
