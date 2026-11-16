@@ -10,6 +10,7 @@ indices), lon, lat (int32, 1e-7 degrees, the sounding's own position) and
 z (float32 depth).
 """
 
+import os
 import sys
 
 import numpy as np
@@ -133,8 +134,16 @@ def reduce_stream(stream):
 
 
 def save(path, reduced):
-    with open(path, 'wb') as fh:
-        np.savez_compressed(fh, **reduced)
+    """Written under a temporary name first: a half-written file must never
+    carry the asset name, which is what tells a run the survey is done."""
+    part = f'{path}.part'
+    try:
+        with open(part, 'wb') as fh:
+            np.savez_compressed(fh, **reduced)
+        os.replace(part, path)
+    finally:
+        if os.path.exists(part):
+            os.remove(part)
 
 
 def main():

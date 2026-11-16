@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from odc.grid import GRID_STEP, cell_x, cell_y
-from odc.reduce_survey import reduce_stream
+from odc.reduce_survey import reduce_stream, save
 
 HEADER = b'Bathymetry produced by Shom - 540\nS000000000\nlong(DD),lat(DD),depth(m - down positive - LAT)\n'
 
@@ -64,3 +64,16 @@ def test_antimeridian_is_one_column():
 def test_skips_a_header_of_three_words():
     reduced, total = reduce_stream(io.BytesIO(b'lon lat depth\n166.1,-22.1,5.0\n'))
     assert total == 1 and list(reduced['z']) == [5.0]
+
+
+def test_a_failed_save_leaves_no_file_under_the_asset_name(tmp_path, monkeypatch):
+    path = tmp_path / 'S1.abc.npz'
+
+    def fail(fh, **arrays):
+        fh.write(b'partial')
+        raise OSError('disk full')
+
+    monkeypatch.setattr(np, 'savez_compressed', fail)
+    with pytest.raises(OSError):
+        save(str(path), {'z': np.zeros(1)})
+    assert list(tmp_path.iterdir()) == []
