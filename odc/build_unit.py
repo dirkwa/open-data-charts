@@ -1065,9 +1065,9 @@ def depth_quality(entries, rank, from_survey, land_cells, box, unit):
 
     A survey covers the cells it sounded and the cells the depth grid
     interpolated from it (INTERP_CELLS around them, where the model did not
-    reject the interpolation); each cell counts for the best category
-    covering it. A survey reaches the unit when it sounded a cell within
-    INTERP_CELLS of it."""
+    reject the interpolation). A measured cell counts for the survey that
+    sounded it, an interpolated one for the best category within reach. A
+    survey reaches the unit when it sounded a cell within INTERP_CELLS of it."""
     cells = unit.cells
     rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
     cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
@@ -1078,9 +1078,13 @@ def depth_quality(entries, rank, from_survey, land_cells, box, unit):
     categories = np.array([quality_category(e[4]) for e in entries])
     taken = np.zeros_like(water)
     share = {}
+    # A measured cell belongs to the survey that won it; an interpolated one
+    # to the best survey within INTERP_CELLS.
+    measured = rank[rows, cols] >= 0
     for category in QUALITY_ORDER[:-1]:
         mask = np.isin(rank, np.flatnonzero(categories == category))
-        covered = dilate(mask, INTERP_CELLS)[rows, cols] & from_survey[rows, cols] & water & ~taken
+        reached = np.where(measured, mask[rows, cols], dilate(mask, INTERP_CELLS)[rows, cols])
+        covered = reached & from_survey[rows, cols] & water & ~taken
         taken |= covered
         share[category] = int(covered.sum())
     share['model'] = total - int(taken.sum())

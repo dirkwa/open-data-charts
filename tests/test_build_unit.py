@@ -6,6 +6,7 @@ pytest.importorskip('osgeo')
 from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     SOUNDING_MINZOOM,
+    depth_quality,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -63,3 +64,21 @@ def test_write_layers_replaces_only_its_own_layers(tmp_path):
     write_layers(str(tmp_path), {}, {'SOUNDG': 129}, Unit(492, 288))
     assert not (tmp_path / 'SOUNDG.geojson').exists()
     assert (tmp_path / 'structures.geojson').exists()
+
+
+def test_a_measured_cell_counts_for_the_survey_that_sounded_it():
+    unit = Unit(492, 288)
+    box = unit.build_box
+    r, c = unit.cells.iy0 - box.iy0 + 100, unit.cells.ix0 - box.ix0 + 100
+    rank = np.full((box.nrows, box.ncols), -1, np.int16)
+    rank[r : r + 100, c : c + 50] = 0
+    rank[r : r + 100, c + 50 : c + 100] = 1
+    land = np.ones_like(rank, bool)
+    land[r : r + 100, c : c + 100] = False
+    entries = [
+        (None, None, 'A', None, {'end': '20100101', 'tecsou': 'multi-beam echosounder'}),
+        (None, None, 'B', None, {'end': '20100101', 'tecsou': 'single-beam echosounder'}),
+    ]
+    quality, used = depth_quality(entries, rank, rank >= 0, land, box, unit)
+    assert quality['share'] == {'multibeam': 0.5, 'survey-recent': 0.5}
+    assert used == [0, 1]
