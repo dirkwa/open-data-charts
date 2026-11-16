@@ -164,6 +164,7 @@ class Unit:
 
 
 def unit_at(lon, lat):
+    lon = (lon + 180.0) % 360.0 - 180.0
     px, py = mercator_pixel(lon, lat, UNIT_ZOOM)
     return Unit(int(px // 256), int(py // 256))
 

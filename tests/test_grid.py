@@ -67,3 +67,7 @@ def test_owner_is_unique_on_shared_edges():
     lat = a.bounds[1]
     assert not a.owns(166.2, lat) and c.owns(166.2, lat)
     assert math.isclose(lat, c.bounds[3])
+
+
+def test_antimeridian_lookup():
+    assert unit_at(180.0, 0.0) == unit_at(-180.0, 0.0) == Unit(0, 256)

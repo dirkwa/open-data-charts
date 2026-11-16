@@ -14,12 +14,15 @@ from odc.grid import Unit  # noqa: E402
 
 
 def test_contour_windows_sit_on_global_grid_lines():
-    a, b = Unit(492, 288).build_box, Unit(493, 288).build_box
+    # These neighbours' boxes overlap across a window boundary (ix 2829312).
+    a, b = Unit(502, 288).build_box, Unit(503, 288).build_box
     edges_a = {a.ix0 + e for e in window_edges(a.ix0, a.ncols)}
     edges_b = {b.ix0 + e for e in window_edges(b.ix0, b.ncols)}
     shared = {e for e in edges_a & edges_b if e % CONTOUR_WINDOW_CELLS == 0}
     overlap = range(b.ix0, a.ix1)
-    assert shared == {e for e in overlap if e % CONTOUR_WINDOW_CELLS == 0 and b.ix0 < e < a.ix1 - 1}
+    expected = {e for e in overlap if e % CONTOUR_WINDOW_CELLS == 0 and b.ix0 < e < a.ix1 - 1}
+    assert expected
+    assert shared == expected
 
 
 def test_window_edges_include_box_ends():
