@@ -61,8 +61,11 @@ def parse_lines(text):
     counts = fields_per_line(text)
     rows = int(np.count_nonzero(counts == 3))
     if np.all((counts == 3) | (counts == 0)):
-        values = np.fromstring(text, dtype=np.float64, sep=' ')
-        if len(values) == 3 * rows:
+        try:
+            values = np.fromstring(text, dtype=np.float64, sep=' ')
+        except ValueError:  # a three-word header line; newer NumPy raises instead of stopping
+            values = None
+        if values is not None and len(values) == 3 * rows:
             return values.reshape(-1, 3)
     kept = []
     for line in text.split(b'\n'):

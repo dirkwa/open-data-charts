@@ -59,3 +59,8 @@ def test_antimeridian_is_one_column():
     reduced, _ = reduce_stream(io.BytesIO(HEADER + b'180,0,5\n-180,0.0001,6\n'))
     assert set(reduced['ix']) == {0}
     assert set(reduced['lon']) == {-1_800_000_000}
+
+
+def test_skips_a_header_of_three_words():
+    reduced, total = reduce_stream(io.BytesIO(b'lon lat depth\n166.1,-22.1,5.0\n'))
+    assert total == 1 and list(reduced['z']) == [5.0]
