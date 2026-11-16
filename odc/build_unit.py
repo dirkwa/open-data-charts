@@ -33,6 +33,7 @@ import time
 import numpy as np
 from osgeo import gdal, ogr, osr
 
+from odc import osm
 from odc.grid import GRID_STEP, UNIT_ZOOM, Unit, mercator_pixel
 
 gdal.UseExceptions()
@@ -47,7 +48,8 @@ MIN_UNSARE_DEG2 = 1e-9  # only numerical crumbs; real gaps must not turn into ho
 FILL_SEARCH_CELLS = 4  # fill DEM gaps up to 4 cells (~400 m) from data
 FILL_MAX_DEPTH = 2.0  # filled near-shore cells are at most 2 m deep
 SIMPLIFY_DEG = 0.00003  # ~3 m, applied to grid-derived geometry only
-MIN_AREA_DEG2 = 1e-8  # ~120 m2; drop slivers from land/DEM mismatch
+MIN_AREA_DEG2 = 1e-8
+COAST_EDGE_DEG = 1e-7  # see build_land()  # ~120 m2; drop slivers from land/DEM mismatch
 NODATA = -9999.0
 # Survey soundings are reduced to the shoalest value per grid cell. Gaps
 # between single-beam lines are bridged by interpolation up to this many
@@ -77,6 +79,7 @@ LAND_PIECES = 16  # see tiled_parts()
 # (deepest VALDCO the rule applies to, minimum length).
 DEPCNT_MIN_RING = ((10.0, 0.0005), (5000.0, 0.004))  # ~55 m; ~430 m (~140 m across)
 SOUNDING_MINZOOM = 10
+QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model')
 TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'))
 
 # Harbour structures. OSM man_made -> S-57 CATSLC (shoreline construction).
@@ -181,110 +184,26 @@ def linestring(coords):
 # --------------------------------------------------------------- coastline
 
 
-def merge_ways(ways):
-    """Join OSM ways that share end nodes into chains: [(closed, coords)]."""
-    by_start, by_end = {}, {}
-    for i, (start, end, _) in enumerate(ways):
-        by_start.setdefault(start, []).append(i)
-        by_end.setdefault(end, []).append(i)
-    used, chains = set(), []
-    for i in range(len(ways)):
-        if i in used:
-            continue
-        used.add(i)
-        start, end, coords = ways[i][0], ways[i][1], list(ways[i][2])
-        while end != start:
-            nxt = [j for j in by_start.get(end, []) if j not in used]
-            if not nxt:
-                break
-            used.add(nxt[0])
-            coords.extend(ways[nxt[0]][2][1:])
-            end = ways[nxt[0]][1]
-        while end != start:
-            prv = [j for j in by_end.get(start, []) if j not in used]
-            if not prv:
-                break
-            used.add(prv[0])
-            coords = list(ways[prv[0]][2][:-1]) + coords
-            start = ways[prv[0]][0]
-        chains.append((start == end and len(coords) >= 4, coords))
-    return chains
+def build_land(land_path, bbox_geom):
+    """Land and coastline from OpenStreetMap's land polygons (osmdata.openstreetmap.de),
+    which are assembled from the coastline and validated every day."""
+    ds = ogr.Open(land_path)
+    layer = ds.GetLayer(0)
+    layer.SetSpatialFilter(bbox_geom)
+    pieces = ogr.Geometry(ogr.wkbMultiPolygon)
+    for feat in layer:
+        for part in polygon_parts(feat.GetGeometryRef().Intersection(bbox_geom)):
+            pieces.AddGeometry(part)
+    land = pieces.UnaryUnion() if pieces.GetGeometryCount() else ogr.Geometry(ogr.wkbMultiPolygon)
+    # The box's own edges are not coastline.
+    inside = bbox_polygon(*shrunk(bbox_geom.GetEnvelope(), COAST_EDGE_DEG))
+    coast = list(line_parts(land.GetBoundary().Intersection(inside))) if not land.IsEmpty() else []
+    return land, coast
 
 
-def build_land(coast_path, bbox_geom, dem_sampler):
-    data = json.load(open(coast_path, encoding='utf-8'))
-    ways = []
-    for el in data.get('elements', []):
-        if el.get('type') == 'way' and el.get('geometry') and len(el.get('nodes', [])) >= 2:
-            coords = [(g['lon'], g['lat']) for g in el['geometry']]
-            ways.append((el['nodes'][0], el['nodes'][-1], coords))
-    chains = merge_ways(ways)
-
-    land_parts = []
-    open_lines = ogr.Geometry(ogr.wkbMultiLineString)
-    coast_lines = []
-    for closed, coords in chains:
-        line = linestring(coords)
-        coast_lines.extend(line_parts(line.Intersection(bbox_geom)))
-        if closed:
-            ring = ogr.Geometry(ogr.wkbLinearRing)
-            for x, y in coords:
-                ring.AddPoint_2D(x, y)
-            poly = ogr.Geometry(ogr.wkbPolygon)
-            poly.AddGeometry(ring)
-            poly = poly.MakeValid()
-            land_parts.extend(polygon_parts(poly.Intersection(bbox_geom)))
-        else:
-            for part in line_parts(line.Intersection(bbox_geom)):
-                open_lines.AddGeometry(part)
-
-    # Open chains (the main island leaving the bbox): node them together
-    # with the bbox outline, polygonize, and classify each face. OSM keeps
-    # land on the left of a coastline way, so points just left/right of
-    # coastline segments vote land/water for the face they fall into.
-    if open_lines.GetGeometryCount():
-        boundary = bbox_geom.GetBoundary()
-        noded = open_lines.Union(boundary)
-        faces = list(polygon_parts(noded.Polygonize()))
-        votes = [[0, 0] for _ in faces]
-        envs = [f.GetEnvelope() for f in faces]
-        segments = []
-        for i in range(open_lines.GetGeometryCount()):
-            pts = open_lines.GetGeometryRef(i).GetPoints()
-            segments.extend(zip(pts, pts[1:], strict=False))
-        step = max(1, len(segments) // 4000)
-        eps = 2e-6
-        for (ax, ay, *_), (bx, by, *_) in segments[::step]:
-            dx, dy = bx - ax, by - ay
-            length = (dx * dx + dy * dy) ** 0.5
-            if length < 1e-7:
-                continue
-            mx, my = (ax + bx) / 2, (ay + by) / 2
-            nx, ny = -dy / length * eps, dx / length * eps
-            for (px, py), is_land in (((mx + nx, my + ny), 1), ((mx - nx, my - ny), 0)):
-                pt = ogr.Geometry(ogr.wkbPoint)
-                pt.AddPoint_2D(px, py)
-                for k, (x0, x1, y0, y1) in enumerate(envs):
-                    if x0 <= px <= x1 and y0 <= py <= y1 and faces[k].Contains(pt):
-                        votes[k][0 if is_land else 1] += 1
-                        break
-        for face, (land_v, water_v) in zip(faces, votes, strict=True):
-            if land_v == water_v == 0:
-                # No coastline segment sampled next to it: ask the DEM.
-                c = face.PointOnSurface()
-                z = dem_sampler(c.GetX(), c.GetY())
-                is_land = z is None or z > 1.0
-            else:
-                is_land = land_v > water_v
-            if is_land:
-                land_parts.append(face)
-
-    land = ogr.Geometry(ogr.wkbMultiPolygon)
-    for part in land_parts:
-        if part.GetArea() > 0:
-            land.AddGeometry(part)
-    land = land.UnaryUnion() if land.GetGeometryCount() else land
-    return land, coast_lines
+def shrunk(envelope, d):
+    minx, maxx, miny, maxy = envelope
+    return minx + d, miny + d, maxx - d, maxy - d
 
 
 # --------------------------------------------------------------------- DEM
@@ -542,24 +461,6 @@ def build_soundings(entries, rank, land_cells, box, unit, maxzoom):
     counts = np.bincount(minzoom[minzoom >= 0] - SOUNDING_MINZOOM)
     print('  soundings by minzoom:', {SOUNDING_MINZOOM + i: int(n) for i, n in enumerate(counts)})
     return feats
-
-
-def dem_sampler_for(path):
-    ds = gdal.Open(path)
-    band = ds.GetRasterBand(1)
-    nodata = band.GetNoDataValue()
-    gt = ds.GetGeoTransform()
-    arr = band.ReadAsArray()
-
-    def sample(x, y):
-        col = int((x - gt[0]) / gt[1])
-        row = int((y - gt[3]) / gt[5])
-        if not (0 <= row < arr.shape[0] and 0 <= col < arr.shape[1]):
-            return None
-        v = float(arr[row, col])
-        return None if nodata is not None and v == nodata else v
-
-    return sample
 
 
 def contour_layer(src, polygonize):
@@ -829,79 +730,12 @@ def point(x, y):
     return p
 
 
-def polygon_from(coords):
-    ring = ogr.Geometry(ogr.wkbLinearRing)
-    for x, y in coords:
-        ring.AddPoint_2D(x, y)
-    poly = ogr.Geometry(ogr.wkbPolygon)
-    poly.AddGeometry(ring)
-    return poly.MakeValid()
-
-
-def join_rings(lines):
-    """Join multipolygon member ways (coordinate lists) at shared end points
-    into closed rings; open leftovers are dropped."""
-
-    def key(p):
-        return round(p[0], 7), round(p[1], 7)
-
-    pending = [list(line) for line in lines if len(line) >= 2]
-    rings = []
-    while pending:
-        cur = pending.pop()
-        joined = True
-        while key(cur[0]) != key(cur[-1]) and joined:
-            joined = False
-            for i, line in enumerate(pending):
-                if key(line[0]) == key(cur[-1]):
-                    cur = cur + line[1:]
-                elif key(line[-1]) == key(cur[-1]):
-                    cur = cur + line[::-1][1:]
-                elif key(line[-1]) == key(cur[0]):
-                    cur = line[:-1] + cur
-                elif key(line[0]) == key(cur[0]):
-                    cur = line[::-1][:-1] + cur
-                else:
-                    continue
-                pending.pop(i)
-                joined = True
-                break
-        if key(cur[0]) == key(cur[-1]) and len(cur) >= 4:
-            rings.append(cur)
-    return rings
-
-
 def multipolygon(polys):
     out = ogr.Geometry(ogr.wkbMultiPolygon)
     for poly in polys:
         for part in polygon_parts(poly):
             out.AddGeometry(part)
     return out
-
-
-def osm_geometry(el, area):
-    """OGR geometry of an Overpass element (out geom): point, line or area."""
-    if el['type'] == 'node':
-        return point(el['lon'], el['lat'])
-    if el['type'] == 'way':
-        coords = [(p['lon'], p['lat']) for p in el.get('geometry') or [] if p]
-        if len(coords) < 2:
-            return None
-        if area and len(coords) >= 4 and coords[0] == coords[-1]:
-            return polygon_from(coords)
-        return linestring(coords)
-    outer, inner = [], []
-    for m in el.get('members', []):
-        if m.get('type') == 'way' and m.get('geometry'):
-            coords = [(p['lon'], p['lat']) for p in m['geometry'] if p]
-            (inner if m.get('role') == 'inner' else outer).append(coords)
-    polys = [polygon_from(r) for r in join_rings(outer)]
-    if not polys:
-        return None
-    geom = multipolygon(polys).UnaryUnion()
-    for ring in join_rings(inner):
-        geom = geom.Difference(polygon_from(ring))
-    return geom
 
 
 def clip_to(geom, bbox_geom):
@@ -913,7 +747,7 @@ def clip_to(geom, bbox_geom):
     return None if geom.IsEmpty() else geom
 
 
-def osm_marine(path, bbox_geom):
+def osm_marine(osm_items, bbox_geom):
     """Shoreline constructions, pontoons, slipways and reefs from OSM.
 
     Returns (solid, layers, reefs): solid structure polygons (moles,
@@ -922,23 +756,11 @@ def osm_marine(path, bbox_geom):
     later). Floating pontoons stay water (PONTON).
     """
     solid, layers, reefs = [], {}, []
-    for el in json.load(open(path, encoding='utf-8')).get('elements', []):
-        t = el.get('tags', {})
+    for t, geom in osm_items:
         man_made, natural = t.get('man_made'), t.get('natural')
-        closed = el['type'] == 'relation' or (
-            el['type'] == 'way' and len(el.get('geometry') or []) >= 4 and el['geometry'][0] == el['geometry'][-1]
-        )
-        area = (
-            closed
-            and t.get('area') != 'no'
-            and (
-                t.get('area') == 'yes'
-                or el['type'] == 'relation'
-                or natural == 'reef'
-                or man_made in ('breakwater', 'groyne', 'quay')
-            )
-        )
-        geom = clip_to(osm_geometry(el, area), bbox_geom)
+        if natural != 'reef' and t.get('leisure') != 'slipway' and man_made not in OSM_CATSLC:
+            continue
+        geom = clip_to(geom, bbox_geom)
         if geom is None:
             continue
         attrs = {'INFORM': OSM_SRC}
@@ -952,7 +774,7 @@ def osm_marine(path, bbox_geom):
                 layers.setdefault('SLCONS', []).append(
                     (geom, {**attrs, 'CATSLC': CATSLC_SLIPWAY, '_minzoom': STRUCTURE_MINZOOM}, None)
                 )
-        elif man_made in OSM_CATSLC and dim > 0:
+        elif dim > 0:
             minzoom = PIER_MINZOOM if man_made == 'pier' and dim == 1 else STRUCTURE_MINZOOM
             if t.get('floating') == 'yes':
                 layers.setdefault('PONTON', []).append((geom, {**attrs, '_minzoom': minzoom}, None))
@@ -1077,28 +899,25 @@ def dilate(mask, cells):
     return out
 
 
-def osm_buildings(path, land_cells, bbox):
+def osm_buildings(osm_items, land_cells, bbox):
     """BUISGL areas for the buildings within ~150 m of the sea; the ones
     further inland do not help anybody on the water and only cost size."""
     minlon, _, _, maxlat = bbox
     near = dilate(~land_cells, BUILDING_NEAR_WATER_CELLS)
     nrows, ncols = near.shape
     items, total = [], 0
-    for el in json.load(open(path, encoding='utf-8')).get('elements', []):
-        if el.get('type') != 'way':
+    for t, geom in osm_items:
+        if 'building' not in t or geom.GetDimension() != 2:
             continue
         total += 1
-        geom = osm_geometry(el, True)
-        if geom is None or geom.GetDimension() != 2:
-            continue
         c = geom.Centroid()
         col = int((c.GetX() - minlon) / GRID_STEP)
         row = int((maxlat - c.GetY()) / GRID_STEP)
         if not (0 <= row < nrows and 0 <= col < ncols) or not near[row, col]:
             continue
         attrs = {'_minzoom': BUILDING_MINZOOM}
-        if el.get('tags', {}).get('name'):
-            attrs['OBJNAM'] = el['tags']['name']
+        if t.get('name'):
+            attrs['OBJNAM'] = t['name']
         items.append((geom, attrs, None))
     print(f'  buildings: {len(items)} of {total} within ~{BUILDING_NEAR_WATER_CELLS * 13} m of the sea')
     return items
@@ -1122,7 +941,7 @@ def relief_bounds(bbox):
     )
 
 
-def build_relief(dem_paths, peaks_path, bbox, work, bbox_geom):
+def build_relief(dem_paths, osm_items, bbox, work, bbox_geom):
     """LNDELV: land contours every RELIEF_INTERVAL_M from the Copernicus DEM,
     and spot heights from OSM peaks (name and height)."""
     items = []
@@ -1161,19 +980,18 @@ def build_relief(dem_paths, peaks_path, bbox, work, bbox_geom):
             )
         dem = None
     n_lines = len(items)
-    if peaks_path:
-        for el in json.load(open(peaks_path, encoding='utf-8')).get('elements', []):
-            t = el.get('tags', {})
-            height = parse_height(t.get('ele'))
-            if height is None or el.get('type') != 'node':
-                continue
-            geom = point(el['lon'], el['lat'])
-            if not bbox_geom.Contains(geom):
-                continue
-            attrs = {'ELEVAT': round(height), 'INFORM': OSM_SRC}
-            if t.get('name'):
-                attrs['OBJNAM'] = t['name']
-            items.append((geom, attrs, None))
+    for t, geom in osm_items:
+        if t.get('natural') not in ('peak', 'volcano'):
+            continue
+        height = parse_height(t.get('ele'))
+        if height is None or geom.GetDimension() != 0:
+            continue
+        if not bbox_geom.Contains(geom):
+            continue
+        attrs = {'ELEVAT': round(height), 'INFORM': OSM_SRC}
+        if t.get('name'):
+            attrs['OBJNAM'] = t['name']
+        items.append((geom, attrs, None))
     print(f'  relief: {n_lines} contour lines, {len(items) - n_lines} spot heights')
     return items
 
@@ -1228,12 +1046,73 @@ def write_layers(out_dir, layers, classes, unit):
     return summary
 
 
+def quality_category(meta):
+    tech = (meta.get('tecsou') or '').lower()
+    end = int(str(meta['end'])[:8])
+    if end >= 20050101 and ('multi-beam' in tech or 'lidar' in tech):
+        return 'multibeam'
+    return 'survey-recent' if end >= 19900101 else 'survey-old'
+
+
+def depth_quality(entries, rank, land_cells, box, unit):
+    """Share of the unit's water by where its depths come from (see
+    docs/index-format.md), and the ranks of the surveys inside the unit.
+
+    A survey covers the cells it sounded and, like the interpolation of the
+    depth grid, INTERP_CELLS around them; each cell counts for the best
+    category covering it."""
+    cells = unit.cells
+    rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
+    cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
+    water = ~land_cells[rows, cols]
+    total = int(water.sum())
+    if rank is None or not entries:
+        return {'best': 'model', 'share': {'model': 1.0}} if total else None, []
+    categories = np.array([quality_category(e[4]) for e in entries])
+    taken = np.zeros_like(water)
+    share = {}
+    for category in QUALITY_ORDER[:-1]:
+        mask = np.isin(rank, np.flatnonzero(categories == category))
+        covered = dilate(mask, INTERP_CELLS)[rows, cols] & water & ~taken
+        taken |= covered
+        share[category] = int(covered.sum())
+    share['model'] = total - int(taken.sum())
+    if not total:
+        return None, []
+    share = {k: round(v / total, 3) for k, v in share.items() if v}
+    best = next(c for c in QUALITY_ORDER if c in share)
+    in_unit = rank[rows, cols]
+    used = [int(r) for r in np.unique(in_unit[(in_unit >= 0) & water])]
+    return {'best': best, 'share': share}, used
+
+
+def write_unit_info(out_dir, unit, quality, surveys):
+    info = {
+        'unit': unit.id,
+        'quality': quality,
+        'surveys': [
+            {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou'), 'doi': f'10.17183/{name}'}
+            for _, _, name, _, meta in surveys
+        ],
+    }
+    with open(os.path.join(out_dir, 'unit.json'), 'w', encoding='utf-8') as fh:
+        json.dump(info, fh, indent=1)
+
+
+def survey_list(surveys_json):
+    """Survey metadata from a mirror index (odc.mirror) or a plain list."""
+    data = json.load(open(surveys_json, encoding='utf-8'))
+    if isinstance(data, list):
+        return [(meta, f'{meta["name"]}.npz') for meta in data]
+    return [({**meta, 'name': name}, meta['reduced']['asset']) for name, meta in data['surveys'].items()]
+
+
 def survey_inputs(leves_dir, surveys_json, box):
     """The surveys whose reduced file exists and whose footprint bbox meets the box."""
     minx, miny, maxx, maxy = box.bbox
     out = []
-    for meta in json.load(open(surveys_json, encoding='utf-8')):
-        path = os.path.join(leves_dir, f'{meta["name"]}.npz')
+    for meta, file_name in survey_list(surveys_json):
+        path = os.path.join(leves_dir, file_name)
         bbox = meta.get('bbox')
         if not os.path.exists(path):
             continue
@@ -1247,17 +1126,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--unit', required=True, help='unit id, e.g. z9-492-288')
     ap.add_argument('--wfs', required=True)
-    ap.add_argument('--coast', required=True)
+    ap.add_argument('--land', required=True, help='OSM land polygons (osmdata.openstreetmap.de), any OGR format')
     ap.add_argument('--dem', required=True)
     ap.add_argument('--leves', help='directory of <survey>.npz files from odc.reduce_survey')
-    ap.add_argument('--surveys', help='JSON list of surveys (name, start, end, tecsou)')
+    ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
     ap.add_argument('--maxzoom', type=int, default=15, help='max tile zoom (SOUNDG thinning)')
-    ap.add_argument('--osm-marine', help='marine.json from fetch_osm.py (piers, breakwaters, reefs)')
-    ap.add_argument('--osm-buildings', help='buildings.json from fetch_osm.py')
-    ap.add_argument('--osm-peaks', help='peaks.json from fetch_osm.py (spot heights)')
-    ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM tiles from fetch_relief.py')
-    ap.add_argument('--nc-reefs', help='reefs.geojson from fetch_nc.py')
-    ap.add_argument('--nc-structures', help='amenagements.geojson from fetch_nc.py')
+    ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
+    ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
+    ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
+    ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
     ap.add_argument('--work', required=True)
     ap.add_argument('--out', required=True)
     args = ap.parse_args()
@@ -1271,15 +1148,15 @@ def main():
     step(f'Unit {unit.id}, build box {args.bbox}')
 
     step('DEM: clip + fill near-shore gaps')
-    clipped, filled = prepare_dem(args.dem, args.bbox, args.work)
-    sampler = dem_sampler_for(clipped)
+    _, filled = prepare_dem(args.dem, args.bbox, args.work)
 
-    step('Land from OSM coastline')
-    land, coast = build_land(args.coast, bbox_geom, sampler)
+    step('Land from OSM land polygons')
+    land, coast = build_land(args.land, bbox_geom)
+    osm_items = list(osm.read_features(args.osm, args.bbox)) if args.osm else []
     marine_layers, osm_reefs = {}, []
-    if args.osm_marine:
+    if osm_items:
         step('OSM harbour structures and reefs')
-        solid, marine_layers, osm_reefs = osm_marine(args.osm_marine, bbox_geom)
+        solid, marine_layers, osm_reefs = osm_marine(osm_items, bbox_geom)
         if solid:  # moles, breakwaters, fixed piers are land on a chart
             land = land.Union(multipolygon(solid).UnaryUnion()).MakeValid()
     water = bbox_geom.Difference(land) if not land.IsEmpty() else bbox_geom
@@ -1293,13 +1170,11 @@ def main():
     del survey_depth
     land_cells = land_mask(land, args.bbox)
     soundings = []
+    quality, used = depth_quality(entries, rank, land_cells, box, unit)
     if entries:
         step('Soundings')
         soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom)
-        del rank
-        with open(os.path.join(args.work, 'surveys_used.txt'), 'w', encoding='utf-8') as fh:
-            for end, _, name, _, meta in entries:
-                fh.write(f'{name}\t{end}\t{meta.get("tecsou") or ""}\tdoi:10.17183/{name}\n')
+    del rank
 
     step('Depth areas + contours')
     depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells)
@@ -1323,17 +1198,18 @@ def main():
         step('Reefs')
         land_index = tiled_parts(land, args.bbox)
         layers.setdefault('OBSTRN', []).extend(build_reefs(args.nc_reefs, osm_reefs, land_index, bbox_geom))
-    if args.osm_buildings:
+    if osm_items:
         step('Buildings near the sea')
-        layers.setdefault('BUISGL', []).extend(osm_buildings(args.osm_buildings, land_cells, args.bbox))
-    if args.relief_dem or args.osm_peaks:
+        layers.setdefault('BUISGL', []).extend(osm_buildings(osm_items, land_cells, args.bbox))
+    if args.relief_dem or osm_items:
         step('Land relief')
         layers.setdefault('LNDELV', []).extend(
-            build_relief(args.relief_dem, args.osm_peaks, args.bbox, args.work, bbox_geom)
+            build_relief(args.relief_dem, osm_items, args.bbox, args.work, bbox_geom)
         )
 
     step('Write GeoJSON')
     summary = write_layers(args.out, layers, classes, unit)
+    write_unit_info(args.out, unit, quality, [entries[r] for r in used])
     step('done')
     for objl, n in summary.items():
         print(f'{n:7d}  {objl}')
