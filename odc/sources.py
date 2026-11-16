@@ -22,6 +22,7 @@ import urllib.error
 import urllib.parse
 
 from odc import osm, shom
+from odc.grid import units_in
 
 WFS_NAMESPACES = (
     'BALISAGE_BDD_WFS',
@@ -82,9 +83,21 @@ def wfs_features(type_name, bbox):
             return features
 
 
+def fetch_bounds(region):
+    """The region's units with their build margins: discovery takes whole
+    units, which reach past the region's bbox."""
+    boxes = [unit.build_box.bbox for unit in units_in(*region['bbox'])]
+    return (
+        min(b[0] for b in boxes),
+        min(b[1] for b in boxes),
+        max(b[2] for b in boxes),
+        max(b[3] for b in boxes),
+    )
+
+
 def fetch_wfs(region, out):
     for name in wfs_layers():
-        features = sorted(wfs_features(name, region['bbox']), key=lambda f: str(f.get('id')))
+        features = sorted(wfs_features(name, fetch_bounds(region)), key=lambda f: str(f.get('id')))
         save_json(
             os.path.join(out, 'wfs', name.replace(':', '__') + '.json'),
             {'type': 'FeatureCollection', 'features': features},
@@ -139,7 +152,7 @@ def fetch_osm(region, out):
 
 
 def fetch_land(region, out):
-    minlon, minlat, maxlon, maxlat = region['bbox']
+    minlon, minlat, maxlon, maxlat = fetch_bounds(region)
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         archive = os.path.join(tmp, 'land.zip')
         save_url(LAND_POLYGONS, archive, timeout=1800)
@@ -172,7 +185,7 @@ def copernicus_name(lat, lon):
 
 
 def fetch_relief(region, out):
-    minlon, minlat, maxlon, maxlat = region['bbox']
+    minlon, minlat, maxlon, maxlat = fetch_bounds(region)
     target = os.path.join(out, 'relief')
     os.makedirs(target, exist_ok=True)
     for lat in range(math.floor(minlat), math.ceil(maxlat)):
@@ -211,7 +224,7 @@ def arcgis_features(url, where, bbox):
 
 def fetch_arcgis(region, out):
     for layer in region.get('arcgis', []):
-        meta, features = arcgis_features(layer['url'], layer.get('where', '1=1'), region['bbox'])
+        meta, features = arcgis_features(layer['url'], layer.get('where', '1=1'), fetch_bounds(region))
         save_json(
             os.path.join(out, layer['file']),
             {

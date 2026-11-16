@@ -28,14 +28,18 @@ CONNECTIONS = 8
 PIECE = 8 << 20
 
 
+def is_client_error(error):
+    """A 4xx other than 429: asking again gets the same answer."""
+    return isinstance(error, urllib.error.HTTPError) and 400 <= error.code < 500 and error.code != 429
+
+
 def get(url, timeout=120, tries=4, headers=None):
     for attempt in range(tries):
         try:
             request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT, **(headers or {})})
             return urllib.request.urlopen(request, timeout=timeout)
         except Exception as error:
-            client_error = isinstance(error, urllib.error.HTTPError) and 400 <= error.code < 500 and error.code != 429
-            if client_error or attempt == tries - 1:
+            if is_client_error(error) or attempt == tries - 1:
                 raise
             time.sleep(5 * (attempt + 1))
 
@@ -45,8 +49,8 @@ def get_json(url, timeout=120, tries=4):
         try:
             with get(url, timeout=timeout) as response:
                 return json.load(response)
-        except Exception:
-            if attempt == tries - 1:
+        except Exception as error:
+            if is_client_error(error) or attempt == tries - 1:
                 raise
             time.sleep(5 * (attempt + 1))
 
@@ -142,7 +146,7 @@ def download(url, dst, size, md5, connections=CONNECTIONS):
                     raise OSError(f'short read {len(body)} != {end - start}')
                 break
             except Exception as error:
-                if attempt == 4:
+                if is_client_error(error) or attempt == 4:
                     with lock:
                         failed.append(error)
                     return
