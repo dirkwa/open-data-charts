@@ -1,6 +1,7 @@
 import io
 
 import numpy as np
+import pytest
 
 from odc.grid import GRID_STEP, cell_x, cell_y
 from odc.reduce_survey import reduce_stream
@@ -40,3 +41,21 @@ def test_chunk_boundaries_do_not_split_lines(monkeypatch):
     text = HEADER + b'166.1,-22.1,5.0\n166.2,-22.2,6.0\n'
     reduced, total = rs.reduce_stream(io.BytesIO(text))
     assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
+
+
+def test_reads_every_file_of_a_concatenated_stream():
+    text = HEADER + b'166.1,-22.1,5.0\n' + HEADER + b'166.2,-22.2,6.0\n'
+    reduced, total = reduce_stream(io.BytesIO(text))
+    assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
+
+
+def test_rejects_rows_without_three_fields():
+    text = HEADER + b'166,-22,5\n166.1,-22.1\n6,166.2,-22.2,7\n'
+    with pytest.raises(ValueError):
+        reduce_stream(io.BytesIO(text))
+
+
+def test_antimeridian_is_one_column():
+    reduced, _ = reduce_stream(io.BytesIO(HEADER + b'180,0,5\n-180,0.0001,6\n'))
+    assert set(reduced['ix']) == {0}
+    assert set(reduced['lon']) == {-1_800_000_000}
