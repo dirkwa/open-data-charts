@@ -1,21 +1,23 @@
 """Write the published index (docs/index-format.md) after a region's build.
 
 Usage:
-  python3 -m odc.index <region.json> <plan.json> <built dir> <old site dir> <mirror dir> <out dir>
+  python3 -m odc.index <region.json> <plan.json> <built dir> <old site dir> <mirror dir> <released.json> <out dir>
 
 <built dir> holds <unit>.<version>.mbtiles and <unit>.json (odc.build_unit's
 unit.json) for every unit the plan built. <old site dir> holds what Pages
 serves now (any file may be missing on the first run). <mirror dir> holds the mirror's
-mirror-index.json and footprints.geojson. Writes open-data-index.json,
-coverage.geojson, retired.json (asset name -> date it left the index) and
-delete-assets.json (retired assets past the grace period).
+mirror-index.json and footprints.geojson. <released.json> lists the asset
+names in the region's release now. Writes open-data-index.json,
+coverage.geojson, retired.json (asset name -> region and the time it left
+the index) and delete-assets.json (the region's retired assets past the
+grace period).
 """
 
 import hashlib
 import json
 import os
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from osgeo import ogr
 
@@ -86,7 +88,7 @@ def unit_entry(region, unit_id, version, built_dir, today):
     unit = Unit.parse(unit_id)
     path = os.path.join(built_dir, asset_name(unit_id, version))
     info = load(os.path.join(built_dir, f'{unit_id}.json'))
-    return {
+    entry = {
         'id': unit_id,
         'region': region['id'],
         'z': UNIT_ZOOM,
@@ -100,9 +102,11 @@ def unit_entry(region, unit_id, version, built_dir, today):
         'minzoom': UNIT_ZOOM,
         'maxzoom': MAXZOOM,
         'built': today,
-        'quality': info['quality'],
         'surveys': len(info['surveys']),
     }
+    if info['quality'] is not None:  # a unit without a water cell in the depth grid has none
+        entry['quality'] = info['quality']
+    return entry
 
 
 def region_entry(region):
@@ -138,16 +142,27 @@ def build_index(region, plan, built_dir, old, today):
     return index, not unchanged
 
 
-def retire(old, index, retired, today):
-    """Assets the index no longer names, by the date they left it, and those past the grace period."""
+def retire(old, index, retired, now, region_id, released):
+    """The retirement ledger and this region's assets past the grace period.
+
+    The ledger names each asset the index no longer lists, with its region
+    and the time it left the index. An entry stays until its asset is gone
+    from the region's release (`released`), so a failed deletion is retried
+    by the next run."""
     current = {u['url'].rsplit('/', 1)[1] for u in index['units']}
-    previous = {u['url'].rsplit('/', 1)[1] for u in (old or {}).get('units', [])}
-    retired = {name: day for name, day in (retired or {}).items() if name not in current}
-    for name in previous - current:
-        retired.setdefault(name, today)
-    cutoff = (date.fromisoformat(today) - timedelta(days=GRACE_DAYS)).isoformat()
-    delete = sorted(name for name, day in retired.items() if day <= cutoff)
-    return {k: v for k, v in sorted(retired.items()) if k not in delete}, delete
+    ledger = {name: entry for name, entry in (retired or {}).items() if name not in current}
+    for unit in (old or {}).get('units', []):
+        name = unit['url'].rsplit('/', 1)[1]
+        if name not in current:
+            ledger.setdefault(name, {'region': unit['region'], 'since': now})
+    ledger = {name: entry for name, entry in ledger.items() if entry['region'] != region_id or name in released}
+    cutoff = datetime.fromisoformat(now) - timedelta(days=GRACE_DAYS)
+    delete = sorted(
+        name
+        for name, entry in ledger.items()
+        if entry['region'] == region_id and datetime.fromisoformat(entry['since']) <= cutoff
+    )
+    return dict(sorted(ledger.items())), delete
 
 
 def coverage(region, mirror_dir, old):
@@ -183,12 +198,20 @@ def write(path, value):
 
 
 def main():
-    region_path, plan_path, built_dir, old_dir, mirror_dir, out = sys.argv[1:7]
+    region_path, plan_path, built_dir, old_dir, mirror_dir, released_path, out = sys.argv[1:8]
     region, plan = load(region_path), load(plan_path)
     old = load(os.path.join(old_dir, 'open-data-index.json'))
-    today = datetime.now(UTC).date().isoformat()
+    now = datetime.now(UTC).replace(microsecond=0)
+    today = now.date().isoformat()
     index, changed = build_index(region, plan, built_dir, old, today)
-    retired, delete = retire(old, index, load(os.path.join(old_dir, 'retired.json'), {}), today)
+    retired, delete = retire(
+        old,
+        index,
+        load(os.path.join(old_dir, 'retired.json'), {}),
+        now.isoformat(),
+        region['id'],
+        set(load(released_path)),
+    )
     os.makedirs(out, exist_ok=True)
     write(os.path.join(out, 'open-data-index.json'), index)
     old_coverage = load(os.path.join(old_dir, 'coverage.geojson'))

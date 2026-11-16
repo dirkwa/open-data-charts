@@ -62,9 +62,23 @@ def test_unchanged_index_keeps_generated_time():
 
 
 def test_replaced_assets_are_deleted_after_the_grace_period():
-    old = {'units': [{'url': 'https://x/u.old.mbtiles'}]}
-    new = {'units': [{'url': 'https://x/u.new.mbtiles'}]}
-    retired, delete = index.retire(old, new, {}, '2026-11-01')
-    assert retired == {'u.old.mbtiles': '2026-11-01'} and delete == []
-    retired, delete = index.retire(new, new, retired, '2026-11-15')
-    assert retired == {} and delete == ['u.old.mbtiles']
+    old = {'units': [{'region': 'test', 'url': 'https://x/u.old.mbtiles'}]}
+    new = {'units': [{'region': 'test', 'url': 'https://x/u.new.mbtiles'}]}
+    released = {'u.old.mbtiles', 'u.new.mbtiles'}
+    retired, delete = index.retire(old, new, {}, '2026-11-01T23:59:00+00:00', 'test', released)
+    assert retired == {'u.old.mbtiles': {'region': 'test', 'since': '2026-11-01T23:59:00+00:00'}} and delete == []
+    retired, delete = index.retire(new, new, retired, '2026-11-15T23:58:00+00:00', 'test', released)
+    assert delete == []
+    retired, delete = index.retire(new, new, retired, '2026-11-15T23:59:00+00:00', 'test', released)
+    assert delete == ['u.old.mbtiles']
+    assert 'u.old.mbtiles' in retired  # until the release no longer holds it
+
+
+def test_a_retired_asset_leaves_the_ledger_once_deleted():
+    retired = {
+        'u.old.mbtiles': {'region': 'test', 'since': '2026-11-01T00:00:00+00:00'},
+        'v.old.mbtiles': {'region': 'other', 'since': '2026-11-01T00:00:00+00:00'},
+    }
+    new = {'units': []}
+    retired, delete = index.retire(new, new, retired, '2026-12-01T00:00:00+00:00', 'test', set())
+    assert list(retired) == ['v.old.mbtiles'] and delete == []
