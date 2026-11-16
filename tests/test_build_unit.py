@@ -53,3 +53,13 @@ def test_a_unit_thins_its_soundings_as_a_bigger_area_would():
     mine = a.owns(lon, lat)
     alone = thin_soundings(lon[mine], lat[mine], z[mine], 15)
     assert np.array_equal(together[mine], alone)
+
+
+def test_write_layers_replaces_only_its_own_layers(tmp_path):
+    from odc.build_unit import write_layers
+
+    (tmp_path / 'SOUNDG.geojson').write_text('{}')
+    (tmp_path / 'structures.geojson').write_text('{}')
+    write_layers(str(tmp_path), {}, {'SOUNDG': 129}, Unit(492, 288))
+    assert not (tmp_path / 'SOUNDG.geojson').exists()
+    assert (tmp_path / 'structures.geojson').exists()

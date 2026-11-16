@@ -1192,8 +1192,10 @@ PRIM = {ogr.wkbPoint: 1, ogr.wkbLineString: 2, ogr.wkbPolygon: 3}
 
 def write_layers(out_dir, layers, classes, unit):
     os.makedirs(out_dir, exist_ok=True)
-    for stale in glob.glob(os.path.join(out_dir, '*.geojson')):  # tiling takes every layer file
-        os.remove(stale)
+    for objl in classes:  # a layer of an earlier build would be tiled again
+        stale = os.path.join(out_dir, f'{objl}.geojson')
+        if os.path.exists(stale):
+            os.remove(stale)
     rcid = 0
     summary = {}
     for objl, items in sorted(layers.items()):
