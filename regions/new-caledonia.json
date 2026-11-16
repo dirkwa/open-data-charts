@@ -1,0 +1,6 @@
+{
+  "id": "new-caledonia",
+  "name": "New Caledonia",
+  "bbox": [158.0, -26.0, 172.0, -17.0],
+  "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"]
+}

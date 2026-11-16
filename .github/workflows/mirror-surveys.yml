@@ -1,0 +1,116 @@
+name: Mirror surveys
+
+# Keeps every Shom survey of the configured regions reduced to the global
+# grid, as assets of the draft release "mirror" (reachable by CI, not listed
+# publicly). Only surveys that are new, or whose source md5 changed, are
+# downloaded; a run that stops halfway keeps the assets it uploaded.
+
+on:
+  schedule:
+    - cron: '17 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror-surveys
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  MIRROR_TAG: mirror
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Make sure the draft release exists
+        run: |
+          gh release view "$MIRROR_TAG" >/dev/null 2>&1 ||
+            gh release create "$MIRROR_TAG" --draft --title 'Survey mirror (internal)' \
+              --notes 'Reduced Shom surveys for the unit builds. Not a chart release.'
+      - name: List mirrored assets
+        run: bash .github/scripts/mirror-assets.sh > assets.json
+      - name: Plan
+        id: plan
+        run: |
+          mkdir -p work && chmod 777 work
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
+            odc-builder python3 -m odc.mirror plan regions assets.json work
+          cat github-output >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mirror-plan
+          path: work
+
+  reduce:
+    needs: plan
+    if: needs.plan.outputs.shards != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mirror-plan
+          path: work
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Download and reduce
+        run: |
+          mkdir -p reduced && chmod 777 reduced
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.mirror reduce "work/shards/${{ matrix.shard }}.json" reduced
+      - name: Upload what was reduced
+        if: always()
+        run: |
+          shopt -s nullglob
+          files=(reduced/*.npz)
+          if [ ${#files[@]} -gt 0 ]; then gh release upload "$MIRROR_TAG" "${files[@]}" --clobber; fi
+
+  index:
+    needs: [plan, reduce]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mirror-plan
+          path: work
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Write the mirror index
+        id: index
+        run: |
+          bash .github/scripts/mirror-assets.sh > assets.json
+          # Only a missing index means a first run; a failed download must stop
+          # the run, or the guard against a short discovery has nothing to compare.
+          old=-
+          if jq -e 'any(.[]; .name == "mirror-index.json")' assets.json >/dev/null; then
+            gh release download "$MIRROR_TAG" -p mirror-index.json -D old
+            old=old/mirror-index.json
+          fi
+          mkdir -p out && chmod 777 out
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
+            odc-builder python3 -m odc.mirror index work assets.json "$old" out
+          cat github-output >> "$GITHUB_OUTPUT"
+      - name: Publish the index
+        if: steps.index.outputs.changed == 'true'
+        run: gh release upload "$MIRROR_TAG" out/mirror-index.json out/footprints.geojson --clobber
+      - name: Remove superseded surveys
+        run: |
+          for name in $(jq -r '.[]' out/stale-assets.json); do
+            gh release delete-asset "$MIRROR_TAG" "$name" --yes
+          done
