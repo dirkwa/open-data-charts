@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+# Downloads, intermediate files and built charts never go in git.
+work/
+raw/
+build/
+out/
+*.mbtiles
+*.7z

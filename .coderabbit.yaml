@@ -1,0 +1,11 @@
+language: en-US
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+  pre_merge_checks:
+    # The docstring coverage check conflicts with AGENTS.md: code explains
+    # itself, comments only say what names and types cannot.
+    docstrings:
+      mode: 'off'
