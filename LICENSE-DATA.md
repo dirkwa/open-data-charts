@@ -5,6 +5,15 @@ sources below. Each chart's MBTiles metadata (`attribution`) repeats the
 attribution of the sources it uses. The code in this repository is licensed
 separately (Apache-2.0, see `LICENSE`).
 
+## Licence of the published charts
+
+Each published chart unit is a database derived from OpenStreetMap among
+other sources, so every unit file is made available as a whole under the
+Open Database License (ODbL) 1.0
+(<https://opendatacommons.org/licenses/odbl/1-0/>). The attribution of every
+source below still applies and travels with each file. A chart built on the
+boat by combining units is a derived database under the same terms.
+
 **Not for navigation.** None of these sources is a certified nautical chart,
 and neither are the charts built from them.
 
