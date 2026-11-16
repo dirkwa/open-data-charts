@@ -15,11 +15,10 @@ import tempfile
 
 from osgeo import gdal
 
+from odc.grid import MAX_ZOOM
 from odc.tile import set_metadata
 
 gdal.UseExceptions()
-
-MAXZOOM = 15
 
 
 def dem_mosaic(inputs, work):
@@ -48,7 +47,7 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
         '--surveys',
         mirror_index,
         '--maxzoom',
-        str(MAXZOOM),
+        str(MAX_ZOOM),
         '--work',
         work,
         '--out',
@@ -72,7 +71,7 @@ def run_unit(inputs, surveys_dir, mirror_index, unit_id, version, out):
         subprocess.run(build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson), check=True)
         mbtiles = os.path.join(out, f'{unit_id}.{version}.mbtiles')
         name = f'Open Data Charts {unit_id} (not for navigation)'
-        subprocess.run([sys.executable, '-m', 'odc.tile', geojson, mbtiles, unit_id, name, str(MAXZOOM)], check=True)
+        subprocess.run([sys.executable, '-m', 'odc.tile', geojson, mbtiles, unit_id, name, str(MAX_ZOOM)], check=True)
         set_metadata(mbtiles, {'x-odc-version': version})
         shutil.copy(os.path.join(geojson, 'unit.json'), os.path.join(out, f'{unit_id}.json'))
 

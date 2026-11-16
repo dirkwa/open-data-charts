@@ -17,7 +17,7 @@ import sqlite3
 import subprocess
 import sys
 
-from odc.grid import UNIT_ZOOM, Unit
+from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
 
 DESCRIPTION = (
     'Built from open data: Shom (WFS layers, bathymetric surveys, bathymetric model; depths in m '
@@ -97,7 +97,7 @@ def keep_unit_tiles(path, unit):
 
 def main():
     geojson_dir, out, unit_id, name = sys.argv[1:5]
-    maxzoom = int(sys.argv[5]) if len(sys.argv) > 5 else 15
+    maxzoom = int(sys.argv[5]) if len(sys.argv) > 5 else MAX_ZOOM
     unit = Unit.parse(unit_id)
     subprocess.run(tippecanoe_args(geojson_dir, out, unit, name, maxzoom), check=True)
     keep_unit_tiles(out, unit)

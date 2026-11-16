@@ -25,8 +25,9 @@ say so.
 ## Units
 
 A unit is the z9 Web-Mercator tile `x`, `y` (XYZ scheme, y from the north),
-about 0.7° wide. Its MBTiles holds tiles z9 to `maxzoom` (15 today) that all
-lie inside that tile, so no tile at z ≥ 9 belongs to two units. A chart set
+about 0.7° wide. Its MBTiles holds tiles z9 to `maxzoom` (17 for every
+unit; a set never mixes max zooms, as plotters do not overzoom a missing
+vector tile) that all lie inside that tile, so no tile at z ≥ 9 belongs to two units. A chart set
 on the boat is the union of its units' `tiles` rows, plus the region
 overview's rows for z < 9 when the index has one. Serve a set as that one chart, not as
 one chart per unit: a renderer draws a label from the tile that holds its
@@ -69,7 +70,7 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
       "size": 34567890,                       // bytes
       "sha256": "…",                          // of the file at url
       "minzoom": 9,
-      "maxzoom": 15,
+      "maxzoom": 17,
       "built": "2026-12-01",
       "quality": {
         "best": "multibeam",
