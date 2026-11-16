@@ -658,14 +658,15 @@ def build_depths(depth_grid, box, water, land_cells):
             continue
         tiles.append((win, window, water_tile, water_tile.GetArea() >= window.GetArea() * (1 - 1e-9)))
 
-    for win, _window, water_tile, all_water in tiles:
+    for win, window, water_tile, all_water in tiles:
         tile = gdal.Translate('', ds, format='MEM', srcWin=win)
         mem, layer = contour_layer(tile, polygonize=True)
         for feat in layer:
             zmin, zmax = feat.GetField('ZMIN'), feat.GetField('ZMAX')
             geom = simplified(feat.GetGeometryRef())
-            if not all_water:
-                geom = geom.Intersection(water_tile)
+            # Contour polygons reach the window's outer cell edges, half a
+            # cell past its box: clip to the box so neighbours do not overlap.
+            geom = geom.Intersection(window if all_water else water_tile)
             if zmin >= 0:  # above chart datum but outside OSM land: drying
                 drval1, drval2 = DRYING_DRVAL1, 0.0
             else:
@@ -1110,6 +1111,17 @@ def parse_height(value):
         return None
 
 
+def relief_bounds(bbox):
+    """bbox grown to the global relief grid, so neighbours average the same cells."""
+    minlon, minlat, maxlon, maxlat = (v / RELIEF_CELL_DEG for v in bbox)
+    return (
+        math.floor(round(minlon, 6)) * RELIEF_CELL_DEG,
+        math.floor(round(minlat, 6)) * RELIEF_CELL_DEG,
+        math.ceil(round(maxlon, 6)) * RELIEF_CELL_DEG,
+        math.ceil(round(maxlat, 6)) * RELIEF_CELL_DEG,
+    )
+
+
 def build_relief(dem_paths, peaks_path, bbox, work, bbox_geom):
     """LNDELV: land contours every RELIEF_INTERVAL_M from the Copernicus DEM,
     and spot heights from OSM peaks (name and height)."""
@@ -1119,7 +1131,7 @@ def build_relief(dem_paths, peaks_path, bbox, work, bbox_geom):
         dem = gdal.Warp(
             os.path.join(work, 'relief.tif'),
             vrt,
-            outputBounds=bbox,
+            outputBounds=relief_bounds(bbox),
             xRes=RELIEF_CELL_DEG,
             yRes=RELIEF_CELL_DEG,
             resampleAlg='average',
@@ -1178,8 +1190,10 @@ def explode(geom):
 PRIM = {ogr.wkbPoint: 1, ogr.wkbLineString: 2, ogr.wkbPolygon: 3}
 
 
-def write_layers(out_dir, layers, classes):
+def write_layers(out_dir, layers, classes, unit):
     os.makedirs(out_dir, exist_ok=True)
+    for stale in glob.glob(os.path.join(out_dir, '*.geojson')):  # tiling takes every layer file
+        os.remove(stale)
     rcid = 0
     summary = {}
     for objl, items in sorted(layers.items()):
@@ -1188,6 +1202,8 @@ def write_layers(out_dir, layers, classes):
             attrs = dict(attrs)
             minzoom = attrs.pop('_minzoom', None)
             for part in explode(geom):
+                if ogr.GT_Flatten(part.GetGeometryType()) == ogr.wkbPoint and not unit.owns(part.GetX(), part.GetY()):
+                    continue  # the neighbour unit has it
                 rcid += 1
                 props = {
                     'OBJL': classes[objl],
@@ -1315,7 +1331,7 @@ def main():
         )
 
     step('Write GeoJSON')
-    summary = write_layers(args.out, layers, classes)
+    summary = write_layers(args.out, layers, classes, unit)
     step('done')
     for objl, n in summary.items():
         print(f'{n:7d}  {objl}')
