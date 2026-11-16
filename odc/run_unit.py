@@ -13,9 +13,21 @@ import subprocess
 import sys
 import tempfile
 
+from osgeo import gdal
+
 from odc.tile import set_metadata
 
+gdal.UseExceptions()
+
 MAXZOOM = 15
+
+
+def dem_mosaic(inputs, work):
+    """All of the package's DEM grids as one raster, as odc.units hashes them."""
+    os.makedirs(work, exist_ok=True)
+    path = os.path.join(work, 'dem.vrt')
+    gdal.BuildVRT(path, sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc'))))
+    return path
 
 
 def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
@@ -30,7 +42,7 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
         '--land',
         os.path.join(inputs, 'land.gpkg'),
         '--dem',
-        sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc')))[0],
+        dem_mosaic(inputs, work),
         '--leves',
         surveys_dir,
         '--surveys',

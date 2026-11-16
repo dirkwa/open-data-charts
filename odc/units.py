@@ -127,6 +127,8 @@ def add_raster_windows(digests, label, paths):
         x0, dx, _, y0, _, dy = ds.GetGeoTransform()
         band = ds.GetRasterBand(1)
         name = os.path.basename(path)
+        # How the builder reads the samples is part of the window.
+        reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()}'
         for unit_id, (minlon, minlat, maxlon, maxlat) in digests.boxes.items():
             c0 = max(0, int(np.floor((minlon - x0) / dx)))
             c1 = min(ds.RasterXSize, int(np.ceil((maxlon - x0) / dx)))
@@ -135,13 +137,15 @@ def add_raster_windows(digests, label, paths):
             if c1 <= c0 or r1 <= r0:
                 continue
             window = band.ReadAsArray(c0, r0, c1 - c0, r1 - r0)
-            digest = hashlib.sha256(window.tobytes()).hexdigest()
+            digest = hashlib.sha256(f'{reading} {window.dtype}'.encode() + window.tobytes()).hexdigest()
             digests.parts[unit_id].append(f'{label} {name} {c0} {r0} {digest}')
 
 
 def add_surveys(digests, mirror_index):
     for name, survey in mirror_index['surveys'].items():
-        digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]}')
+        # start, end and tecsou set the survey's priority and quality category.
+        meta = canonical({k: survey.get(k) for k in ('start', 'end', 'tecsou')})
+        digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 
 
 def unit_versions(units, inputs, mirror_index, builder):
