@@ -290,7 +290,10 @@ def load_surveys(surveys, box):
 
 
 def build_depth_grid(dem_filled, bbox, work, survey_depth):
-    """Merge surveys and DEM into one z-negative grid for contouring."""
+    """Merge surveys and DEM into one z-negative grid for contouring.
+
+    Returns the grid's path and the cells whose depth came from a survey,
+    measured or interpolated (None without surveys)."""
     ncols, nrows, gt = chart_grid(bbox)
     dem_path = os.path.join(work, 'dem_grid.tif')
     gdal.Warp(
@@ -306,6 +309,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
     dem = gdal.Open(dem_path).ReadAsArray()
     final = np.where(dem == NODATA, np.nan, -dem).astype(np.float32)  # depth, down positive
     del dem
+    from_survey = None
     if survey_depth is not None:
         measured = np.isfinite(survey_depth)
         ds = mem_raster(np.where(measured, survey_depth, NODATA).astype(np.float32), gt)
@@ -325,6 +329,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
         use = gap & ~dem_shoaler
         final[use] = interp[use]
         final[measured] = survey_depth[measured]
+        from_survey = measured | use
         print(
             f'  cells: {int(measured.sum())} measured, {int(use.sum())} interpolated, '
             f'{int((gap & dem_shoaler).sum())} DEM shoaler than interpolation'
@@ -362,7 +367,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
     out = os.path.join(work, 'depth_grid.tif')
     z = np.where(np.isfinite(final), -final, NODATA).astype(np.float32)
     gdal.Translate(out, mem_raster(z, gt), creationOptions=['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES'])
-    return out
+    return out, from_survey
 
 
 def land_mask(land, bbox):
@@ -1054,13 +1059,15 @@ def quality_category(meta):
     return 'survey-recent' if end >= 19900101 else 'survey-old'
 
 
-def depth_quality(entries, rank, land_cells, box, unit):
+def depth_quality(entries, rank, from_survey, land_cells, box, unit):
     """Share of the unit's water by where its depths come from (see
-    docs/index-format.md), and the ranks of the surveys inside the unit.
+    docs/index-format.md), and the ranks of the surveys that reach the unit.
 
-    A survey covers the cells it sounded and, like the interpolation of the
-    depth grid, INTERP_CELLS around them; each cell counts for the best
-    category covering it."""
+    A survey covers the cells it sounded and the cells the depth grid
+    interpolated from it (INTERP_CELLS around them, where the model did not
+    reject the interpolation); each cell counts for the best category
+    covering it. A survey reaches the unit when it sounded a cell within
+    INTERP_CELLS of it."""
     cells = unit.cells
     rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
     cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
@@ -1073,7 +1080,7 @@ def depth_quality(entries, rank, land_cells, box, unit):
     share = {}
     for category in QUALITY_ORDER[:-1]:
         mask = np.isin(rank, np.flatnonzero(categories == category))
-        covered = dilate(mask, INTERP_CELLS)[rows, cols] & water & ~taken
+        covered = dilate(mask, INTERP_CELLS)[rows, cols] & from_survey[rows, cols] & water & ~taken
         taken |= covered
         share[category] = int(covered.sum())
     share['model'] = total - int(taken.sum())
@@ -1081,8 +1088,11 @@ def depth_quality(entries, rank, land_cells, box, unit):
         return None, []
     share = {k: round(v / total, 3) for k, v in share.items() if v}
     best = next(c for c in QUALITY_ORDER if c in share)
-    in_unit = rank[rows, cols]
-    used = [int(r) for r in np.unique(in_unit[(in_unit >= 0) & water])]
+    near = rank[
+        max(0, rows.start - INTERP_CELLS) : rows.stop + INTERP_CELLS,
+        max(0, cols.start - INTERP_CELLS) : cols.stop + INTERP_CELLS,
+    ]
+    used = [int(r) for r in np.unique(near[near >= 0])]
     return {'best': best, 'share': share}, used
 
 
@@ -1166,11 +1176,12 @@ def main():
         step('Surveys: composite, newest on top')
         entries, survey_depth, rank = load_surveys(survey_inputs(args.leves, args.surveys, box), box)
     step('Depth grid: surveys + DEM')
-    depth_grid = build_depth_grid(filled, args.bbox, args.work, survey_depth)
+    depth_grid, from_survey = build_depth_grid(filled, args.bbox, args.work, survey_depth)
     del survey_depth
     land_cells = land_mask(land, args.bbox)
     soundings = []
-    quality, used = depth_quality(entries, rank, land_cells, box, unit)
+    quality, used = depth_quality(entries, rank, from_survey, land_cells, box, unit)
+    del from_survey
     if entries:
         step('Soundings')
         soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom)
