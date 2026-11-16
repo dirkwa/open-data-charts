@@ -8,8 +8,8 @@ unit.json) for every unit the plan built. <old site dir> holds what Pages
 serves now (any file may be missing on the first run). <mirror dir> holds the mirror's
 mirror-index.json and footprints.geojson. <released.json> lists the asset
 names in the region's release now. Writes open-data-index.json,
-coverage.geojson, retired.json (asset name -> region and the time it left
-the index) and delete-assets.json (the region's retired assets past the
+coverage.geojson, retired.json (asset name -> region and the time the
+served index stopped listing it) and delete-assets.json (the region's retired assets past the
 grace period).
 """
 
@@ -145,22 +145,29 @@ def build_index(region, plan, built_dir, old, today):
 def retire(old, index, retired, now, region_id, released):
     """The retirement ledger and this region's assets past the grace period.
 
-    The ledger names each asset the index no longer lists, with its region
-    and the time it left the index. An entry stays until its asset is gone
-    from the region's release (`released`), so a failed deletion is retried
-    by the next run."""
+    `old` is the index Pages serves now. An asset this run drops is still
+    listed there until the new index is deployed, so its entry starts
+    without a time; a later run that no longer finds it in the served index
+    starts the grace period. An entry stays until its asset is gone from the
+    region's release (`released`), so a failed deletion is retried."""
     current = {u['url'].rsplit('/', 1)[1] for u in index['units']}
-    ledger = {name: entry for name, entry in (retired or {}).items() if name not in current}
+    served = {u['url'].rsplit('/', 1)[1] for u in (old or {}).get('units', [])}
+    ledger = {name: dict(entry) for name, entry in (retired or {}).items() if name not in current}
     for unit in (old or {}).get('units', []):
         name = unit['url'].rsplit('/', 1)[1]
         if name not in current:
-            ledger.setdefault(name, {'region': unit['region'], 'since': now})
+            ledger.setdefault(name, {'region': unit['region'], 'since': None})
+    for name, entry in ledger.items():
+        if entry['since'] is None and name not in served:
+            entry['since'] = now
     ledger = {name: entry for name, entry in ledger.items() if entry['region'] != region_id or name in released}
     cutoff = datetime.fromisoformat(now) - timedelta(days=GRACE_DAYS)
     delete = sorted(
         name
         for name, entry in ledger.items()
-        if entry['region'] == region_id and datetime.fromisoformat(entry['since']) <= cutoff
+        if entry['region'] == region_id
+        and entry['since'] is not None
+        and datetime.fromisoformat(entry['since']) <= cutoff
     )
     return dict(sorted(ledger.items())), delete
 

@@ -61,15 +61,17 @@ def test_unchanged_index_keeps_generated_time():
     assert second['generated'] == first['generated']
 
 
-def test_replaced_assets_are_deleted_after_the_grace_period():
+def test_replaced_assets_are_deleted_14_days_after_the_served_index_dropped_them():
     old = {'units': [{'region': 'test', 'url': 'https://x/u.old.mbtiles'}]}
     new = {'units': [{'region': 'test', 'url': 'https://x/u.new.mbtiles'}]}
     released = {'u.old.mbtiles', 'u.new.mbtiles'}
     retired, delete = index.retire(old, new, {}, '2026-11-01T23:59:00+00:00', 'test', released)
-    assert retired == {'u.old.mbtiles': {'region': 'test', 'since': '2026-11-01T23:59:00+00:00'}} and delete == []
-    retired, delete = index.retire(new, new, retired, '2026-11-15T23:58:00+00:00', 'test', released)
+    assert retired == {'u.old.mbtiles': {'region': 'test', 'since': None}} and delete == []
+    retired, delete = index.retire(new, new, retired, '2026-11-08T12:00:00+00:00', 'test', released)
+    assert retired['u.old.mbtiles']['since'] == '2026-11-08T12:00:00+00:00' and delete == []
+    retired, delete = index.retire(new, new, retired, '2026-11-22T11:59:00+00:00', 'test', released)
     assert delete == []
-    retired, delete = index.retire(new, new, retired, '2026-11-15T23:59:00+00:00', 'test', released)
+    retired, delete = index.retire(new, new, retired, '2026-11-22T12:00:00+00:00', 'test', released)
     assert delete == ['u.old.mbtiles']
     assert 'u.old.mbtiles' in retired  # until the release no longer holds it
 

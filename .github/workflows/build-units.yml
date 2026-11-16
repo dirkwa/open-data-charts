@@ -57,7 +57,7 @@ jobs:
           # Only a 404 means the site has no such file yet; any other failure
           # stops the run, or it would plan and publish from empty state.
           mkdir -p old
-          for f in open-data-index.json retired.json coverage.geojson; do
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
             status=$(curl -sSL --retry 3 -o "old/$f" -w '%{http_code}' "$PAGES_URL/$f")
             case "$status" in
               200) ;;
@@ -164,7 +164,7 @@ jobs:
             odc-builder python3 -m odc.index "regions/$REGION.json" plan.json built old mirror released.json site
           cp schema/open-data-index.schema.json site/
           changed=false
-          for f in open-data-index.json retired.json coverage.geojson; do
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
             cmp -s "site/$f" "old/$f" || changed=true
           done
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
