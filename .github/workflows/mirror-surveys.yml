@@ -95,8 +95,13 @@ jobs:
         id: index
         run: |
           bash .github/scripts/mirror-assets.sh > assets.json
+          # Only a missing index means a first run; a failed download must stop
+          # the run, or the guard against a short discovery has nothing to compare.
           old=-
-          if gh release download "$MIRROR_TAG" -p mirror-index.json -D old 2>/dev/null; then old=old/mirror-index.json; fi
+          if jq -e 'any(.[]; .name == "mirror-index.json")' assets.json >/dev/null; then
+            gh release download "$MIRROR_TAG" -p mirror-index.json -D old
+            old=old/mirror-index.json
+          fi
           mkdir -p out && chmod 777 out
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
             odc-builder python3 -m odc.mirror index work assets.json "$old" out
