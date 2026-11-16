@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -32,8 +33,9 @@ def get(url, timeout=120, tries=4, headers=None):
         try:
             request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT, **(headers or {})})
             return urllib.request.urlopen(request, timeout=timeout)
-        except Exception:
-            if attempt == tries - 1:
+        except Exception as error:
+            client_error = isinstance(error, urllib.error.HTTPError) and 400 <= error.code < 500 and error.code != 429
+            if client_error or attempt == tries - 1:
                 raise
             time.sleep(5 * (attempt + 1))
 

@@ -1,6 +1,38 @@
 {
   "id": "new-caledonia",
   "name": "New Caledonia",
-  "bbox": [158.0, -26.0, 172.0, -17.0],
-  "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"]
+  "bbox": [
+    162.4,
+    -24.6,
+    169.3,
+    -17.0
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-ird-dem",
+    "osm",
+    "nc-reefs",
+    "nc-oblic",
+    "copernicus"
+  ],
+  "dem": {
+    "group": "MNT_NC100m_PACK_DL",
+    "prepackage": "MNT_FACADE_NOUVELLE-CALEDONIE_PBMA"
+  },
+  "osm": [
+    "https://download.geofabrik.de/australia-oceania/new-caledonia-latest.osm.pbf",
+    "https://download.openstreetmap.fr/extracts/oceania/new_caledonia-latest.osm.pbf"
+  ],
+  "arcgis": [
+    {
+      "file": "nc/reefs.geojson",
+      "url": "https://services1.arcgis.com/TZcrgU6CIbqWt9Qv/arcgis/rest/services/geomorphologie_recifs/FeatureServer/0"
+    },
+    {
+      "file": "nc/structures.geojson",
+      "url": "https://services1.arcgis.com/TZcrgU6CIbqWt9Qv/arcgis/rest/services/evolution_littoral_noumea/FeatureServer/0",
+      "where": "annee='2016'"
+    }
+  ]
 }
