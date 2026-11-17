@@ -28,9 +28,10 @@ Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and
 Saint-Barthélemy, French Guiana and Saint-Pierre and Miquelon. Each is built
 from Shom's surveys, seamarks and, where Shom publishes one, its bathymetric
 model of the coast, together with OpenStreetMap and the Copernicus DEM.
-Corsica takes its model from EMODnet, since Shom publishes Corsica's only as
-BAG, which the builder cannot read. New Caledonia adds the Gouvernement de
-la Nouvelle-Calédonie's reef map and coastal structures.
+Shom publishes Corsica's model on mean sea level rather than on the lowest
+astronomical tide; the tide there ranges over a few tens of centimetres.
+New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and
+coastal structures.
 
 The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
 come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no

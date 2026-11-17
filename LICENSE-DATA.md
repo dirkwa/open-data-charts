@@ -36,7 +36,9 @@ and neither are the charts built from them.
   the models it uses and their attribution, for example "Shom 2016, MNT
   bathymétrique de façade de La Réunion (Projet Homonim),
   doi:10.17183/MNT_REU100m_HOMONIM_WGS84". Every unit's attribution lists
-  the models of its region.
+  the models of its region. Corsica's model is the one Shom publishes on
+  mean sea level (`_NM`); its lowest-astronomical-tide version comes only
+  as BAG, which the builder cannot read.
 
 The scanned Shom paper charts (RasterMarine) are under a commercial licence
 and are not used.
@@ -48,8 +50,7 @@ EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8
 and is owned by the EU and licensed under the Creative Commons Attribution
 4.0 International (CC BY 4.0) license." Use limitation: do not use for
 navigation. Used as the bathymetric model of the regions whose file asks
-for it (`"dem": [{"source": "emodnet"}]`): outside Shom's coverage, and in
-Corsica.
+for it (`"dem": [{"source": "emodnet"}]`), outside Shom's coverage.
 
 ## Gouvernement de la Nouvelle-Calédonie
 

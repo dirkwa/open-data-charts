@@ -10,13 +10,14 @@
   "sources": [
     "shom-wfs",
     "shom-surveys",
-    "emodnet-dtm",
+    "shom-dem",
     "osm",
     "copernicus"
   ],
   "dem": [
     {
-      "source": "emodnet"
+      "group": "MNT_MED100m_CORSE_HOMONIM_PBMA_4326_PACK_DL",
+      "prepackage": "MNT_FACADE_CORSE_HOMONIM_NM"
     }
   ],
   "osm": [
@@ -26,6 +27,6 @@
     ]
   ],
   "attribution": [
-    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+    "Shom 2015, MNT bathymetrique de facade de Corse (Projet Homonim), doi:10.17183/MNT_MED100m_CORSE_HOMONIM_WGS84"
   ]
 }
