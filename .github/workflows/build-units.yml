@@ -3,7 +3,8 @@ name: Build units
 # Rebuilds the units of a region whose inputs changed (odc.units), uploads
 # them to the release units-<region> and republishes the index on Pages.
 # The daily run takes the regions in turn, one a day. Runs share one index,
-# so they never overlap (concurrency below). A region whose surveys are not
+# and the mirror run deletes superseded survey assets a build may be about
+# to download, so builds and mirror runs never overlap (concurrency below). A region whose surveys are not
 # in the mirror yet is skipped, so its first units are not built without
 # them. Publishing runs only while the repository variable ODC_PUBLISH is
 # 'true', or when a manual run asks for it; otherwise the built units stay
@@ -28,7 +29,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: build-units
+  group: mirror-and-units
   cancel-in-progress: false
 
 env:

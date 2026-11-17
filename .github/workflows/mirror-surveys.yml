@@ -13,8 +13,10 @@ on:
 permissions:
   contents: write
 
+# Shared with build-units.yml: a build must not read survey assets this run
+# replaces.
 concurrency:
-  group: mirror-surveys
+  group: mirror-and-units
   cancel-in-progress: false
 
 env:
