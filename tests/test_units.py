@@ -195,3 +195,32 @@ def test_a_change_in_the_dem_fill_margin_changes_the_unit(tmp_path):
     grid = None
     after = units.unit_versions([A], str(tmp_path), {'surveys': {}}, 'b', 'x')
     assert before[A.id] != after[A.id]
+
+
+def reef(lon, lat, cls='Reef Crest'):
+    ring = [[lon, lat], [lon + 0.001, lat], [lon + 0.001, lat + 0.001], [lon, lat]]
+    return json.dumps(
+        {'type': 'Feature', 'properties': {'class_name': cls}, 'geometry': {'type': 'Polygon', 'coordinates': [ring]}}
+    )
+
+
+def aca_versions(tmp_path, squares):
+    aca = tmp_path / 'aca'
+    aca.mkdir(exist_ok=True)
+    for old in aca.iterdir():
+        old.unlink()
+    for name, lines in squares.items():
+        (aca / name).write_text(''.join(line + '\n' for line in lines))
+    digests = units.Digests([A, B])
+    units.add_aca(digests, sorted(str(p) for p in aca.iterdir()))
+    return digests.versions()
+
+
+def test_a_reef_seen_from_two_squares_counts_once(tmp_path):
+    crest = reef(166.2, -22.3)
+    before = aca_versions(tmp_path, {'reefs_-23_+166.geojsonseq': [crest]})
+    assert (
+        aca_versions(tmp_path, {'reefs_-23_+166.geojsonseq': [crest], 'reefs_-23_+165.geojsonseq': [crest]}) == before
+    )
+    changed = aca_versions(tmp_path, {'reefs_-23_+166.geojsonseq': [reef(166.2, -22.3, 'Inner Reef Flat')]})
+    assert changed[A.id] != before[A.id]

@@ -1,16 +1,22 @@
+import json
+
 import numpy as np
 import pytest
 
 pytest.importorskip('osgeo')
+from osgeo import ogr  # noqa: E402
 
 from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     ETOPO_PIXEL_DEG,
     GRID_STEP,
     SOUNDING_MINZOOM,
+    bbox_polygon,
+    build_reefs,
     deep_water,
     depth_quality,
     dilate_disk,
+    linestring,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -163,3 +169,73 @@ def test_deep_water_counts_as_coarse_model():
     from_deep = np.ones_like(land)
     quality, _ = depth_quality([], None, None, np.zeros_like(land), land, box, unit, from_deep)
     assert quality == {'best': 'model-coarse', 'share': {'model-coarse': 1.0}}
+
+
+def square(x, y, size=0.001):
+    return {'type': 'Polygon', 'coordinates': [[[x, y], [x + size, y], [x + size, y + size], [x, y + size], [x, y]]]}
+
+
+def write_aca(tmp_path, features, name='reefs_-17_-145.geojsonseq'):
+    aca = tmp_path / 'aca'
+    aca.mkdir(exist_ok=True)
+    with open(aca / name, 'a', encoding='utf-8') as fh:
+        for fid, cls, geometry in features:
+            fh.write(
+                json.dumps({'type': 'Feature', 'id': fid, 'properties': {'class_name': cls}, 'geometry': geometry})
+            )
+            fh.write('\n')
+    return str(aca)
+
+
+def test_coral_atlas_reefs_merge_per_class_and_count_once(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    crest = [('a', 'Reef Crest', square(-144.85, -16.85)), ('b', 'Reef Crest', square(-144.849, -16.85))]
+    aca = write_aca(tmp_path, [*crest, ('c', 'Deep Lagoon', square(-144.86, -16.86))])
+    write_aca(tmp_path, crest[:1], 'reefs_-17_-146.geojsonseq')  # the same feature seen from a neighbouring square
+    items = build_reefs(None, aca, [], [], box)
+    assert len(items) == 1
+    geom, attrs, _ = items[0]
+    assert attrs['WATLEV'] == '4' and attrs['INFORM'].startswith('Reef Crest: Allen Coral Atlas')
+    assert abs(geom.GetArea() - 2e-6) < 1e-8
+
+
+def test_the_reef_map_wins_over_the_coral_atlas(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    aca = write_aca(tmp_path, [('a', 'Inner Reef Flat', square(-144.85, -16.85, 0.002))])
+    reef_map = tmp_path / 'reefs.geojson'
+    mapped = {'reef': 1, 'l4_attrib': 'reef flat', 'rb_attrib': 'x'}
+    reef_map.write_text(
+        json.dumps({'features': [{'type': 'Feature', 'properties': mapped, 'geometry': square(-144.85, -16.85)}]})
+    )
+    items = build_reefs(str(reef_map), aca, [], [], box)
+    areas = sorted((a['INFORM'].split(':')[0], round(g.GetArea() * 1e6, 3)) for g, a, _ in items)
+    assert areas == [('Inner Reef Flat', 3.0), ('reef flat, x', 1.0)]
+
+
+def test_an_osm_reef_keeps_only_what_the_maps_leave_out(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    aca = write_aca(tmp_path, [('a', 'Inner Reef Flat', square(-144.85, -16.85, 0.002))])
+    long_reef = {
+        'type': 'Polygon',
+        'coordinates': [
+            [[-144.85, -16.85], [-144.84, -16.85], [-144.84, -16.848], [-144.85, -16.848], [-144.85, -16.85]]
+        ],
+    }
+    covered = square(-144.8495, -16.8495)
+    osm = [
+        (ogr.CreateGeometryFromJson(json.dumps(g)), {'OBJNAM': n})
+        for n, g in (('long', long_reef), ('covered', covered))
+    ]
+    items = build_reefs(None, aca, osm, [], box)
+    kept = [(a['OBJNAM'], round(g.GetArea() * 1e6, 3)) for g, a, _ in items if 'OBJNAM' in a]
+    assert kept == [('long', round((0.01 - 0.0025) * 0.002 * 1e6, 3))]
+
+
+def test_an_osm_reef_line_keeps_only_what_the_maps_leave_out(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    aca = write_aca(tmp_path, [('a', 'Inner Reef Flat', square(-144.85, -16.85, 0.002))])
+    lines = {'long': [(-144.85, -16.849), (-144.84, -16.849)], 'covered': [(-144.8495, -16.849), (-144.8485, -16.849)]}
+    osm = [(linestring(coords), {'OBJNAM': n}) for n, coords in lines.items()]
+    items = build_reefs(None, aca, osm, [], box)
+    kept = [(a['OBJNAM'], round(g.Length(), 6)) for g, a, _ in items if 'OBJNAM' in a]
+    assert kept == [('long', 0.01 - 0.0025)]

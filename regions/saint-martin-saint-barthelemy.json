@@ -11,6 +11,7 @@
     "shom-wfs",
     "shom-surveys",
     "shom-dem",
+    "allen-coral-atlas",
     "osm",
     "copernicus"
   ],
@@ -29,6 +30,7 @@
     ]
   ],
   "attribution": [
-    "Shom 2018, MNT bathymetrique de facade de Saint-Martin et Saint-Barthelemy (Projet Homonim), doi:10.17183/MNT_ANTN100m_HOMONIM_WGS84"
+    "Shom 2018, MNT bathymetrique de facade de Saint-Martin et Saint-Barthelemy (Projet Homonim), doi:10.17183/MNT_ANTN100m_HOMONIM_WGS84",
+    "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"
   ]
 }

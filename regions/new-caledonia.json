@@ -11,6 +11,7 @@
     "shom-wfs",
     "shom-surveys",
     "shom-ird-dem",
+    "allen-coral-atlas",
     "osm",
     "nc-reefs",
     "nc-oblic",
@@ -41,6 +42,7 @@
   ],
   "attribution": [
     "Shom-IRD 2021 doi:10.17183/MNT_NC100m_TSUCAL_WGS84",
-    "Gouvernement de la Nouvelle-Caledonie (IRD/DINUM reef geomorphology, DIMENC/OBLIC), Licence Ouverte"
+    "Gouvernement de la Nouvelle-Caledonie (IRD/DINUM reef geomorphology, DIMENC/OBLIC), Licence Ouverte",
+    "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"
   ]
 }

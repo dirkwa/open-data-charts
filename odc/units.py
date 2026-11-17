@@ -141,6 +141,18 @@ def add_geojsonseq(digests, label, path):
             digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
 
 
+def add_aca(digests, paths):
+    """A reef crossing a square's edge is in both squares' files: hashed once."""
+    seen = set()
+    for path in paths:
+        with open(path, encoding='utf-8') as fh:
+            for line in fh:
+                if line not in seen:
+                    seen.add(line)
+                    feature = json.loads(line)
+                    digests.add(shom.bbox_of(feature['geometry']), f'aca {canonical(feature)}')
+
+
 def add_land(digests, path):
     source = ogr.Open(path)  # the layer is only valid while its data source lives
     for feature in source.GetLayer(0):
@@ -197,6 +209,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
+    add_aca(digests, sorted(glob.glob(os.path.join(inputs, 'aca', '*.geojsonseq'))))
     osm_path = os.path.join(inputs, 'osm.geojsonseq')
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)

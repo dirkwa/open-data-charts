@@ -20,6 +20,7 @@ Sources (all open):
   - NOAA NCEI ETOPO 2022 for deep water no other source covers (no use restrictions)
   - Gouvernement de la Nouvelle-Calédonie (Licence Ouverte): reef
     geomorphology (IRD / DINUM) and OBLIC coastal structures 2016 of Nouméa
+  - Allen Coral Atlas reef geomorphology (CC BY 4.0)
 None of it is meant for navigation.
 """
 
@@ -105,6 +106,21 @@ OBLIC_CATSLC = {'Wharf': '6', 'Enrochement': '8', "Cale de mise à l'eau": '13',
 REEF_WATLEV = {'reef flat': '4', 'pass reef flat': '4', 'subtidal reef flat': '3'}
 NATSUR_CORAL = '14'
 REEF_SIMPLIFY_DEG = 0.00004  # ~4 m; the reef map's edges are raster steps
+# Allen Coral Atlas classes charted as reef, mapped from satellite imagery
+# down to about 10-15 m. Flats and crests dry or nearly so; patch reefs,
+# back-reef slopes and shallow lagoons (under about 5 m) are a danger of
+# unknown depth. Deep lagoon and fore-reef slopes are left to the depths.
+ACA_WATLEV = {
+    'Reef Crest': '4',
+    'Outer Reef Flat': '4',
+    'Inner Reef Flat': '4',
+    'Terrestrial Reef Flat': '4',
+    'Microatoll': '4',
+    'Patch Reefs': '3',
+    'Small Reef': '3',
+    'Back Reef Slope': '3',
+    'Shallow Lagoon': '3',
+}
 PIER_MINZOOM = 14  # pontoon/jetty lines would be a smudge below that
 STRUCTURE_MINZOOM = 13
 # Buildings (BUISGL) and land relief (LNDELV) are S-52 display category
@@ -126,6 +142,7 @@ REEF_SRC = (
     'Geomorphologie des recifs (IRD / Gouvernement NC, Licence Ouverte), '
     'mapped from satellite imagery, position approximate'
 )
+ACA_SRC = 'Allen Coral Atlas (CC BY 4.0), mapped from satellite imagery, position approximate'
 
 WRECK_QUASOU = {
     'brassiage minimal connu': '6',  # least depth known
@@ -923,9 +940,40 @@ def minus(geom, index):
     return geom
 
 
-def build_reefs(reef_path, osm_reefs, land_index, bbox_geom):
-    """OBSTRN reef areas: the reef map's reef flats, plus OSM reefs where the
-    reef map has no reef at all. Clipped off the land."""
+def aca_classes(aca_dir, bbox_geom):
+    """The Allen Coral Atlas polygons inside the box, unioned per class."""
+    minx, maxx, miny, maxy = bbox_geom.GetEnvelope()
+    seen, parts = set(), {}
+    for s in range(math.floor(miny), math.ceil(maxy)):
+        for w in range(math.floor(minx), math.ceil(maxx)):
+            path = os.path.join(aca_dir, f'reefs_{s:+03d}_{w:+04d}.geojsonseq')
+            if not os.path.exists(path):
+                continue
+            with open(path, encoding='utf-8') as fh:
+                for line in fh:
+                    if line in seen:
+                        continue
+                    seen.add(line)
+                    f = json.loads(line)
+                    if f['properties']['class_name'] not in ACA_WATLEV:
+                        continue
+                    geom = clip_to(ogr.CreateGeometryFromJson(json.dumps(f['geometry'])), bbox_geom)
+                    if geom is not None:
+                        parts.setdefault(f['properties']['class_name'], []).append(geom)
+    return {name: multipolygon(geoms).UnionCascaded().MakeValid() for name, geoms in sorted(parts.items())}
+
+
+def reef_item(part, watlev, inform):
+    return (part, {'WATLEV': watlev, 'NATSUR': NATSUR_CORAL, 'INFORM': inform}, None)
+
+
+REEF_MATCH_DEG = 0.0005  # ~50 m: an OSM outline this close to a mapped reef is that reef
+
+
+def build_reefs(reef_path, aca_dir, osm_reefs, land_index, bbox_geom):
+    """OBSTRN reef areas: the reef map's reef flats, the Allen Coral Atlas
+    where the reef map has no reef, and OSM reefs where neither has one.
+    Clipped off the land."""
     items, mapped = [], []
     if reef_path:
         for f in json.load(open(reef_path, encoding='utf-8')).get('features', []):
@@ -945,30 +993,44 @@ def build_reefs(reef_path, osm_reefs, land_index, bbox_geom):
                 continue
             for part in polygon_parts(geom):
                 if part.GetArea() >= MIN_AREA_DEG2:
-                    items.append(
-                        (
-                            part,
-                            {
-                                'WATLEV': watlev,
-                                'NATSUR': NATSUR_CORAL,
-                                'INFORM': f'{p["l4_attrib"]}, {p.get("rb_attrib")}: {REEF_SRC}',
-                            },
-                            None,
-                        )
-                    )
-    n_map, n_osm = len(items), 0
+                    items.append(reef_item(part, watlev, f'{p["l4_attrib"]}, {p.get("rb_attrib")}: {REEF_SRC}'))
+    n_map = len(items)
+    reef_map = multipolygon([geom for geom, _ in mapped]).UnionCascaded() if mapped else None
+    for name, geom in aca_classes(aca_dir, bbox_geom).items() if aca_dir else ():
+        if reef_map is not None:
+            geom = geom.Difference(reef_map)
+        mapped += [(part, part.GetEnvelope()) for part in polygon_parts(geom)]
+        geom = minus(geom.SimplifyPreserveTopology(REEF_SIMPLIFY_DEG).MakeValid(), land_index)
+        items += [
+            reef_item(part, ACA_WATLEV[name], f'{name}: {ACA_SRC}')
+            for part in polygon_parts(geom)
+            if part.GetArea() >= MIN_AREA_DEG2
+        ]
+    n_aca, n_osm = len(items) - n_map, 0
     for geom, attrs in osm_reefs:
-        if any(True for _ in overlapping(mapped, geom.Buffer(0.0005))):
-            continue  # the reef map has this reef (within ~50 m)
-        if geom.GetDimension() == 2:
-            geom = minus(geom, land_index)
-            parts = [p for p in polygon_parts(geom) if p.GetArea() >= MIN_AREA_DEG2]
-            if not parts:
-                continue
-            geom = multipolygon(parts)
+        charted, dim = list(overlapping(mapped, geom.Buffer(REEF_MATCH_DEG))), geom.GetDimension()
+        if dim == 0:
+            if charted:
+                continue  # the maps have this reef
+        else:
+            for part in charted:  # keep only what the maps leave out
+                geom = geom.Difference(part.Buffer(REEF_MATCH_DEG))
+            if dim == 2:
+                geom = minus(geom, land_index) if not geom.IsEmpty() else None
+                parts = [p for p in polygon_parts(geom) if p.GetArea() >= MIN_AREA_DEG2]
+                if not parts:
+                    continue
+                geom = multipolygon(parts)
+            else:
+                parts = list(line_parts(geom))
+                if not parts:
+                    continue
+                geom = ogr.Geometry(ogr.wkbMultiLineString)
+                for part in parts:
+                    geom.AddGeometry(part)
         items.append((geom, {**attrs, 'NATSUR': NATSUR_CORAL}, None))
         n_osm += 1
-    print(f'  reefs: {n_map} reef-map areas, {n_osm} OSM reefs the map lacks')
+    print(f'  reefs: {n_map} reef-map areas, {n_aca} Allen Coral Atlas areas, {n_osm} OSM reefs the maps lack')
     return items
 
 
@@ -1259,6 +1321,7 @@ def main():
     ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
     ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
     ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
+    ap.add_argument('--aca-reefs', help='directory of Allen Coral Atlas reef GeoJSONSeq squares (odc.sources)')
     ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
     ap.add_argument('--work', required=True)
     ap.add_argument('--out', required=True)
@@ -1327,10 +1390,11 @@ def main():
     if args.nc_structures:
         step('OBLIC coastal structures')
         layers.setdefault('SLCONS', []).extend(oblic_structures(args.nc_structures, bbox_geom))
-    if args.nc_reefs or osm_reefs:
+    if args.nc_reefs or args.aca_reefs or osm_reefs:
         step('Reefs')
         land_index = tiled_parts(land, args.bbox)
-        layers.setdefault('OBSTRN', []).extend(build_reefs(args.nc_reefs, osm_reefs, land_index, bbox_geom))
+        reefs = build_reefs(args.nc_reefs, args.aca_reefs, osm_reefs, land_index, bbox_geom)
+        layers.setdefault('OBSTRN', []).extend(reefs)
     if osm_items:
         step('Buildings near the sea')
         layers.setdefault('BUISGL', []).extend(osm_buildings(osm_items, land_cells, args.bbox))
