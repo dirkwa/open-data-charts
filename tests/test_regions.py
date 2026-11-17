@@ -17,9 +17,12 @@ def test_every_region_names_its_extracts_and_dems():
         region = load(path)
         assert os.path.basename(path) == f'{region["id"]}.json'
         assert region['osm'] and all(isinstance(alternatives, list) and alternatives for alternatives in region['osm'])
-        for dem in region.get('dem', []):
+        shom_dems = [dem for dem in region.get('dem', []) if dem.get('source') != 'emodnet']
+        for dem in shom_dems:
             assert dem['group'] and dem['prepackage']
-        assert ('shom-dem' in region['sources'] or 'shom-ird-dem' in region['sources']) == bool(region.get('dem'))
+        assert ('shom-dem' in region['sources'] or 'shom-ird-dem' in region['sources']) == bool(shom_dems)
+        emodnet = any(dem.get('source') == 'emodnet' for dem in region.get('dem', []))
+        assert ('emodnet-dtm' in region['sources']) == emodnet
 
 
 def test_no_unit_belongs_to_two_regions():

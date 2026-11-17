@@ -27,8 +27,12 @@ Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana and
 Saint-Pierre and Miquelon. Each is built from Shom's surveys, seamarks and,
 where Shom publishes one, its bathymetric model of the coast, together with
 OpenStreetMap and the Copernicus DEM. New Caledonia adds the Gouvernement de
-la Nouvelle-Calédonie's reef map and coastal structures. Each region is a
-file in `regions/`.
+la Nouvelle-Calédonie's reef map and coastal structures.
+
+The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
+come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no
+soundings), so it can be compared with the official charts there. Each
+region is a file in `regions/`.
 
 ## Using the charts
 

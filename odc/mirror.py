@@ -40,7 +40,9 @@ MIN_KEPT_SHARE = 0.9
 
 
 def load_regions(regions_dir):
-    return [json.load(open(p, encoding='utf-8')) for p in sorted(glob.glob(os.path.join(regions_dir, '*.json')))]
+    """The regions built from Shom surveys."""
+    regions = [json.load(open(p, encoding='utf-8')) for p in sorted(glob.glob(os.path.join(regions_dir, '*.json')))]
+    return [region for region in regions if 'shom-surveys' in region.get('sources', [])]
 
 
 def source_md5(files):

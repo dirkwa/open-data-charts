@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import attribution, build_unit, shom
+from odc import attribution, build_unit, shom, sources
 from odc.grid import Unit, units_in
 
 gdal.UseExceptions()
@@ -65,7 +65,7 @@ def discover(region, inputs):
     Polynesia with a sounding every few miles."""
     land = ogr.Open(os.path.join(inputs, 'land.gpkg'))
     layer = land.GetLayer(0)
-    dems = sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc')))
+    dems = sources.dem_grids(inputs)
     units = []
     for unit in units_in(*region['bbox']):
         area = bounds_polygon(*unit.bounds)
@@ -149,8 +149,8 @@ def add_land(digests, path):
         digests.add((minlon, minlat, maxlon, maxlat), 'land ' + geometry.ExportToWkb().hex())
 
 
-def add_raster_windows(digests, label, paths):
-    """Each unit hashes only the raster window over its build box."""
+def add_raster_windows(digests, label, paths, margin=0.0):
+    """Each unit hashes only the raster window the builder reads: its build box plus margin."""
     for path in paths:
         ds = gdal.Open(path)
         x0, dx, _, y0, _, dy = ds.GetGeoTransform()
@@ -158,7 +158,8 @@ def add_raster_windows(digests, label, paths):
         name = os.path.basename(path)
         # How the builder reads the samples is part of the window.
         reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()}'
-        for unit_id, (minlon, minlat, maxlon, maxlat) in digests.boxes.items():
+        for unit_id, box in digests.boxes.items():
+            minlon, minlat, maxlon, maxlat = box[0] - margin, box[1] - margin, box[2] + margin, box[3] + margin
             c0 = max(0, int(np.floor((minlon - x0) / dx)))
             c1 = min(ds.RasterXSize, int(np.ceil((maxlon - x0) / dx)))
             r0 = max(0, int(np.floor((maxlat - y0) / dy)))
@@ -177,6 +178,17 @@ def add_surveys(digests, mirror_index):
         digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 
 
+def mosaic_reading(paths):
+    """The mosaic's own geotransform and nodata, which every unit reads through."""
+    if not paths:
+        return None
+    mosaic = gdal.BuildVRT('/vsimem/units-dem.vrt', paths)
+    reading = mosaic.GetGeoTransform(), mosaic.GetRasterBand(1).GetNoDataValue()
+    mosaic = None
+    gdal.Unlink('/vsimem/units-dem.vrt')
+    return reading
+
+
 def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     digests = Digests(units)
     digests.add_all(f'builder {builder}')
@@ -189,7 +201,10 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
-    add_raster_windows(digests, 'dem', sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc'))))
+    dem = sources.dem_grids(inputs)
+    # The mosaic's origin, pixel size and nodata depend on every grid, so they reach every unit.
+    digests.add_all(f'dem mosaic {mosaic_reading(dem)}')
+    add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()

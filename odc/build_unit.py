@@ -233,9 +233,13 @@ def dem_meets(dem_path, window):
     return x0 < maxx and minx < x1 and y1 < maxy and miny < y0
 
 
+# The DEM is read this far beyond the build box, so the gap fill sees past its edge.
+DEM_MARGIN_DEG = 0.01
+
+
 def prepare_dem(dem_path, bbox, work):
     minx, miny, maxx, maxy = bbox
-    margin = 0.01
+    margin = DEM_MARGIN_DEG
     clipped = os.path.join(work, 'dem_clip.tif')
     window = [minx - margin, maxy + margin, maxx + margin, miny - margin]
     if dem_path and dem_meets(dem_path, window):

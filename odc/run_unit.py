@@ -16,6 +16,7 @@ import tempfile
 from osgeo import gdal
 
 from odc.grid import MAX_ZOOM
+from odc.sources import dem_grids
 from odc.tile import set_metadata
 
 gdal.UseExceptions()
@@ -24,7 +25,7 @@ gdal.UseExceptions()
 def dem_mosaic(inputs, work):
     """All of the region's DEM grids as one raster, as odc.units hashes them,
     or None for a region without a DEM."""
-    grids = sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc')))
+    grids = dem_grids(inputs)
     if not grids:
         return None
     os.makedirs(work, exist_ok=True)

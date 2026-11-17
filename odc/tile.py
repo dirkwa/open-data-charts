@@ -20,9 +20,8 @@ import sys
 from odc.grid import UNIT_ZOOM, Unit
 
 DESCRIPTION = (
-    'Built from open data: Shom (WFS layers, bathymetric surveys, bathymetric models; depths in m '
-    'below LAT), regional open data named in the attribution, OpenStreetMap and the Copernicus DEM. '
-    'NOT FOR NAVIGATION.'
+    'Built from the open data named in the attribution; depths in m below the chart datum of their '
+    'source (LAT for Shom and EMODnet). NOT FOR NAVIGATION.'
 )
 
 
