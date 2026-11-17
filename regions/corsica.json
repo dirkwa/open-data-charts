@@ -1,0 +1,31 @@
+{
+  "id": "corsica",
+  "name": "Corsica",
+  "bbox": [
+    8.44,
+    41.3,
+    9.6,
+    43.05
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "emodnet-dtm",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/corse-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/corse-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

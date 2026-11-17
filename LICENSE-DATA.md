@@ -48,7 +48,8 @@ EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8
 and is owned by the EU and licensed under the Creative Commons Attribution
 4.0 International (CC BY 4.0) license." Use limitation: do not use for
 navigation. Used as the bathymetric model of the regions whose file asks
-for it (`"dem": [{"source": "emodnet"}]`), outside Shom's coverage.
+for it (`"dem": [{"source": "emodnet"}]`): outside Shom's coverage, and in
+Corsica.
 
 ## Gouvernement de la Nouvelle-Calédonie
 

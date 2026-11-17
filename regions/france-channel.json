@@ -1,0 +1,48 @@
+{
+  "id": "france-channel",
+  "name": "France: Channel and North Sea coast",
+  "bbox": [
+    -5.3,
+    48.46,
+    2.6,
+    51.15
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_ATL100m_HOMONIM_PBMA_4326_PACK_DL",
+      "prepackage": "MNT_FACADE_ATLANTIQUE_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/bretagne-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/bretagne-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/basse_normandie-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/basse-normandie-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/haute_normandie-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/haute-normandie-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/picardie-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/picardie-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/nord_pas_de_calais-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/nord-pas-de-calais-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2015, MNT bathymetrique de facade Atlantique (Projet Homonim), doi:10.17183/MNT_ATL100m_HOMONIM_WGS84"
+  ]
+}

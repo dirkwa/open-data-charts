@@ -21,12 +21,15 @@ reads that index, lets the user pick units on a map, downloads only those
 units (and on updates only the units that changed) and assembles them into
 one chart on the boat.
 
-The regions are the French overseas territories with Shom open data: New
-Caledonia, French Polynesia, Wallis and Futuna, Réunion, Mayotte,
-Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana and
-Saint-Pierre and Miquelon. Each is built from Shom's surveys, seamarks and,
-where Shom publishes one, its bathymetric model of the coast, together with
-OpenStreetMap and the Copernicus DEM. New Caledonia adds the Gouvernement de
+The regions are mainland France (the Channel and North Sea coast, the
+Atlantic coast, the Mediterranean coast and Corsica) and the French overseas
+territories with Shom open data: New Caledonia, French Polynesia, Wallis and
+Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and
+Saint-Barthélemy, French Guiana and Saint-Pierre and Miquelon. Each is built
+from Shom's surveys, seamarks and, where Shom publishes one, its bathymetric
+model of the coast, together with OpenStreetMap and the Copernicus DEM.
+Corsica takes its model from EMODnet, since Shom publishes Corsica's only as
+BAG, which the builder cannot read. New Caledonia adds the Gouvernement de
 la Nouvelle-Calédonie's reef map and coastal structures.
 
 The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
