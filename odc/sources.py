@@ -120,6 +120,8 @@ def fetch_bounds(region):
 
 def fetch_wfs(region, out):
     if 'shom-wfs' not in region.get('sources', []):
+        for stale in glob.glob(os.path.join(out, 'wfs', '*.json')):
+            os.remove(stale)
         return
     for name in wfs_layers():
         features = sorted(wfs_features(name, fetch_bounds(region)), key=lambda f: str(f.get('id')))
@@ -149,11 +151,13 @@ def fetch_emodnet(bounds, target):
             source = gdal.Open(raw)
             heights = source.GetRasterBand(1).ReadAsArray()
             heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
-            grid = gdal.GetDriverByName('GTiff').CreateCopy(path, source, options=['COMPRESS=DEFLATE', 'PREDICTOR=3'])
+            part = path + '.part'
+            grid = gdal.GetDriverByName('GTiff').CreateCopy(part, source, options=['COMPRESS=DEFLATE', 'PREDICTOR=3'])
             band = grid.GetRasterBand(1)
             band.SetNoDataValue(EMODNET_NODATA)
             band.WriteArray(heights)
             grid = source = None
+            os.replace(part, path)
             os.remove(raw)
 
 
