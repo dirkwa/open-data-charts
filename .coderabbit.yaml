@@ -9,3 +9,27 @@ reviews:
     # itself, comments only say what names and types cannot.
     docstrings:
       mode: 'off'
+  path_instructions:
+    - path: 'odc/**'
+      instructions: >-
+        Units must stay seamless: anything computed per grid cell must give
+        the same result in every unit whose build box contains the cell, so
+        windows, averaging blocks and thinning squares sit on global grid
+        positions (odc.grid), never relative to a box origin. A unit emits
+        only point features it owns (Unit.owns). A unit's version must
+        change whenever an input that reaches its build box changes, and
+        must not change otherwise. The data is "not for navigation"; never
+        drop that from outputs.
+    - path: 'schema/**'
+      instructions: >-
+        The published index follows the compatibility policy in
+        docs/index-format.md: additive changes keep schemaVersion, and
+        consumers skip entries they cannot read. Flag any change existing
+        consumers would read wrongly.
+    - path: '.github/workflows/**'
+      instructions: >-
+        Scheduled runs must be no-ops when nothing changed, and a run that
+        stops halfway must not lose released assets or publish an index
+        that lists assets missing from the release. Requests to outside
+        services carry the repository's generic User-Agent and no personal
+        data.

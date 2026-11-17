@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types: [minor, patch]
+
+  # The builder's base image, the charts-toolbox image of
+  # signalk-charts-provider-simple, pinned by tag and digest.
+  - package-ecosystem: docker
+    directory: '/builder'
+    schedule:
+      interval: weekly
