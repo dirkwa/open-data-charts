@@ -15,6 +15,9 @@ import numpy as np
 GRID_STEP = 0.000125
 CELLS_PER_DEGREE = 8000
 UNIT_ZOOM = 9
+# One max zoom for every unit: a plotter does not overzoom a missing vector
+# tile, so a set mixing max zooms would show holes at the deepest zoom.
+MAX_ZOOM = 17
 CELLS_PER_UNIT_X = 5625
 GRID_COLUMNS = 360 * CELLS_PER_DEGREE
 # Grid-derived work (interpolation, smoothing, near-shore DEM fill, contour

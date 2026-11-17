@@ -22,11 +22,10 @@ from datetime import UTC, datetime, timedelta
 from osgeo import ogr
 
 from odc.build_unit import quality_category
-from odc.grid import UNIT_ZOOM, Unit
+from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
 
 SCHEMA_VERSION = 1
 REPO = 'https://github.com/dirkwa/open-data-charts'
-MAXZOOM = 15
 GRACE_DAYS = 14
 COVERAGE_SIMPLIFY_DEG = 0.0005
 DISCLAIMER = (
@@ -100,7 +99,7 @@ def unit_entry(region, unit_id, version, built_dir, today):
         'size': os.path.getsize(path),
         'sha256': sha256_of(path),
         'minzoom': UNIT_ZOOM,
-        'maxzoom': MAXZOOM,
+        'maxzoom': MAX_ZOOM,
         'built': today,
         'surveys': len(info['surveys']),
     }
