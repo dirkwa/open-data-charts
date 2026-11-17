@@ -58,6 +58,14 @@ Licence Ouverte (<https://data.gouv.nc/>), via the Géorep services.
   are approximate (tens of metres).
 - OBLIC coastal structures of Nouméa, 2016 (DIMENC / SGNC).
 
+## NOAA NCEI ETOPO 2022
+
+NOAA National Centers for Environmental Information, 2022: ETOPO 2022
+15 Arc-Second Global Relief Model, doi:10.25921/fd45-gt74. NOAA NCEI
+distributes it without use restrictions and asks for this citation. Its
+ocean depths come largely from GEBCO. Used only for deep water (200 m and
+more, away from anything shallower) that no survey or finer model covers.
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0
