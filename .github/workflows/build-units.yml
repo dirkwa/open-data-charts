@@ -43,7 +43,7 @@ jobs:
       build: ${{ steps.plan.outputs.build }}
       removed: ${{ steps.plan.outputs.removed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the builder image
         run: docker build -f builder/Dockerfile -t odc-builder .
       - name: Download the region's inputs
@@ -94,7 +94,7 @@ jobs:
       matrix:
         batch: ${{ fromJSON(needs.plan.outputs.batches) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: unit-inputs
@@ -133,7 +133,7 @@ jobs:
     environment:
       name: github-pages
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: unit-inputs
