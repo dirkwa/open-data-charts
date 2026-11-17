@@ -1,0 +1,32 @@
+{
+  "id": "reunion",
+  "name": "Reunion",
+  "bbox": [
+    55.1,
+    -21.5,
+    55.95,
+    -20.75
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_REU100m_HOMONIM_PACK_DL",
+      "prepackage": "MNT_FACADE_REUNION_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/africa/reunion-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/reunion-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2016, MNT bathymetrique de facade de La Reunion (Projet Homonim), doi:10.17183/MNT_REU100m_HOMONIM_WGS84"
+  ]
+}

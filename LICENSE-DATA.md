@@ -31,6 +31,12 @@ and neither are the charts built from them.
 - **MNT bathymétrique de façade de la Nouvelle-Calédonie (LAT)**: Licence
   Ouverte Etalab 2.0. Attribution: "Shom-IRD 2021,
   doi:10.17183/MNT_NC100m_TSUCAL_WGS84".
+- **Other bathymetric models of the coast (MNT bathymétriques de façade,
+  LAT)**: Licence Ouverte Etalab 2.0. Each region file in `regions/` names
+  the models it uses and their attribution, for example "Shom 2016, MNT
+  bathymétrique de façade de La Réunion (Projet Homonim),
+  doi:10.17183/MNT_REU100m_HOMONIM_WGS84". Every unit's attribution lists
+  the models of its region.
 
 The scanned Shom paper charts (RasterMarine) are under a commercial licence
 and are not used.

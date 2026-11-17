@@ -1,0 +1,32 @@
+{
+  "id": "guadeloupe",
+  "name": "Guadeloupe",
+  "bbox": [
+    -61.9,
+    15.8,
+    -60.95,
+    16.55
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_ANTS100m_HOMONIM_PACK_DL",
+      "prepackage": "MNT_FACADE_ANTS_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/central-america/guadeloupe-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/guadeloupe-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2018, MNT bathymetrique de facade de la Guadeloupe et de la Martinique (Projet Homonim), doi:10.17183/MNT_ANTS100m_HOMONIM_WGS84"
+  ]
+}

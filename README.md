@@ -21,9 +21,14 @@ reads that index, lets the user pick units on a map, downloads only those
 units (and on updates only the units that changed) and assembles them into
 one chart on the boat.
 
-The first region is New Caledonia, from Shom open data (surveys, seamarks,
-the Shom-IRD bathymetric model), the Gouvernement de la Nouvelle-Calédonie's
-reef map and coastal structures, OpenStreetMap and the Copernicus DEM.
+The regions are the French overseas territories with Shom open data: New
+Caledonia, French Polynesia, Wallis and Futuna, Réunion, Mayotte,
+Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana and
+Saint-Pierre and Miquelon. Each is built from Shom's surveys, seamarks and,
+where Shom publishes one, its bathymetric model of the coast, together with
+OpenStreetMap and the Copernicus DEM. New Caledonia adds the Gouvernement de
+la Nouvelle-Calédonie's reef map and coastal structures. Each region is a
+file in `regions/`.
 
 ## Using the charts
 
