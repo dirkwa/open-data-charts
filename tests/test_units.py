@@ -110,11 +110,16 @@ def test_units_without_land_or_model_are_left_out(tmp_path):
     assert found == {A.id}
 
 
-def test_attribution_names_each_region_source_once(tmp_path):
+def test_attribution_names_each_region_source_once():
     from odc import attribution
 
-    for rid, parts in (('a', ['DEM A', 'Local']), ('b', ['DEM B', 'Local'])):
-        (tmp_path / f'{rid}.json').write_text(json.dumps({'id': rid, 'attribution': parts}))
-    text = attribution.of_regions({'a', 'b'}, str(tmp_path))
+    text = attribution.merge([attribution.compose(['DEM A', 'Local']), attribution.compose(['DEM B', 'Local'])])
     assert text.count('Local') == 1 and 'DEM A' in text and 'DEM B' in text
-    assert text.startswith('Shom') and 'OpenStreetMap' in text
+    assert text.count('OpenStreetMap') == 1 and text.startswith('Shom')
+
+
+def test_a_retained_region_keeps_its_published_attribution():
+    old_region = {'id': 'other', 'name': 'Other', 'bbox': [0, 0, 1, 1], 'attribution': 'Shom; Old model'}
+    plan = {'versions': {}, 'kept': []}
+    built, _ = index.build_index(REGION, plan, '/nonexistent', {'units': [], 'regions': [old_region]}, '2026-11-17')
+    assert 'Old model' in built['attribution']

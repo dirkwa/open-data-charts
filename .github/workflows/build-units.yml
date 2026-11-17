@@ -81,9 +81,10 @@ jobs:
       - name: Check that the region's surveys are mirrored
         id: ready
         run: |
-          mirrored=$(jq --arg r "$REGION" '[.surveys[] | select(.regions | index($r))] | length' mirror/mirror-index.json)
-          echo "$mirrored surveys of $REGION in the mirror"
-          echo "ready=$([ "$mirrored" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          counts=$(jq -c --arg r "$REGION" '.regions[$r] // {}' mirror/mirror-index.json)
+          echo "$REGION in the mirror: $counts"
+          ready=$(echo "$counts" | jq '.surveys > 0 and .mirrored == .surveys')
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
       - name: Download the region's inputs
         if: steps.ready.outputs.ready == 'true'
         run: |

@@ -165,6 +165,18 @@ def index_entry(survey, asset):
     }
 
 
+def region_counts(surveys, entries):
+    """Per region, the surveys discovery found and those the index holds: a
+    region is built only once the two agree."""
+    counts = {}
+    for survey in surveys:
+        for region in survey['regions']:
+            count = counts.setdefault(region, {'surveys': 0, 'mirrored': 0})
+            count['surveys'] += 1
+            count['mirrored'] += survey['name'] in entries
+    return counts
+
+
 def build_index(work, assets_path, old_index_path, out_dir):
     surveys = json.load(open(os.path.join(work, 'discovery.json'), encoding='utf-8'))
     assets = {a['name']: a for a in json.load(open(assets_path, encoding='utf-8'))}
@@ -183,7 +195,7 @@ def build_index(work, assets_path, old_index_path, out_dir):
         # until a run brings the replacement.
         if previous and previous['reduced']['asset'] in assets:
             entries[survey['name']] = previous
-    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries}
+    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(surveys, entries)}
     footprints = {
         'type': 'FeatureCollection',
         'features': [

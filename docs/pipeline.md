@@ -31,9 +31,9 @@ only matters for the large metropolitan regions.
 ## Units
 
 `build-units.yml` builds one region a day, taking the files in `regions/` in
-turn, and skips a region until its surveys are in the mirror. A region has
-the units of its bbox that are not all land and that hold something to
-chart: land, a survey footprint or data in the region's bathymetric model.
-French Polynesia's bbox, mostly open ocean, would otherwise publish hundreds
-of empty units. Where neither a survey nor a model gives a depth, the unit
+turn, and skips a region until every survey of it is in the mirror. A region has
+the units of its bbox that are not all land and that hold land or data in
+the region's bathymetric model. A survey footprint alone does not qualify a
+unit: old ocean crossings would add hundreds of open-ocean units to French
+Polynesia with a sounding every few miles. Where neither a survey nor a model gives a depth, the unit
 marks the water as unsurveyed.

@@ -68,3 +68,17 @@ def test_a_reduced_replacement_supersedes_the_last_one(tmp_path):
     index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
     assert index['surveys']['S1']['reduced']['asset'] == new_asset['name']
     assert json.loads((tmp_path / 'out' / 'stale-assets.json').read_text()) == [old_asset['name']]
+
+
+def test_the_index_counts_each_regions_missing_surveys(tmp_path):
+    done, failed = survey('S1'), survey('S2')
+    (tmp_path / 'work').mkdir()
+    write(tmp_path / 'work', 'discovery.json', [done, failed])
+    build_index(
+        str(tmp_path / 'work'),
+        write(tmp_path, 'assets.json', [asset(asset_name(done))]),
+        '-',
+        str(tmp_path / 'out'),
+    )
+    index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
+    assert index['regions'] == {'r': {'surveys': 2, 'mirrored': 1}}

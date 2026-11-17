@@ -25,12 +25,21 @@ def of_region(region):
     return compose(region.get('attribution', []))
 
 
-def of_regions(region_ids, regions_dir=REGIONS_DIR):
-    """One attribution for an index that lists units of all these regions."""
+def merge(texts):
+    """One attribution naming every source of these composed attributions once."""
+    shared = {*SHARED_FIRST, *SHARED_LAST}
     regional = []
-    for path in sorted(glob.glob(os.path.join(regions_dir, '*.json'))):
+    for text in texts:
+        regional += [part for part in text.split('; ') if part not in shared and part not in regional]
+    return compose(regional)
+
+
+def configured(region_id, regions_dir=REGIONS_DIR):
+    """The attribution a region's file gives now, for index entries written
+    before regions carried their own."""
+    for path in glob.glob(os.path.join(regions_dir, '*.json')):
         with open(path, encoding='utf-8') as fh:
             region = json.load(fh)
-        if region['id'] in region_ids:
-            regional += [a for a in region.get('attribution', []) if a not in regional]
-    return compose(regional)
+        if region['id'] == region_id:
+            return of_region(region)
+    return compose([])

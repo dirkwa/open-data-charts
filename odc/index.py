@@ -125,7 +125,8 @@ def build_index(region, plan, built_dir, old, today):
     index = {
         'schemaVersion': SCHEMA_VERSION,
         'disclaimer': DISCLAIMER,
-        'attribution': attribution.of_regions({r['id'] for r in regions}),
+        # Retained regions keep the attribution their published units carry.
+        'attribution': attribution.merge(r.get('attribution') or attribution.configured(r['id']) for r in regions),
         'license': UNIT_LICENSE,
         'licenses': LICENSES,
         'regions': regions,
