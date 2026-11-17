@@ -45,7 +45,7 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
   "schemaVersion": 1,
   "generated": "2026-12-01T03:00:00Z",
   "disclaimer": "Not for navigation. …",
-  "attribution": "Shom, Licence Ouverte Etalab 2.0; …; (c) OpenStreetMap contributors, ODbL; …",
+  "attribution": "Shom, Licence Ouverte Etalab 2.0; …; (c) OpenStreetMap contributors, ODbL; …",  // every region's sources
   "license": "odbl-1.0",                    // licence of every unit file as a whole
   "licenses": [
     { "id": "etalab-2.0", "name": "Licence Ouverte Etalab 2.0", "url": "https://…", "attribution": "Shom, <year>" }
@@ -56,7 +56,8 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
       "name": "New Caledonia",
       "bbox": [158.0, -26.0, 172.0, -17.0],
       "overview": null,                       // or { "url", "sha256", "size", "version", "minzoom", "maxzoom" }
-      "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"]
+      "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"],
+      "attribution": "Shom, Licence Ouverte Etalab 2.0; …"   // the attribution of this region's units
     }
   ],
   "units": [

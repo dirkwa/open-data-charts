@@ -60,7 +60,8 @@
             }
           ]
         },
-        "sources": { "type": "array", "items": { "type": "string" } }
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "attribution": { "type": "string", "description": "Attribution of this region's units" }
       }
     },
     "unit": {

@@ -7,7 +7,7 @@ between depth bands are still simplified identically. -r1 keeps every point
 (no lights dropped by rate). Soundings and other details carry a
 per-feature tippecanoe minzoom, standing in for SCAMIN.
 
-Usage: python3 -m odc.tile <geojson-dir> <out.mbtiles> <unit id> <name> [maxzoom]
+Usage: python3 -m odc.tile <geojson-dir> <out.mbtiles> <unit id> <name> <maxzoom> <attribution>
 """
 
 import glob
@@ -17,24 +17,16 @@ import sqlite3
 import subprocess
 import sys
 
-from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
+from odc.grid import UNIT_ZOOM, Unit
 
 DESCRIPTION = (
-    'Built from open data: Shom (WFS layers, bathymetric surveys, bathymetric model; depths in m '
-    'below LAT), Gouvernement de la Nouvelle-Caledonie (reef geomorphology, OBLIC coastal '
-    'structures), OpenStreetMap and the Copernicus DEM. NOT FOR NAVIGATION.'
-)
-ATTRIBUTION = (
-    'Shom, Licence Ouverte Etalab 2.0; Shom bathymetric datasets (doi:10.17183/S..., see INFORM '
-    'of each sounding); Shom-IRD 2021 doi:10.17183/MNT_NC100m_TSUCAL_WGS84; Gouvernement de la '
-    'Nouvelle-Caledonie (IRD/DINUM reef geomorphology, DIMENC/OBLIC), Licence Ouverte; '
-    '(c) OpenStreetMap contributors, ODbL; Copernicus DEM GLO-30 (c) DLR e.V. 2010-2014 and '
-    '(c) Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union '
-    'and ESA'
+    'Built from open data: Shom (WFS layers, bathymetric surveys, bathymetric models; depths in m '
+    'below LAT), regional open data named in the attribution, OpenStreetMap and the Copernicus DEM. '
+    'NOT FOR NAVIGATION.'
 )
 
 
-def tippecanoe_args(geojson_dir, out, unit, name, maxzoom):
+def tippecanoe_args(geojson_dir, out, unit, name, maxzoom, attribution):
     minlon, minlat, maxlon, maxlat = unit.bounds
     layers = [
         f'--named-layer={os.path.basename(f)[:-8]}:{f}'
@@ -47,7 +39,7 @@ def tippecanoe_args(geojson_dir, out, unit, name, maxzoom):
         '-n',
         name,
         f'--description={DESCRIPTION}',
-        f'--attribution={ATTRIBUTION}',
+        f'--attribution={attribution}',
         '-Z',
         str(UNIT_ZOOM),
         '-z',
@@ -96,10 +88,9 @@ def keep_unit_tiles(path, unit):
 
 
 def main():
-    geojson_dir, out, unit_id, name = sys.argv[1:5]
-    maxzoom = int(sys.argv[5]) if len(sys.argv) > 5 else MAX_ZOOM
+    geojson_dir, out, unit_id, name, maxzoom, attribution = sys.argv[1:7]
     unit = Unit.parse(unit_id)
-    subprocess.run(tippecanoe_args(geojson_dir, out, unit, name, maxzoom), check=True)
+    subprocess.run(tippecanoe_args(geojson_dir, out, unit, name, int(maxzoom), attribution), check=True)
     keep_unit_tiles(out, unit)
     set_metadata(out, {'type': 'S-57', 'bounds': ','.join(repr(v) for v in unit.bounds), 'x-odc-unit': unit.id})
     with sqlite3.connect(out) as db:

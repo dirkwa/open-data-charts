@@ -16,13 +16,17 @@
     "nc-oblic",
     "copernicus"
   ],
-  "dem": {
-    "group": "MNT_NC100m_PACK_DL",
-    "prepackage": "MNT_FACADE_NOUVELLE-CALEDONIE_PBMA"
-  },
+  "dem": [
+    {
+      "group": "MNT_NC100m_PACK_DL",
+      "prepackage": "MNT_FACADE_NOUVELLE-CALEDONIE_PBMA"
+    }
+  ],
   "osm": [
-    "https://download.geofabrik.de/australia-oceania/new-caledonia-latest.osm.pbf",
-    "https://download.openstreetmap.fr/extracts/oceania/new_caledonia-latest.osm.pbf"
+    [
+      "https://download.geofabrik.de/australia-oceania/new-caledonia-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/oceania/new_caledonia-latest.osm.pbf"
+    ]
   ],
   "arcgis": [
     {
@@ -34,5 +38,9 @@
       "url": "https://services1.arcgis.com/TZcrgU6CIbqWt9Qv/arcgis/rest/services/evolution_littoral_noumea/FeatureServer/0",
       "where": "annee='2016'"
     }
+  ],
+  "attribution": [
+    "Shom-IRD 2021 doi:10.17183/MNT_NC100m_TSUCAL_WGS84",
+    "Gouvernement de la Nouvelle-Caledonie (IRD/DINUM reef geomorphology, DIMENC/OBLIC), Licence Ouverte"
   ]
 }

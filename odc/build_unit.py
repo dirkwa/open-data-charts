@@ -47,6 +47,7 @@ DRYING_TOP_Z = 50.0  # above any drying height in the DEM (max ~5 m)
 MIN_UNSARE_DEG2 = 1e-9  # only numerical crumbs; real gaps must not turn into holes
 FILL_SEARCH_CELLS = 4  # fill DEM gaps up to 4 cells (~400 m) from data
 FILL_MAX_DEPTH = 2.0  # filled near-shore cells are at most 2 m deep
+EMPTY_DEM_STEP = 0.001  # degrees; about the 100 m of the Shom DEMs
 SIMPLIFY_DEG = 0.00003  # ~3 m, applied to grid-derived geometry only
 MIN_AREA_DEG2 = 1e-8
 COAST_EDGE_DEG = 1e-7  # see build_land()  # ~120 m2; drop slivers from land/DEM mismatch
@@ -209,14 +210,38 @@ def shrunk(envelope, d):
 # --------------------------------------------------------------------- DEM
 
 
+def empty_dem(path, window):
+    minx, maxy, maxx, miny = window
+    ncols, nrows = (round((maxx - minx) / EMPTY_DEM_STEP), round((maxy - miny) / EMPTY_DEM_STEP))
+    ds = gdal.GetDriverByName('GTiff').Create(path, ncols, nrows, 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((minx, EMPTY_DEM_STEP, 0.0, maxy, 0.0, -EMPTY_DEM_STEP))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetProjection(srs.ExportToWkt())
+    band = ds.GetRasterBand(1)
+    band.SetNoDataValue(NODATA)
+    band.Fill(NODATA)
+    ds = None
+
+
+def dem_meets(dem_path, window):
+    minx, maxy, maxx, miny = window
+    ds = gdal.Open(dem_path)
+    x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+    x1, y1 = x0 + dx * ds.RasterXSize, y0 + dy * ds.RasterYSize
+    return x0 < maxx and minx < x1 and y1 < maxy and miny < y0
+
+
 def prepare_dem(dem_path, bbox, work):
     minx, miny, maxx, maxy = bbox
     margin = 0.01
     clipped = os.path.join(work, 'dem_clip.tif')
-    # The .asc grid carries no CRS; it is WGS84 geographic per the metadata.
-    gdal.Translate(
-        clipped, dem_path, outputSRS='EPSG:4326', projWin=[minx - margin, maxy + margin, maxx + margin, miny - margin]
-    )
+    window = [minx - margin, maxy + margin, maxx + margin, miny - margin]
+    if dem_path and dem_meets(dem_path, window):
+        # The .asc grid carries no CRS; it is WGS84 geographic per the metadata.
+        gdal.Translate(clipped, dem_path, outputSRS='EPSG:4326', projWin=window)
+    else:
+        empty_dem(clipped, window)
     # The DEM's land mask is 100 m blocks, so between its last water cell
     # and the OSM coastline there is a stair-stepped strip without depth.
     # Fill it from the neighbouring cells, but never deeper than
@@ -1141,7 +1166,7 @@ def main():
     ap.add_argument('--unit', required=True, help='unit id, e.g. z9-492-288')
     ap.add_argument('--wfs', required=True)
     ap.add_argument('--land', required=True, help='OSM land polygons (osmdata.openstreetmap.de), any OGR format')
-    ap.add_argument('--dem', required=True)
+    ap.add_argument('--dem', help='bathymetric DEM; without it, depths come from the surveys alone')
     ap.add_argument('--leves', help='directory of <survey>.npz files from odc.reduce_survey')
     ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')

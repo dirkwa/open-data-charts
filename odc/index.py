@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 
 from osgeo import ogr
 
+from odc import attribution
 from odc.build_unit import quality_category
 from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
 
@@ -31,13 +32,6 @@ COVERAGE_SIMPLIFY_DEG = 0.0005
 DISCLAIMER = (
     'Not for navigation. These charts are built automatically from open data, are not official '
     'nautical charts and must not be used as the sole means of navigation.'
-)
-ATTRIBUTION = (
-    'Shom, Licence Ouverte Etalab 2.0; Shom bathymetric surveys (doi:10.17183/<survey>); '
-    'Shom-IRD 2021 doi:10.17183/MNT_NC100m_TSUCAL_WGS84; Gouvernement de la Nouvelle-Caledonie, '
-    'Licence Ouverte; (c) OpenStreetMap contributors, ODbL; Copernicus DEM GLO-30 (c) DLR e.V. '
-    '2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the '
-    'European Union and ESA'
 )
 # Each unit is a database derived from OpenStreetMap, so the whole unit is
 # published under the ODbL; the sources' own licences and attributions still apply.
@@ -115,6 +109,7 @@ def region_entry(region):
         'bbox': region['bbox'],
         'overview': None,
         'sources': region.get('sources', []),
+        'attribution': attribution.of_region(region),
     }
 
 
@@ -130,7 +125,7 @@ def build_index(region, plan, built_dir, old, today):
     index = {
         'schemaVersion': SCHEMA_VERSION,
         'disclaimer': DISCLAIMER,
-        'attribution': ATTRIBUTION,
+        'attribution': attribution.of_regions({r['id'] for r in regions}),
         'license': UNIT_LICENSE,
         'licenses': LICENSES,
         'regions': regions,

@@ -84,3 +84,37 @@ def test_a_retired_asset_leaves_the_ledger_once_deleted():
     new = {'units': []}
     retired, delete = index.retire(new, new, retired, '2026-12-01T00:00:00+00:00', 'test', set())
     assert list(retired) == ['v.old.mbtiles'] and delete == []
+
+
+def write_land(path, polygons):
+    from osgeo import ogr
+
+    ds = ogr.GetDriverByName('GPKG').CreateDataSource(str(path))
+    layer = ds.CreateLayer('land', geom_type=ogr.wkbPolygon)
+    for wkt in polygons:
+        feature = ogr.Feature(layer.GetLayerDefn())
+        feature.SetGeometry(ogr.CreateGeometryFromWkt(wkt))
+        layer.CreateFeature(feature)
+    ds = None
+
+
+def box_wkt(minlon, minlat, maxlon, maxlat):
+    return f'POLYGON(({minlon} {minlat},{maxlon} {minlat},{maxlon} {maxlat},{minlon} {maxlat},{minlon} {minlat}))'
+
+
+def test_units_without_land_or_model_are_left_out(tmp_path):
+    island = A.bounds[0] + 0.1, A.bounds[1] + 0.1
+    write_land(tmp_path / 'land.gpkg', [box_wkt(*island, island[0] + 0.01, island[1] + 0.01)])
+    region = {'id': 'test', 'name': 'Test', 'bbox': [A.bounds[0] + 0.01, -22.5, 167.9, -22.0]}
+    found = {u.id for u in units.discover(region, str(tmp_path))}
+    assert found == {A.id}
+
+
+def test_attribution_names_each_region_source_once(tmp_path):
+    from odc import attribution
+
+    for rid, parts in (('a', ['DEM A', 'Local']), ('b', ['DEM B', 'Local'])):
+        (tmp_path / f'{rid}.json').write_text(json.dumps({'id': rid, 'attribution': parts}))
+    text = attribution.of_regions({'a', 'b'}, str(tmp_path))
+    assert text.count('Local') == 1 and 'DEM A' in text and 'DEM B' in text
+    assert text.startswith('Shom') and 'OpenStreetMap' in text
