@@ -951,10 +951,12 @@ def aca_classes(aca_dir, bbox_geom):
                 continue
             with open(path, encoding='utf-8') as fh:
                 for line in fh:
-                    f = json.loads(line)
-                    if f['id'] in seen or f['properties']['class_name'] not in ACA_WATLEV:
+                    if line in seen:
                         continue
-                    seen.add(f['id'])
+                    seen.add(line)
+                    f = json.loads(line)
+                    if f['properties']['class_name'] not in ACA_WATLEV:
+                        continue
                     geom = clip_to(ogr.CreateGeometryFromJson(json.dumps(f['geometry'])), bbox_geom)
                     if geom is not None:
                         parts.setdefault(f['properties']['class_name'], []).append(geom)

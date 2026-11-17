@@ -71,7 +71,7 @@ ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
     '&typeNames=coral-atlas:geomorphic_data_verbose&outputFormat=application/json'
 )
-ACA_PAGE = 10000
+ACA_PAGE = 5000
 CHUNK = 1 << 20
 
 
@@ -384,15 +384,35 @@ def fetch_arcgis(region, out):
         print(f'{len(features):6d}  {layer["file"]}', flush=True)
 
 
-def aca_page(cql, start):
-    params = {'CQL_FILTER': cql, 'count': ACA_PAGE, 'startIndex': start, 'sortBy': 'area_sqkm'}
-    return shom.get_json(f'{ACA_WFS}&{urllib.parse.urlencode(params)}', timeout=600).get('features') or []
+def aca_request(cql, **params):
+    return f'{ACA_WFS}&{urllib.parse.urlencode({"CQL_FILTER": cql, **params})}'
+
+
+def aca_features(classes, w, s, e, n):
+    """Every feature of these classes meeting the box. The layer has no key
+    to page in a stable order, so a box with more than ACA_PAGE features is
+    split instead, and each answer must hold all the features it matched."""
+    cql = f"class_name IN ({classes}) AND BBOX(geom,{w},{s},{e},{n},'EPSG:4326')"
+    with shom.get(aca_request(cql, resultType='hits'), timeout=600) as response:
+        hits = int(re.search(rb'numberMatched="(\d+)"', response.read()).group(1))
+    if hits > ACA_PAGE:
+        mx, my = (w + e) / 2, (s + n) / 2
+        quarters = ((w, s, mx, my), (mx, s, e, my), (w, my, mx, n), (mx, my, e, n))
+        return [f for q in quarters for f in aca_features(classes, *q)]
+    features = []
+    if hits:
+        features = shom.get_json(aca_request(cql, count=ACA_PAGE), timeout=600).get('features') or []
+    if len(features) != hits:
+        raise RuntimeError(f'Allen Coral Atlas answered {len(features)} of {hits} features in {w},{s},{e},{n}')
+    return features
 
 
 def fetch_aca(region, out):
     """The Allen Coral Atlas classes the builder charts, one file per
     1-degree square that has any. A reef crossing a square's edge is in
-    both files; the builder reads each feature once."""
+    both files; the builder and the versions read each feature once. The
+    service's feature ids change between requests, so the files leave them
+    out and stay the same while the atlas does."""
     target = os.path.join(out, 'aca')
     shutil.rmtree(target, ignore_errors=True)
     if 'allen-coral-atlas' not in region.get('sources', []):
@@ -403,26 +423,24 @@ def fetch_aca(region, out):
     total = 0
     for s in range(math.floor(minlat), math.ceil(maxlat)):
         for w in range(math.floor(minlon), math.ceil(maxlon)):
-            cql = f"class_name IN ({classes}) AND BBOX(geom,{w},{s},{w + 1},{s + 1},'EPSG:4326')"
-            features = []
-            while True:
-                batch = aca_page(cql, len(features))
-                features += batch
-                if len(batch) < ACA_PAGE:
-                    break
-            if not features:
+            lines = {
+                json.dumps(
+                    {
+                        'type': 'Feature',
+                        'properties': {'class_name': f['properties']['class_name']},
+                        'geometry': f['geometry'],
+                    },
+                    separators=(',', ':'),
+                )
+                for f in aca_features(classes, w, s, w + 1, s + 1)
+            }
+            if not lines:
                 continue
             path = os.path.join(target, f'reefs_{s:+03d}_{w:+04d}.geojsonseq')
             with open(path + '.part', 'w', encoding='utf-8') as fh:
-                for f in features:
-                    feature = {
-                        'type': 'Feature',
-                        'id': f['id'],
-                        'properties': {'class_name': f['properties']['class_name']},
-                    }
-                    fh.write(json.dumps({**feature, 'geometry': f['geometry']}, separators=(',', ':')) + '\n')
+                fh.writelines(line + '\n' for line in sorted(lines))
             os.replace(path + '.part', path)
-            total += len(features)
+            total += len(lines)
     print(f'aca: {total} reef features in {len(os.listdir(target))} squares', flush=True)
 
 
