@@ -177,6 +177,11 @@ def add_surveys(digests, mirror_index):
         digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 
 
+def raster_geometry(path):
+    raster = gdal.Open(path)
+    return raster.GetGeoTransform(), raster.RasterXSize, raster.RasterYSize
+
+
 def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     digests = Digests(units)
     digests.add_all(f'builder {builder}')
@@ -189,7 +194,10 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
-    add_raster_windows(digests, 'dem', sources.dem_grids(inputs))
+    dem = sources.dem_grids(inputs)
+    # The mosaic's pixel size depends on every grid, so each grid's geometry reaches every unit.
+    digests.add_all(f'dem mosaic {[(os.path.basename(p), raster_geometry(p)) for p in dem]}')
+    add_raster_windows(digests, 'dem', dem)
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()

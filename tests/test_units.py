@@ -133,3 +133,33 @@ def test_a_retained_region_keeps_its_published_attribution():
     plan = {'versions': {}, 'kept': []}
     built, _ = index.build_index(REGION, plan, '/nonexistent', {'units': [], 'regions': [old_region]}, '2026-11-17')
     assert 'Old model' in built['attribution']
+
+
+def write_grid(path, minlon, maxlat, step, size):
+    from osgeo import gdal
+
+    grid = gdal.GetDriverByName('GTiff').Create(str(path), size, size, 1, gdal.GDT_Float32)
+    grid.SetGeoTransform((minlon, step, 0.0, maxlat, 0.0, -step))
+    grid.GetRasterBand(1).Fill(-10.0)
+    grid = None
+
+
+def test_a_new_model_grid_changes_every_unit_through_the_mosaic(tmp_path):
+    (tmp_path / 'dem').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    mirror_index = {'surveys': {}}
+    write_grid(tmp_path / 'dem' / 'emodnet_a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    before = units.unit_versions([A, B], str(tmp_path), mirror_index, 'b', 'x')
+    write_grid(tmp_path / 'dem' / 'emodnet_b.tif', B.bounds[0], B.bounds[3], 0.001, 50)
+    after = units.unit_versions([A, B], str(tmp_path), mirror_index, 'b', 'x')
+    assert before[A.id] != after[A.id]
+
+
+def test_dem_grids_skip_an_unfinished_download(tmp_path):
+    from odc import sources
+
+    (tmp_path / 'dem').mkdir()
+    for name in ('emodnet_+53_+004.tif', 'emodnet_+53_+006.tif.wcs', 'shom.asc'):
+        (tmp_path / 'dem' / name).write_text('')
+    found = [p.rsplit('/', 1)[1] for p in sources.dem_grids(str(tmp_path))]
+    assert found == ['emodnet_+53_+004.tif', 'shom.asc']

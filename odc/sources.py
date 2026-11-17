@@ -144,8 +144,9 @@ def fetch_emodnet(bounds, target):
         for w in range(math.floor(minlon), math.ceil(maxlon), step):
             url = EMODNET_WCS.format(s=s, n=s + step, w=w, e=w + step)
             path = os.path.join(target, f'emodnet_{s:+03d}_{w:+04d}.tif')
-            save_url(url, path + '.wcs.tif', timeout=1800)
-            source = gdal.Open(path + '.wcs.tif')
+            raw = path + '.wcs'  # outside dem_grids' pattern, so a broken run never feeds it to the mosaic
+            save_url(url, raw, timeout=1800)
+            source = gdal.Open(raw)
             heights = source.GetRasterBand(1).ReadAsArray()
             heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
             grid = gdal.GetDriverByName('GTiff').CreateCopy(path, source, options=['COMPRESS=DEFLATE', 'PREDICTOR=3'])
@@ -153,7 +154,7 @@ def fetch_emodnet(bounds, target):
             band.SetNoDataValue(EMODNET_NODATA)
             band.WriteArray(heights)
             grid = source = None
-            os.remove(path + '.wcs.tif')
+            os.remove(raw)
 
 
 def fetch_dem(region, out):
