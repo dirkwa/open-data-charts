@@ -79,6 +79,21 @@ def test_a_measured_cell_counts_for_the_survey_that_sounded_it():
         (None, None, 'A', None, {'end': '20100101', 'tecsou': 'multi-beam echosounder'}),
         (None, None, 'B', None, {'end': '20100101', 'tecsou': 'single-beam echosounder'}),
     ]
-    quality, used = depth_quality(entries, rank, rank >= 0, land, box, unit)
+    quality, used = depth_quality(entries, rank, rank >= 0, rank >= 0, land, box, unit)
     assert quality['share'] == {'multibeam': 0.5, 'survey-recent': 0.5}
     assert used == [0, 1]
+
+
+def test_water_without_a_survey_or_model_depth_is_not_model():
+    unit = Unit(492, 288)
+    box = unit.build_box
+    r, c = unit.cells.iy0 - box.iy0 + 100, unit.cells.ix0 - box.ix0 + 100
+    land = np.ones((box.nrows, box.ncols), bool)
+    land[r : r + 100, c : c + 100] = False
+    from_model = np.zeros_like(land)
+    from_model[r : r + 100, c : c + 25] = True
+    quality, used = depth_quality([], None, None, from_model, land, box, unit)
+    assert quality == {'best': 'model', 'share': {'model': 0.25, 'none': 0.75}}
+    assert used == []
+    quality, _ = depth_quality([], None, None, np.zeros_like(land), land, box, unit)
+    assert quality == {'best': 'none', 'share': {'none': 1.0}}
