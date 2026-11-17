@@ -7,6 +7,7 @@ the prototype's Overpass reader chose it (`is_area`).
 """
 
 import json
+import os
 
 from osgeo import ogr
 
@@ -20,6 +21,14 @@ OSMIUM_FILTER = (
     'r/building',
 )
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
+# The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
+OTHER_ROLES = {
+    rule.split('/')[1].split('=')[0]: set(rule.split('=')[1].split(',')) for rule in OSMIUM_FILTER if '=' in rule
+}
+
+
+def building_only(tags):
+    return 'building' in tags and not any(tags.get(key) in values for key, values in OTHER_ROLES.items())
 
 
 def is_area(tags, from_relation):
@@ -32,6 +41,30 @@ def is_area(tags, from_relation):
         or tags.get('man_made') in AREA_MAN_MADE
         or 'building' in tags
     )
+
+
+def drop_inland_buildings(src, dst, near, bounds, step):
+    """Copies the export, leaving out buildings whose bbox covers no True cell
+    of near (see sources.near_sea)."""
+    minlon, _, _, maxlat = bounds
+    nrows, ncols = near.shape
+    kept = dropped = 0
+    with open(src, encoding='utf-8') as fh, open(dst + '.part', 'w', encoding='utf-8') as out:
+        for line in fh:
+            feature = json.loads(line.lstrip('\x1e'))
+            if building_only(feature.get('properties') or {}):
+                x0, y0, x1, y1 = bbox_of(feature['geometry'])
+                r0 = max(int((maxlat - y1) / step), 0)
+                r1 = min(int((maxlat - y0) / step), nrows - 1)
+                c0 = max(int((x0 - minlon) / step), 0)
+                c1 = min(int((x1 - minlon) / step), ncols - 1)
+                if r0 > r1 or c0 > c1 or not near[r0 : r1 + 1, c0 : c1 + 1].any():
+                    dropped += 1
+                    continue
+            out.write(line)
+            kept += 1
+    os.replace(dst + '.part', dst)
+    return kept, dropped
 
 
 def read_features(path, bbox=None):

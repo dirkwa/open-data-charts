@@ -2,7 +2,7 @@
 
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
-  osm.geojsonseq                  OSM features the chart uses (ODbL)
+  osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
   nc/reefs.geojson, nc/structures.geojson   Gouvernement de la Nouvelle-Calédonie (Licence Ouverte)
@@ -21,8 +21,12 @@ import tempfile
 import urllib.error
 import urllib.parse
 
+from osgeo import gdal, ogr
+
 from odc import osm, shom
 from odc.grid import units_in
+
+gdal.UseExceptions()
 
 WFS_NAMESPACES = (
     'BALISAGE_BDD_WFS',
@@ -36,6 +40,12 @@ WFS_PAGE = 5000
 LAND_POLYGONS = 'https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip'
 LAND_POLYGONS_SHP = 'land-polygons-split-4326/land_polygons.shp'
 COPERNICUS = 'https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif'
+# The builder charts buildings up to 12 grid steps (0.0015 deg) from the sea
+# (build_unit.BUILDING_NEAR_WATER_CELLS); a coarse mask with a wide margin
+# keeps a superset and drops the millions of inland ones a European extract
+# carries.
+NEAR_SEA_STEP = 0.001
+NEAR_SEA_CELLS = 5
 ARCGIS_PAGE = 1000
 CHUNK = 1 << 20
 
@@ -146,6 +156,7 @@ def fetch_osm(region, out):
             subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
         filtered = os.path.join(tmp, 'filtered.osm.pbf')
         subprocess.run(['osmium', 'tags-filter', '-O', '-o', filtered, extract, *osm.OSMIUM_FILTER], check=True)
+        exported = os.path.join(tmp, 'exported.geojsonseq')
         subprocess.run(
             [
                 'osmium',
@@ -157,11 +168,50 @@ def fetch_osm(region, out):
                 '-x',
                 'print_record_separator=false',
                 '-o',
-                os.path.join(out, 'osm.geojsonseq'),
+                exported,
                 filtered,
             ],
             check=True,
         )
+        bounds = fetch_bounds(region)
+        near = near_sea(os.path.join(out, 'land.gpkg'), bounds)
+        target = os.path.join(out, 'osm.geojsonseq')
+        kept, dropped = osm.drop_inland_buildings(exported, target, near, bounds, NEAR_SEA_STEP)
+        print(f'osm: {kept} features kept, {dropped} inland buildings dropped', flush=True)
+
+
+def near_sea(land_path, bounds):
+    """Cells of NEAR_SEA_STEP within NEAR_SEA_CELLS of a cell holding sea,
+    over bounds (row 0 at the top). A cell holds sea when its centre is off
+    land or a coastline crosses it, so inlets narrower than a cell count."""
+    minlon, minlat, maxlon, maxlat = bounds
+    ncols = math.ceil((maxlon - minlon) / NEAR_SEA_STEP)
+    nrows = math.ceil((maxlat - minlat) / NEAR_SEA_STEP)
+    land_ds = gdal.OpenEx(land_path, gdal.OF_VECTOR)
+    land = land_ds.GetLayer(0)
+    coast_ds = gdal.GetDriverByName('MEM').CreateVector('')
+    coast = coast_ds.CreateLayer('coast', geom_type=ogr.wkbMultiLineString)
+    for feature in land:
+        line = ogr.Feature(coast.GetLayerDefn())
+        line.SetGeometry(feature.GetGeometryRef().Boundary())
+        coast.CreateFeature(line)
+
+    def burn(layer, options=None):
+        raster = gdal.GetDriverByName('MEM').Create('', ncols, nrows, 1, gdal.GDT_Byte)
+        raster.SetGeoTransform((minlon, NEAR_SEA_STEP, 0.0, maxlat, 0.0, -NEAR_SEA_STEP))
+        gdal.RasterizeLayer(raster, [1], layer, burn_values=[1], options=options or [])
+        return raster.GetRasterBand(1).ReadAsArray() == 1
+
+    land.ResetReading()
+    near = ~burn(land) | burn(coast, ['ALL_TOUCHED=TRUE'])
+    for _ in range(NEAR_SEA_CELLS):
+        grown = near.copy()
+        grown[1:] |= near[:-1]
+        grown[:-1] |= near[1:]
+        grown[:, 1:] |= near[:, :-1]
+        grown[:, :-1] |= near[:, 1:]
+        near = grown
+    return near
 
 
 def fetch_land(region, out):
@@ -253,8 +303,8 @@ def fetch_arcgis(region, out):
 FETCHERS = {
     'wfs': fetch_wfs,
     'dem': fetch_dem,
-    'osm': fetch_osm,
     'land': fetch_land,
+    'osm': fetch_osm,
     'relief': fetch_relief,
     'arcgis': fetch_arcgis,
 }
@@ -265,7 +315,12 @@ def main():
     with open(region_path, encoding='utf-8') as fh:
         region = json.load(fh)
     os.makedirs(out, exist_ok=True)
-    for name in names or FETCHERS:
+    names = list(names or FETCHERS)
+    if 'osm' in names and ('land' in names or not os.path.exists(os.path.join(out, 'land.gpkg'))):
+        if 'land' in names:
+            names.remove('land')
+        names.insert(names.index('osm'), 'land')  # near_sea reads it
+    for name in names:
         print(f'== {name}', flush=True)
         FETCHERS[name](region, out)
 
