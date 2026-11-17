@@ -25,6 +25,40 @@ The first region is New Caledonia, from Shom open data (surveys, seamarks,
 the Shom-IRD bathymetric model), the Gouvernement de la Nouvelle-Calédonie's
 reef map and coastal structures, OpenStreetMap and the Copernicus DEM.
 
+## Using the charts
+
+Install signalk-charts-provider-simple on a Signal K server, open its
+"Open Data Charts" tab, select the units you want on the map and download
+them as a chart set. The tab checks the index for changed units and updates
+only those.
+
+The index is public, so any other plotter can use it too:
+
+    https://dirkwa.github.io/open-data-charts/open-data-index.json
+
+Its format and compatibility policy are in
+[docs/index-format.md](docs/index-format.md), with a JSON Schema in
+[schema/](schema/open-data-index.schema.json).
+
+## How it is built
+
+- Every week a workflow mirrors the region's Shom surveys, each reduced to
+  the shoalest sounding per cell of one global grid.
+- Every week another workflow works out which units have new inputs,
+  builds only those, uploads them to the region's release and republishes
+  the index. A unit's version is a hash of everything it is built from, so
+  an unchanged unit is never rebuilt or downloaded again.
+- Units are built on a shared grid with a margin around each one, so
+  neighbouring units meet without seams.
+
+[docs/pipeline.md](docs/pipeline.md) has notes and measurements, and
+[AGENTS.md](AGENTS.md) the code.
+
+## Contributing
+
+New regions and open data sources are welcome; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Licences
 
 The code is Apache-2.0 (`LICENSE`). The published charts carry the licences
