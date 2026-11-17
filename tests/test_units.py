@@ -1,5 +1,6 @@
 import json
 
+import numpy as np
 import pytest
 
 pytest.importorskip('osgeo')
@@ -163,3 +164,34 @@ def test_dem_grids_skip_an_unfinished_download(tmp_path):
         (tmp_path / 'dem' / name).write_text('')
     found = [p.rsplit('/', 1)[1] for p in sources.dem_grids(str(tmp_path))]
     assert found == ['emodnet_+53_+004.tif', 'shom.asc']
+
+
+def test_renaming_a_distant_grid_keeps_other_units(tmp_path):
+    (tmp_path / 'dem').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    write_grid(tmp_path / 'dem' / 'emodnet_a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    write_grid(tmp_path / 'dem' / 'emodnet_b.tif', B.bounds[0], B.bounds[3], 0.01, 50)
+    before = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    (tmp_path / 'dem' / 'emodnet_b.tif').rename(tmp_path / 'dem' / 'emodnet_c.tif')
+    after = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    assert before[A.id] == after[A.id]
+
+
+def test_a_change_in_the_dem_fill_margin_changes_the_unit(tmp_path):
+    from osgeo import gdal
+
+    (tmp_path / 'dem').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    grid_path = tmp_path / 'dem' / 'emodnet_a.tif'
+    box = A.build_box.bbox
+    step = 0.001
+    write_grid(grid_path, box[0] - 0.05, box[3] + 0.05, step, 1000)
+    before = units.unit_versions([A], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    grid = gdal.Open(str(grid_path), gdal.GA_Update)
+    # A pixel 0.005 deg west of the build box: inside the fill margin.
+    col = int((0.05 - 0.005) / step)
+    row = int((0.05 + 0.1) / step)
+    grid.GetRasterBand(1).WriteArray(np.full((1, 1), -3.0, dtype=np.float32), col, row)
+    grid = None
+    after = units.unit_versions([A], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    assert before[A.id] != after[A.id]
