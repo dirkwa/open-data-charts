@@ -967,6 +967,9 @@ def reef_item(part, watlev, inform):
     return (part, {'WATLEV': watlev, 'NATSUR': NATSUR_CORAL, 'INFORM': inform}, None)
 
 
+REEF_MATCH_DEG = 0.0005  # ~50 m: an OSM outline this close to a mapped reef is that reef
+
+
 def build_reefs(reef_path, aca_dir, osm_reefs, land_index, bbox_geom):
     """OBSTRN reef areas: the reef map's reef flats, the Allen Coral Atlas
     where the reef map has no reef, and OSM reefs where neither has one.
@@ -1005,10 +1008,14 @@ def build_reefs(reef_path, aca_dir, osm_reefs, land_index, bbox_geom):
         ]
     n_aca, n_osm = len(items) - n_map, 0
     for geom, attrs in osm_reefs:
-        if any(True for _ in overlapping(mapped, geom.Buffer(0.0005))):
-            continue  # the reef map has this reef (within ~50 m)
-        if geom.GetDimension() == 2:
-            geom = minus(geom, land_index)
+        charted = list(overlapping(mapped, geom.Buffer(REEF_MATCH_DEG)))
+        if geom.GetDimension() < 2:
+            if charted:
+                continue  # the maps have this reef
+        else:
+            for part in charted:  # keep only what the maps leave out
+                geom = geom.Difference(part.Buffer(REEF_MATCH_DEG))
+            geom = minus(geom, land_index) if not geom.IsEmpty() else None
             parts = [p for p in polygon_parts(geom) if p.GetArea() >= MIN_AREA_DEG2]
             if not parts:
                 continue

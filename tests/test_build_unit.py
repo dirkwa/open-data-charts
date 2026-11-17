@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip('osgeo')
+from osgeo import ogr  # noqa: E402
 
 from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
@@ -208,3 +209,22 @@ def test_the_reef_map_wins_over_the_coral_atlas(tmp_path):
     items = build_reefs(str(reef_map), aca, [], [], box)
     areas = sorted((a['INFORM'].split(':')[0], round(g.GetArea() * 1e6, 3)) for g, a, _ in items)
     assert areas == [('Inner Reef Flat', 3.0), ('reef flat, x', 1.0)]
+
+
+def test_an_osm_reef_keeps_only_what_the_maps_leave_out(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    aca = write_aca(tmp_path, [('a', 'Inner Reef Flat', square(-144.85, -16.85, 0.002))])
+    long_reef = {
+        'type': 'Polygon',
+        'coordinates': [
+            [[-144.85, -16.85], [-144.84, -16.85], [-144.84, -16.848], [-144.85, -16.848], [-144.85, -16.85]]
+        ],
+    }
+    covered = square(-144.8495, -16.8495)
+    osm = [
+        (ogr.CreateGeometryFromJson(json.dumps(g)), {'OBJNAM': n})
+        for n, g in (('long', long_reef), ('covered', covered))
+    ]
+    items = build_reefs(None, aca, osm, [], box)
+    kept = [(a['OBJNAM'], round(g.GetArea() * 1e6, 3)) for g, a, _ in items if 'OBJNAM' in a]
+    assert kept == [('long', round((0.01 - 0.0025) * 0.002 * 1e6, 3))]
