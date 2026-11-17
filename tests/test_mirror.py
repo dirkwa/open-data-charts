@@ -101,11 +101,12 @@ def index_after(tmp_path, discovered, assets, old_index):
 
 def test_a_new_survey_that_failed_still_changes_the_index(tmp_path):
     done, failed = survey('S1'), survey('S2')
-    entry = {'reduced': {'asset': asset_name(done), 'bytes': 1, 'sha256': '00'}}
-    old_index = {'surveys': {'S1': entry}, 'regions': {'r': {'surveys': 1, 'mirrored': 1}}}
-    changed, index = index_after(tmp_path, [done, failed], [asset(asset_name(done))], old_index)
-    assert changed
+    assets = [asset(asset_name(done))]
+    _, old_index = index_after(tmp_path / 'a', [done], assets, {'surveys': {}})
+    changed, index = index_after(tmp_path / 'b', [done, failed], assets, old_index)
+    assert index['surveys'] == old_index['surveys']
     assert index['regions'] == {'r': {'surveys': 2, 'mirrored': 1}}
+    assert changed
 
 
 def test_an_index_without_region_counts_is_rewritten(tmp_path):
