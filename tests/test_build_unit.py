@@ -128,16 +128,21 @@ def etopo_tile(tmp_path, z):
 
 def test_deep_water_keeps_clear_of_anything_shallower(tmp_path):
     z = np.full((120, 120), -1000.0, np.float32)
-    z[60, 60] = -50.0  # a reef pixel
+    reef_row, reef_col = 90, 30
+    z[reef_row, reef_col] = -50.0
     bbox = (-144.9, -16.4, -144.85, -16.35)
     depth = deep_water(etopo_tile(tmp_path, z), bbox)
-    assert np.nanmin(depth) > 900
-    reef_lon, reef_lat = -145.0 + 60.5 * ETOPO_PIXEL_DEG, -16.0 - 60.5 * ETOPO_PIXEL_DEG
+    reef_lon = -145.0 + (reef_col + 0.5) * ETOPO_PIXEL_DEG
+    reef_lat = -16.0 - (reef_row + 0.5) * ETOPO_PIXEL_DEG
+    assert bbox[0] < reef_lon < bbox[2] and bbox[1] < reef_lat < bbox[3]
     col = int((reef_lon - bbox[0]) / GRID_STEP)
     row = int((bbox[3] - reef_lat) / GRID_STEP)
     clear = int(2.5 * ETOPO_PIXEL_DEG / GRID_STEP)
-    assert np.isnan(depth[row - clear + 1 : row + clear, col - clear + 1 : col + clear]).all()
-    assert np.isfinite(depth[0, 0])
+    around = depth[row - clear + 1 : row + clear, col - clear + 1 : col + clear]
+    assert around.shape == (2 * clear - 1, 2 * clear - 1)
+    assert np.isnan(around).all()
+    assert np.isfinite(depth[0, -1])
+    assert np.nanmin(depth) > 900
 
 
 def test_neighbouring_boxes_agree_on_deep_water(tmp_path):
