@@ -7,6 +7,7 @@ the prototype's Overpass reader chose it (`is_area`).
 """
 
 import json
+import os
 
 from osgeo import ogr
 
@@ -32,6 +33,28 @@ def is_area(tags, from_relation):
         or tags.get('man_made') in AREA_MAN_MADE
         or 'building' in tags
     )
+
+
+def drop_inland_buildings(src, dst, near, bounds, step):
+    """Copies the export, leaving out buildings whose bbox centre lies outside
+    near (see sources.near_sea) or on one of its False cells."""
+    minlon, _, _, maxlat = bounds
+    nrows, ncols = near.shape
+    kept = dropped = 0
+    with open(src, encoding='utf-8') as fh, open(dst + '.part', 'w', encoding='utf-8') as out:
+        for line in fh:
+            feature = json.loads(line.lstrip('\x1e'))
+            if 'building' in (feature.get('properties') or {}):
+                x0, y0, x1, y1 = bbox_of(feature['geometry'])
+                row = int((maxlat - (y0 + y1) / 2) / step)
+                col = int(((x0 + x1) / 2 - minlon) / step)
+                if not (0 <= row < nrows and 0 <= col < ncols and near[row, col]):
+                    dropped += 1
+                    continue
+            out.write(line)
+            kept += 1
+    os.replace(dst + '.part', dst)
+    return kept, dropped
 
 
 def read_features(path, bbox=None):
