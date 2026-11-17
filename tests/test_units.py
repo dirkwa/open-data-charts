@@ -118,6 +118,16 @@ def test_attribution_names_each_region_source_once():
     assert text.count('OpenStreetMap') == 1 and text.startswith('Shom')
 
 
+def test_only_regions_built_from_shom_data_credit_shom():
+    from odc import attribution
+
+    emodnet = attribution.of_region({'sources': ['emodnet-dtm', 'osm'], 'attribution': ['EMODnet']})
+    shom = attribution.of_region({'sources': ['shom-wfs', 'osm'], 'attribution': ['Model']})
+    assert emodnet.startswith('EMODnet') and 'Shom' not in emodnet
+    assert attribution.merge([emodnet]) == emodnet
+    assert attribution.merge([emodnet, shom]).startswith('Shom') and 'EMODnet' in attribution.merge([emodnet, shom])
+
+
 def test_a_retained_region_keeps_its_published_attribution():
     old_region = {'id': 'other', 'name': 'Other', 'bbox': [0, 0, 1, 1], 'attribution': 'Shom; Old model'}
     plan = {'versions': {}, 'kept': []}
