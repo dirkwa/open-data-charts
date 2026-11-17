@@ -6,6 +6,7 @@
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
+  etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
   nc/reefs.geojson, nc/structures.geojson   Gouvernement de la Nouvelle-Calédonie (Licence Ouverte)
 
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
@@ -25,7 +26,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import osm, shom
+from odc import build_unit, osm, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -42,6 +43,11 @@ WFS_PAGE = 5000
 LAND_POLYGONS = 'https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip'
 LAND_POLYGONS_SHP = 'land-polygons-split-4326/land_polygons.shp'
 COPERNICUS = 'https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif'
+ETOPO = (
+    'https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/15s/15s_surface_elev_gtif/'
+    'ETOPO_2022_v1_15s_{n}_surface.tif'
+)
+ETOPO_TILE_DEG = 15
 # The builder charts buildings up to 12 grid steps (0.0015 deg) from the sea
 # (build_unit.BUILDING_NEAR_WATER_CELLS); a coarse mask with a wide margin
 # keeps a superset and drops the millions of inland ones a European extract
@@ -310,6 +316,29 @@ def fetch_relief(region, out):
                     raise
 
 
+def etopo_name(top, left):
+    ns = f'N{top:02d}' if top >= 0 else f'S{-top:02d}'
+    ew = f'E{left:03d}' if left >= 0 else f'W{-left:03d}'
+    return ns + ew
+
+
+def fetch_etopo(region, out):
+    """The ETOPO tiles under the region's units, each named after its
+    north-west corner."""
+    minlon, minlat, maxlon, maxlat = fetch_bounds(region)
+    m, step = build_unit.ETOPO_MARGIN_DEG, ETOPO_TILE_DEG
+    tops = range(math.ceil((maxlat + m) / step) * step, math.floor((minlat - m) / step) * step, -step)
+    lefts = range(math.floor((minlon - m) / step) * step, math.ceil((maxlon + m) / step) * step, step)
+    names = {etopo_name(top, left) + '.tif' for top in tops for left in lefts}
+    target = os.path.join(out, 'etopo')
+    os.makedirs(target, exist_ok=True)
+    for stale in set(os.listdir(target)) - names:
+        os.remove(os.path.join(target, stale))
+    for name in sorted(names - set(os.listdir(target))):
+        save_url(ETOPO.format(n=name.removesuffix('.tif')), os.path.join(target, name))
+    print('etopo:', sorted(names), flush=True)
+
+
 def arcgis_features(url, where, bbox):
     meta = shom.get_json(f'{url}?f=json')
     features = []
@@ -355,6 +384,7 @@ FETCHERS = {
     'land': fetch_land,
     'osm': fetch_osm,
     'relief': fetch_relief,
+    'etopo': fetch_etopo,
     'arcgis': fetch_arcgis,
 }
 

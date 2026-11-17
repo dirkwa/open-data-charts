@@ -65,6 +65,9 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
     dem = dem_mosaic(inputs, work)
     if dem:
         args += ['--dem', dem]
+    deep = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
+    if deep:
+        args += ['--deep-dem', *deep]
     relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
     if relief:
         args += ['--relief-dem', *relief]

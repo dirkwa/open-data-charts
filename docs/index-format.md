@@ -94,6 +94,7 @@ Shares of the unit's water area, by where its depths come from:
 | `survey-recent` | Survey since 1990 | any other survey ended 1990 or later |
 | `survey-old` | Survey before 1990 | single-beam or lead-line survey before 1990 |
 | `model` | Model only | no survey; depths from a bathymetric model (100 m or coarser) |
+| `model-coarse` | Deep water, coarse model | no survey or finer model; deep water (200 m and more) from a global model at about 460 m |
 | `none` | No depth data | neither a survey nor a model; charted as unsurveyed |
 
 `best` is the first of these, in this order, whose share is above zero.

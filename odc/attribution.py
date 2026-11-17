@@ -14,6 +14,7 @@ SHARED_LAST = (
     '(c) OpenStreetMap contributors, ODbL',
     'Copernicus DEM GLO-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 '
     'provided under COPERNICUS by the European Union and ESA',
+    'NOAA NCEI ETOPO 2022 15 Arc-Second Global Relief Model, doi:10.25921/fd45-gt74',
 )
 REGIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'regions')
 

@@ -38,6 +38,10 @@ come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no
 soundings), so it can be compared with the official charts there. Each
 region is a file in `regions/`.
 
+Everywhere, deep water (200 m and more) that no survey or finer model
+covers takes its depths from NOAA's ETOPO 2022 global model (about 460 m),
+kept well clear of reefs and shores. The index marks it as a coarse model.
+
 ## Using the charts
 
 Install signalk-charts-provider-simple on a Signal K server, open its

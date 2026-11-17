@@ -17,6 +17,7 @@ Sources (all open):
   - OpenStreetMap coastline, piers, breakwaters, slipways, reefs,
     buildings near the sea, peaks (ODbL)
   - Copernicus DEM GLO-30 for the land contours (free licence, attribution)
+  - NOAA NCEI ETOPO 2022 for deep water no other source covers (no use restrictions)
   - Gouvernement de la Nouvelle-Calédonie (Licence Ouverte): reef
     geomorphology (IRD / DINUM) and OBLIC coastal structures 2016 of Nouméa
 None of it is meant for navigation.
@@ -80,7 +81,15 @@ LAND_PIECES = 16  # see tiled_parts()
 # (deepest VALDCO the rule applies to, minimum length).
 DEPCNT_MIN_RING = ((10.0, 0.0005), (5000.0, 0.004))  # ~55 m; ~430 m (~140 m across)
 SOUNDING_MINZOOM = 10
-QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'none')
+QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'model-coarse', 'none')
+# ETOPO 2022 (15 arc-seconds, ~460 m) fills only deep water nothing finer
+# covers: pixels at least ETOPO_MIN_DEPTH_M deep whose neighbours within
+# ETOPO_CLEAR_PIXELS are too, so a pixel mixing reef or shore with the
+# slope below it never charts as deep water near a hazard.
+ETOPO_PIXEL_DEG = 1 / 240
+ETOPO_MIN_DEPTH_M = 200.0
+ETOPO_CLEAR_PIXELS = 2
+ETOPO_MARGIN_DEG = (ETOPO_CLEAR_PIXELS + 2) * ETOPO_PIXEL_DEG
 SURVEY_CATEGORIES = QUALITY_ORDER[:3]
 TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'))
 
@@ -319,11 +328,46 @@ def load_surveys(surveys, box):
     return entries, depth.reshape(box.nrows, box.ncols), rank.reshape(box.nrows, box.ncols)
 
 
-def build_depth_grid(dem_filled, bbox, work, survey_depth):
-    """Merge surveys and DEM into one z-negative grid for contouring.
+def deep_water(etopo_paths, bbox):
+    """ETOPO depths (down positive) on the chart grid where ETOPO_MIN_DEPTH_M
+    and the clearance hold, NaN elsewhere. Worked on ETOPO's own global
+    pixels, so two units agree on every cell they share."""
+    ncols, nrows, _ = chart_grid(bbox)
+    minx, miny, maxx, maxy = bbox
+    m = ETOPO_MARGIN_DEG
+    mosaic = gdal.BuildVRT('/vsimem/etopo.vrt', etopo_paths)
+    window = gdal.Translate('', mosaic, format='MEM', projWin=[minx - m, maxy + m, maxx + m, miny - m])
+    z = window.GetRasterBand(1).ReadAsArray()
+    deep = z <= -ETOPO_MIN_DEPTH_M
+    clear = deep.copy()
+    c = ETOPO_CLEAR_PIXELS
+    padded = np.pad(deep, c, constant_values=False)
+    for dy in range(2 * c + 1):
+        for dx in range(2 * c + 1):
+            clear &= padded[dy : dy + deep.shape[0], dx : dx + deep.shape[1]]
+    kept = mem_raster(np.where(clear, z, NODATA).astype(np.float32), window.GetGeoTransform())
+    grid = gdal.Warp(
+        '',
+        kept,
+        format='MEM',
+        outputBounds=list(bbox),
+        width=ncols,
+        height=nrows,
+        resampleAlg='bilinear',
+        srcNodata=NODATA,
+        dstNodata=NODATA,
+    ).ReadAsArray()
+    mosaic = window = kept = None
+    gdal.Unlink('/vsimem/etopo.vrt')
+    return np.where(grid == NODATA, np.nan, -grid).astype(np.float32)
 
-    Returns the grid's path and the cells whose depth came from a survey,
-    measured or interpolated (None without surveys)."""
+
+def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None):
+    """Merge surveys, DEM and deep water into one z-negative grid for contouring.
+
+    Returns the grid's path, the cells whose depth came from a survey,
+    measured or interpolated (None without surveys), and the cells whose
+    depth came from deep water alone (None without it)."""
     ncols, nrows, gt = chart_grid(bbox)
     dem_path = os.path.join(work, 'dem_grid.tif')
     gdal.Warp(
@@ -339,6 +383,10 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
     dem = gdal.Open(dem_path).ReadAsArray()
     final = np.where(dem == NODATA, np.nan, -dem).astype(np.float32)  # depth, down positive
     del dem
+    from_deep = None
+    if deep is not None:
+        from_deep = np.isnan(final) & np.isfinite(deep)
+        final[from_deep] = deep[from_deep]
     from_survey = None
     if survey_depth is not None:
         measured = np.isfinite(survey_depth)
@@ -360,6 +408,8 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
         final[use] = interp[use]
         final[measured] = survey_depth[measured]
         from_survey = measured | use
+        if from_deep is not None:
+            from_deep &= ~from_survey
         print(
             f'  cells: {int(measured.sum())} measured, {int(use.sum())} interpolated, '
             f'{int((gap & dem_shoaler).sum())} DEM shoaler than interpolation'
@@ -397,7 +447,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth):
     out = os.path.join(work, 'depth_grid.tif')
     z = np.where(np.isfinite(final), -final, NODATA).astype(np.float32)
     gdal.Translate(out, mem_raster(z, gt), creationOptions=['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES'])
-    return out, from_survey
+    return out, from_survey, from_deep
 
 
 def land_mask(land, bbox):
@@ -1112,7 +1162,7 @@ def quality_category(meta):
     return 'survey-recent' if end >= 19900101 else 'survey-old'
 
 
-def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit):
+def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep=None):
     """Share of the unit's water by where its depths come from (see
     docs/index-format.md), and the ranks of the surveys that reach the unit.
 
@@ -1145,7 +1195,9 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit)
             share[category] = int(covered.sum())
     model = from_model[rows, cols] & water & ~taken
     share['model'] = int(model.sum())
-    share['none'] = total - int(taken.sum()) - share['model']
+    if from_deep is not None:
+        share['model-coarse'] = int((from_deep[rows, cols] & water & ~taken & ~model).sum())
+    share['none'] = total - int(taken.sum()) - share['model'] - share.get('model-coarse', 0)
     share = {k: round(v / total, 3) for k, v in share.items() if v}
     best = next(c for c in QUALITY_ORDER if c in share)
     if rank is None or not entries:
@@ -1205,6 +1257,7 @@ def main():
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
     ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
     ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
+    ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
     ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
     ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
     ap.add_argument('--work', required=True)
@@ -1237,14 +1290,19 @@ def main():
     if args.leves:
         step('Surveys: composite, newest on top')
         entries, survey_depth, rank = load_surveys(survey_inputs(args.leves, args.surveys, box), box)
+    deep = None
+    if args.deep_dem:
+        step('Deep water from ETOPO')
+        deep = deep_water(args.deep_dem, args.bbox)
     step('Depth grid: surveys + DEM')
-    depth_grid, from_survey = build_depth_grid(filled, args.bbox, args.work, survey_depth)
+    depth_grid, from_survey, from_deep = build_depth_grid(filled, args.bbox, args.work, survey_depth, deep)
+    del deep
     del survey_depth
     land_cells = land_mask(land, args.bbox)
     soundings = []
     from_model = gdal.Open(os.path.join(args.work, 'dem_grid.tif')).ReadAsArray() != NODATA
-    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit)
-    del from_model
+    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep)
+    del from_model, from_deep
     del from_survey
     if entries:
         step('Soundings')

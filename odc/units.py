@@ -205,6 +205,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     # The mosaic's origin, pixel size and nodata depend on every grid, so they reach every unit.
     digests.add_all(f'dem mosaic {mosaic_reading(dem)}')
     add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
+    etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
+    add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()
