@@ -7,6 +7,7 @@ from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     SOUNDING_MINZOOM,
     depth_quality,
+    dilate_disk,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -97,3 +98,14 @@ def test_water_without_a_survey_or_model_depth_is_not_model():
     assert used == []
     quality, _ = depth_quality([], None, None, np.zeros_like(land), land, box, unit)
     assert quality == {'best': 'none', 'share': {'none': 1.0}}
+
+
+def test_dilate_disk_reaches_exactly_the_euclidean_radius():
+    mask = np.zeros((41, 43), bool)
+    mask[20, 21] = True
+    mask[3, 40] = True
+    rows, cols = np.indices(mask.shape)
+    expected = np.zeros_like(mask)
+    for r, c in zip(*np.nonzero(mask), strict=True):
+        expected |= (rows - r) ** 2 + (cols - c) ** 2 <= 12**2
+    assert (dilate_disk(mask, 12) == expected).all()

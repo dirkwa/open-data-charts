@@ -930,6 +930,29 @@ def dilate(mask, cells):
     return out
 
 
+def dilate_disk(mask, radius):
+    """Cells within Euclidean distance radius of a True cell, the reach of
+    gdal.FillNodata's maxSearchDist. Each row band is widened once per half
+    width, so it costs O(radius) array passes, not O(radius**2)."""
+    height = mask.shape[0]
+    out = mask.copy()
+    wide = mask.copy()
+    for half in range(radius + 1):
+        if half:
+            grown = wide.copy()
+            grown[:, 1:] |= wide[:, :-1]
+            grown[:, :-1] |= wide[:, 1:]
+            wide = grown
+        for dy in range(-radius, radius + 1):
+            if math.isqrt(radius * radius - dy * dy) != half:
+                continue
+            if dy >= 0:
+                out[dy:] |= wide[: height - dy]
+            else:
+                out[:dy] |= wide[-dy:]
+    return out
+
+
 def osm_buildings(osm_items, land_cells, bbox):
     """BUISGL areas for the buildings within ~150 m of the sea; the ones
     further inland do not help anybody on the water and only cost size."""
@@ -1112,7 +1135,7 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit)
         measured = rank[rows, cols] >= 0
         for category in SURVEY_CATEGORIES:
             mask = np.isin(rank, np.flatnonzero(categories == category))
-            reached = np.where(measured, mask[rows, cols], dilate(mask, INTERP_CELLS)[rows, cols])
+            reached = np.where(measured, mask[rows, cols], dilate_disk(mask, INTERP_CELLS)[rows, cols])
             covered = reached & from_survey[rows, cols] & water & ~taken
             taken |= covered
             share[category] = int(covered.sum())
