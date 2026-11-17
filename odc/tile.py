@@ -72,11 +72,35 @@ def set_metadata(path, values):
             db.execute('INSERT INTO metadata (name, value) VALUES (?, ?)', (key, value))
 
 
+def keep_unit_tiles(path, unit):
+    """Drop the tiles tippecanoe adds around the unit for its buffer: they
+    belong to the neighbours, and each tile must come from one unit."""
+    with sqlite3.connect(path) as db:
+        is_view = db.execute("SELECT type FROM sqlite_master WHERE name = 'tiles'").fetchone()[0] == 'view'
+        table = 'map' if is_view else 'tiles'
+        for (z,) in db.execute(f'SELECT DISTINCT zoom_level FROM {table}').fetchall():
+            shift = z - UNIT_ZOOM
+            x0, x1 = unit.x << shift, ((unit.x + 1) << shift) - 1
+            # MBTiles rows count from the south (TMS).
+            rows = 1 << z
+            y0, y1 = rows - ((unit.y + 1) << shift), rows - (unit.y << shift) - 1
+            db.execute(
+                f'DELETE FROM {table} WHERE zoom_level = ? AND NOT '
+                '(tile_column BETWEEN ? AND ? AND tile_row BETWEEN ? AND ?)',
+                (z, x0, x1, y0, y1),
+            )
+        if is_view:
+            db.execute('DELETE FROM images WHERE tile_id NOT IN (SELECT tile_id FROM map)')
+    with sqlite3.connect(path) as db:
+        db.execute('VACUUM')
+
+
 def main():
     geojson_dir, out, unit_id, name = sys.argv[1:5]
     maxzoom = int(sys.argv[5]) if len(sys.argv) > 5 else 15
     unit = Unit.parse(unit_id)
     subprocess.run(tippecanoe_args(geojson_dir, out, unit, name, maxzoom), check=True)
+    keep_unit_tiles(out, unit)
     set_metadata(out, {'type': 'S-57', 'bounds': ','.join(repr(v) for v in unit.bounds), 'x-odc-unit': unit.id})
     with sqlite3.connect(out) as db:
         tiles = db.execute('SELECT count(*) FROM tiles').fetchone()[0]

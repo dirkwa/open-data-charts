@@ -1,0 +1,181 @@
+name: Build units
+
+# Rebuilds the units of a region whose inputs changed (odc.units), uploads
+# them to the release units-<region> and republishes the index on Pages.
+# Publishing runs only while the repository variable ODC_PUBLISH is 'true',
+# or when a manual run asks for it; otherwise the built units stay as
+# workflow artifacts for review.
+
+on:
+  schedule:
+    - cron: '41 5 * * 2'
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Region id (regions/<id>.json)
+        default: new-caledonia
+      publish:
+        description: Upload the units and publish the index
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-units
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  MIRROR_TAG: mirror
+  REGION: ${{ inputs.region || 'new-caledonia' }}
+  PAGES_URL: https://dirkwa.github.io/open-data-charts
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      batches: ${{ steps.plan.outputs.batches }}
+      build: ${{ steps.plan.outputs.build }}
+      removed: ${{ steps.plan.outputs.removed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Download the region's inputs
+        run: |
+          mkdir -p inputs && chmod 777 inputs
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.sources "regions/$REGION.json" inputs
+      - name: Download the mirror index and the published site
+        run: |
+          gh release download "$MIRROR_TAG" -p mirror-index.json -p footprints.geojson -D mirror
+          # Only a 404 means the site has no such file yet; any other failure
+          # stops the run, or it would plan and publish from empty state.
+          mkdir -p old
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
+            status=$(curl -sSL --retry 3 -o "old/$f" -w '%{http_code}' "$PAGES_URL/$f")
+            case "$status" in
+              200) ;;
+              404) rm -f "old/$f" ;;
+              *) echo "::error::$PAGES_URL/$f answered $status"; exit 1 ;;
+            esac
+          done
+      - name: Plan
+        id: plan
+        run: |
+          old=-
+          [ -f old/open-data-index.json ] && old=old/open-data-index.json
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
+            odc-builder python3 -m odc.units plan "regions/$REGION.json" inputs mirror/mirror-index.json "$old" plan.json
+          cat github-output >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unit-inputs
+          path: |
+            inputs
+            mirror
+            old
+            plan.json
+          retention-days: 7
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        batch: ${{ fromJSON(needs.plan.outputs.batches) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unit-inputs
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Download the surveys these units read
+        run: |
+          units=$(jq -r ".batches[${{ matrix.batch }}].units[]" plan.json)
+          mkdir -p surveys
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.units surveys mirror/mirror-index.json $units > survey-assets.txt
+          args=()
+          while read -r name; do
+            if [ -n "$name" ]; then args+=(-p "$name"); fi
+          done < survey-assets.txt
+          if [ ${#args[@]} -gt 0 ]; then gh release download "$MIRROR_TAG" "${args[@]}" -D surveys; fi
+      - name: Build and tile
+        run: |
+          units=$(jq -r ".batches[${{ matrix.batch }}].units[]" plan.json)
+          mkdir -p built && chmod 777 built
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.run_unit inputs surveys mirror/mirror-index.json plan.json built $units
+      - uses: actions/upload-artifact@v4
+        with:
+          name: built-${{ matrix.batch }}
+          path: built
+          retention-days: 14
+
+  publish:
+    needs: [plan, build]
+    if: >-
+      always() && needs.plan.result == 'success' && needs.build.result != 'failure' &&
+      needs.build.result != 'cancelled' &&
+      (vars.ODC_PUBLISH == 'true' || inputs.publish)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unit-inputs
+      - if: needs.plan.outputs.build != '0'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: built-*
+          path: built
+          merge-multiple: true
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Upload the new units
+        run: |
+          tag="units-$REGION"
+          gh release view "$tag" >/dev/null 2>&1 ||
+            gh release create "$tag" --latest=false --title "Open Data Charts units: $REGION" \
+              --notes 'Chart units built from open data. NOT FOR NAVIGATION. Licence: ODbL 1.0 (see LICENSE-DATA.md).'
+          shopt -s nullglob
+          files=(built/*.mbtiles)
+          if [ ${#files[@]} -gt 0 ]; then gh release upload "$tag" "${files[@]}" --clobber; fi
+      # Runs without changed units too: retired units still come due.
+      - name: Write the index
+        id: index
+        run: |
+          mkdir -p site built && chmod 777 site
+          bash .github/scripts/mirror-assets.sh "units-$REGION" | jq '[.[].name]' > released.json
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.index "regions/$REGION.json" plan.json built old mirror released.json site
+          cp schema/open-data-index.schema.json site/
+          changed=false
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
+            cmp -s "site/$f" "old/$f" || changed=true
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+      - if: steps.index.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - if: steps.index.outputs.changed == 'true'
+        uses: actions/deploy-pages@v4
+      - name: Remove units past their grace period
+        run: |
+          for name in $(jq -r '.[]' site/delete-assets.json); do
+            gh release delete-asset "units-$REGION" "$name" --yes || true
+          done

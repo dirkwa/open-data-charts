@@ -1,0 +1,225 @@
+"""Which units a region has, and each unit's version: a hash of every input
+that reaches the unit's build box, so a unit is rebuilt when, and only when,
+something it is built from changes.
+
+Usage:
+  python3 -m odc.units plan <region.json> <inputs dir> <mirror-index.json> <old index or -> <out plan.json> [batch size]
+  python3 -m odc.units surveys <mirror-index.json> <unit id> ...   (mirror assets the units read)
+"""
+
+import glob
+import hashlib
+import json
+import os
+import sys
+
+import numpy as np
+from osgeo import gdal, ogr
+
+from odc import build_unit, shom
+from odc.grid import Unit, units_in
+
+gdal.UseExceptions()
+VERSION_HEX = 16
+SEARCH_MARGIN_DEG = 0.05
+BATCH = 8
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Everything that turns a unit's inputs into its file; the reduction is
+# covered by the reduced surveys' own hashes.
+BUILDER_FILES = (
+    'builder/Dockerfile',
+    'odc/build_unit.py',
+    'odc/grid.py',
+    'odc/osm.py',
+    'odc/tile.py',
+    'odc/run_unit.py',
+)
+
+
+def bounds_polygon(minlon, minlat, maxlon, maxlat):
+    return build_unit.bbox_polygon(minlon, minlat, maxlon, maxlat)
+
+
+def discover(region, land_path):
+    """The region's units that are not all land."""
+    land = ogr.Open(land_path)
+    layer = land.GetLayer(0)
+    units = []
+    for unit in units_in(*region['bbox']):
+        area = bounds_polygon(*unit.bounds)
+        layer.SetSpatialFilter(area)
+        water = area
+        for feature in layer:
+            water = water.Difference(feature.GetGeometryRef())
+            if water.IsEmpty():
+                break
+        layer.ResetReading()
+        if not water.IsEmpty():
+            units.append(unit)
+    return units
+
+
+class Digests:
+    """Collects, per unit, the inputs that reach its build box."""
+
+    def __init__(self, units):
+        self.boxes = {unit.id: unit.build_box.bbox for unit in units}
+        self.parts = {unit.id: [] for unit in units}
+
+    def units_meeting(self, bbox):
+        minlon, minlat, maxlon, maxlat = bbox
+        m = SEARCH_MARGIN_DEG
+        for unit in units_in(minlon - m, minlat - m, maxlon + m, maxlat + m):
+            box = self.boxes.get(unit.id)
+            if box is not None and shom.intersects(box, bbox):
+                yield unit.id
+
+    def add(self, bbox, text):
+        for unit_id in self.units_meeting(bbox):
+            self.parts[unit_id].append(text)
+
+    def add_all(self, text):
+        for parts in self.parts.values():
+            parts.append(text)
+
+    def versions(self):
+        out = {}
+        for unit_id, parts in self.parts.items():
+            digest = hashlib.sha256()
+            for text in sorted(parts):
+                digest.update(text.encode())
+                digest.update(b'\n')
+            out[unit_id] = digest.hexdigest()[:VERSION_HEX]
+        return out
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+
+
+def add_feature_collection(digests, label, path):
+    with open(path, encoding='utf-8') as fh:
+        data = json.load(fh)
+    for feature in data.get('features') or []:
+        if feature.get('geometry'):
+            digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
+
+
+def add_geojsonseq(digests, label, path):
+    with open(path, encoding='utf-8') as fh:
+        for line in fh:
+            feature = json.loads(line.lstrip('\x1e'))
+            digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
+
+
+def add_land(digests, path):
+    source = ogr.Open(path)  # the layer is only valid while its data source lives
+    for feature in source.GetLayer(0):
+        geometry = feature.GetGeometryRef()
+        minlon, maxlon, minlat, maxlat = geometry.GetEnvelope()
+        digests.add((minlon, minlat, maxlon, maxlat), 'land ' + geometry.ExportToWkb().hex())
+
+
+def add_raster_windows(digests, label, paths):
+    """Each unit hashes only the raster window over its build box."""
+    for path in paths:
+        ds = gdal.Open(path)
+        x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+        band = ds.GetRasterBand(1)
+        name = os.path.basename(path)
+        # How the builder reads the samples is part of the window.
+        reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()}'
+        for unit_id, (minlon, minlat, maxlon, maxlat) in digests.boxes.items():
+            c0 = max(0, int(np.floor((minlon - x0) / dx)))
+            c1 = min(ds.RasterXSize, int(np.ceil((maxlon - x0) / dx)))
+            r0 = max(0, int(np.floor((maxlat - y0) / dy)))
+            r1 = min(ds.RasterYSize, int(np.ceil((minlat - y0) / dy)))
+            if c1 <= c0 or r1 <= r0:
+                continue
+            window = band.ReadAsArray(c0, r0, c1 - c0, r1 - r0)
+            digest = hashlib.sha256(f'{reading} {window.dtype}'.encode() + window.tobytes()).hexdigest()
+            digests.parts[unit_id].append(f'{label} {name} {c0} {r0} {digest}')
+
+
+def add_surveys(digests, mirror_index):
+    for name, survey in mirror_index['surveys'].items():
+        # start, end and tecsou set the survey's priority and quality category.
+        meta = canonical({k: survey.get(k) for k in ('start', 'end', 'tecsou')})
+        digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
+
+
+def unit_versions(units, inputs, mirror_index, builder):
+    digests = Digests(units)
+    digests.add_all(f'builder {builder}')
+    for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
+        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path)
+    for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
+        add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
+    osm_path = os.path.join(inputs, 'osm.geojsonseq')
+    if os.path.exists(osm_path):
+        add_geojsonseq(digests, 'osm', osm_path)
+    add_land(digests, os.path.join(inputs, 'land.gpkg'))
+    add_raster_windows(digests, 'dem', sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc'))))
+    add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
+    add_surveys(digests, mirror_index)
+    return digests.versions()
+
+
+def plan(region, units, versions, old_index, batch=BATCH):
+    """The units whose version is not the one the published index has."""
+    published = {u['id']: u['version'] for u in (old_index or {}).get('units', []) if u.get('region') == region['id']}
+    build = [u.id for u in units if published.get(u.id) != versions[u.id]]
+    kept = [u.id for u in units if u.id not in build]
+    removed = sorted(set(published) - {u.id for u in units})
+    batches = [build[i : i + batch] for i in range(0, len(build), batch)]
+    return {
+        'region': region['id'],
+        'versions': {u.id: versions[u.id] for u in units},
+        'build': build,
+        'kept': kept,
+        'removed': removed,
+        'batches': [{'index': i, 'units': b} for i, b in enumerate(batches)],
+    }
+
+
+def builder_id(root=ROOT):
+    digest = hashlib.sha256()
+    for name in BUILDER_FILES:
+        with open(os.path.join(root, name), 'rb') as fh:
+            digest.update(name.encode() + b'\0' + fh.read())
+    return digest.hexdigest()
+
+
+def surveys_for(mirror_index, unit_ids):
+    boxes = [Unit.parse(u).build_box.bbox for u in unit_ids]
+    surveys = mirror_index['surveys'].values()
+    return sorted(s['reduced']['asset'] for s in surveys if any(shom.intersects(s['bbox'], b) for b in boxes))
+
+
+def main():
+    command, *args = sys.argv[1:]
+    if command == 'surveys':
+        mirror_index = json.load(open(args[0], encoding='utf-8'))
+        print('\n'.join(surveys_for(mirror_index, args[1:])))
+        return
+    if command != 'plan':
+        sys.exit(__doc__)
+    region_path, inputs, mirror_path, old_path, out, *rest = args
+    region = json.load(open(region_path, encoding='utf-8'))
+    mirror_index = json.load(open(mirror_path, encoding='utf-8'))
+    old_index = None if old_path == '-' else json.load(open(old_path, encoding='utf-8'))
+    units = discover(region, os.path.join(inputs, 'land.gpkg'))
+    versions = unit_versions(units, inputs, mirror_index, builder_id())
+    result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH)
+    with open(out, 'w', encoding='utf-8') as fh:
+        json.dump(result, fh, indent=1)
+    print(f'{len(units)} units, {len(result["build"])} to build, {len(result["removed"])} removed')
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+            fh.write(f'batches={json.dumps([b["index"] for b in result["batches"]])}\n')
+            fh.write(f'build={len(result["build"])}\n')
+            fh.write(f'removed={len(result["removed"])}\n')
+
+
+if __name__ == '__main__':
+    main()
