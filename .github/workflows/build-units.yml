@@ -173,7 +173,7 @@ jobs:
         with:
           path: site
       - if: steps.index.outputs.changed == 'true'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
