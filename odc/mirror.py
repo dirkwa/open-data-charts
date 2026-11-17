@@ -204,7 +204,9 @@ def build_index(work, assets_path, old_index_path, out_dir):
             if s['name'] in entries
         ],
     }
-    changed = index['surveys'] != old['surveys']
+    # Region counts change alone when a new survey fails to reduce; the
+    # build's readiness check must see that.
+    changed = index['surveys'] != old['surveys'] or index['regions'] != old.get('regions')
     index['updated'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ') if changed else old.get('updated')
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, 'mirror-index.json'), 'w', encoding='utf-8') as fh:

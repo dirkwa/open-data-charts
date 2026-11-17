@@ -37,7 +37,10 @@ def asset(name):
 def test_a_failed_replacement_keeps_the_last_reduction(tmp_path):
     old_survey, new_survey = survey('S1', md5='a' * 32), survey('S1', md5='b' * 32)
     old_asset = asset(asset_name(old_survey))
-    old_index = {'surveys': {'S1': {'reduced': {'asset': old_asset['name'], 'bytes': 1, 'sha256': '00'}}}}
+    old_index = {
+        'surveys': {'S1': {'reduced': {'asset': old_asset['name'], 'bytes': 1, 'sha256': '00'}}},
+        'regions': {'r': {'surveys': 1, 'mirrored': 1}},
+    }
     (tmp_path / 'work').mkdir()
     write(tmp_path / 'work', 'discovery.json', [new_survey])
     changed, missing = build_index(
@@ -82,3 +85,33 @@ def test_the_index_counts_each_regions_missing_surveys(tmp_path):
     )
     index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
     assert index['regions'] == {'r': {'surveys': 2, 'mirrored': 1}}
+
+
+def index_after(tmp_path, discovered, assets, old_index):
+    (tmp_path / 'work').mkdir(parents=True)
+    write(tmp_path / 'work', 'discovery.json', discovered)
+    changed, _ = build_index(
+        str(tmp_path / 'work'),
+        write(tmp_path, 'assets.json', assets),
+        write(tmp_path, 'old.json', old_index),
+        str(tmp_path / 'out'),
+    )
+    return changed, json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
+
+
+def test_a_new_survey_that_failed_still_changes_the_index(tmp_path):
+    done, failed = survey('S1'), survey('S2')
+    entry = {'reduced': {'asset': asset_name(done), 'bytes': 1, 'sha256': '00'}}
+    old_index = {'surveys': {'S1': entry}, 'regions': {'r': {'surveys': 1, 'mirrored': 1}}}
+    changed, index = index_after(tmp_path, [done, failed], [asset(asset_name(done))], old_index)
+    assert changed
+    assert index['regions'] == {'r': {'surveys': 2, 'mirrored': 1}}
+
+
+def test_an_index_without_region_counts_is_rewritten(tmp_path):
+    done = survey('S1')
+    _, first = index_after(tmp_path / 'a', [done], [asset(asset_name(done))], {'surveys': {}})
+    old_index = {'surveys': first['surveys']}
+    changed, index = index_after(tmp_path / 'b', [done], [asset(asset_name(done))], old_index)
+    assert changed
+    assert index['regions'] == {'r': {'surveys': 1, 'mirrored': 1}}
