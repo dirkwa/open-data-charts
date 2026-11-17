@@ -32,7 +32,7 @@ the index and the docs say so.
   draft release `mirror`, named `<survey>.<md5-12>.npz`.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
-  structures, Copernicus DEM, ETOPO 2022 for deep water).
+  structures, the Allen Coral Atlas's reefs, Copernicus DEM, ETOPO 2022 for deep water).
 - `odc/units.py`: which units a region has (those with land or model data)
   and each unit's version, a hash of the builder and of every input reaching
   the unit's build box.

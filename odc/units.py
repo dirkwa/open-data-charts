@@ -197,6 +197,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
+    for path in sorted(glob.glob(os.path.join(inputs, 'aca', '*.geojsonseq'))):
+        add_geojsonseq(digests, 'aca', path)
     osm_path = os.path.join(inputs, 'osm.geojsonseq')
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)

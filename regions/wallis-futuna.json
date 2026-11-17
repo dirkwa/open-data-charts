@@ -10,6 +10,7 @@
   "sources": [
     "shom-wfs",
     "shom-surveys",
+    "allen-coral-atlas",
     "osm",
     "copernicus"
   ],
@@ -18,5 +19,8 @@
       "https://download.openstreetmap.fr/extracts/oceania/wallis_et_futuna-latest.osm.pbf",
       "https://download.geofabrik.de/australia-oceania/wallis-et-futuna-latest.osm.pbf"
     ]
+  ],
+  "attribution": [
+    "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"
   ]
 }

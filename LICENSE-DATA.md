@@ -60,6 +60,16 @@ Licence Ouverte (<https://data.gouv.nc/>), via the Géorep services.
   are approximate (tens of metres).
 - OBLIC coastal structures of Nouméa, 2016 (DIMENC / SGNC).
 
+## Allen Coral Atlas
+
+Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's
+tropical coral reefs, doi:10.5281/zenodo.3833242, Creative Commons
+Attribution 4.0 International (CC BY 4.0), through its public WFS. Its
+geomorphic map, mapped from satellite imagery down to about 10-15 m, gives
+the reef flats, reef crests, patch reefs, back-reef slopes and shallow
+lagoons of the regions whose file lists `allen-coral-atlas`, where a finer
+reef map has none. Outlines are approximate.
+
 ## NOAA NCEI ETOPO 2022
 
 NOAA National Centers for Environmental Information, 2022: ETOPO 2022

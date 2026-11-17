@@ -8,6 +8,7 @@
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
   etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
   nc/reefs.geojson, nc/structures.geojson   Gouvernement de la Nouvelle-Calédonie (Licence Ouverte)
+  aca/reefs_*.geojsonseq          Allen Coral Atlas reef geomorphology (CC BY 4.0), per 1-degree square
 
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 """
@@ -66,6 +67,11 @@ EMODNET_CHUNK_DEG = 2
 EMODNET_MAX_HEIGHT_M = 5.0
 EMODNET_NODATA = -9999.0
 ARCGIS_PAGE = 1000
+ACA_WFS = (
+    'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
+    '&typeNames=coral-atlas:geomorphic_data_verbose&outputFormat=application/json'
+)
+ACA_PAGE = 10000
 CHUNK = 1 << 20
 
 
@@ -378,6 +384,48 @@ def fetch_arcgis(region, out):
         print(f'{len(features):6d}  {layer["file"]}', flush=True)
 
 
+def aca_page(cql, start):
+    params = {'CQL_FILTER': cql, 'count': ACA_PAGE, 'startIndex': start, 'sortBy': 'area_sqkm'}
+    return shom.get_json(f'{ACA_WFS}&{urllib.parse.urlencode(params)}', timeout=600).get('features') or []
+
+
+def fetch_aca(region, out):
+    """The Allen Coral Atlas classes the builder charts, one file per
+    1-degree square that has any. A reef crossing a square's edge is in
+    both files; the builder reads each feature once."""
+    target = os.path.join(out, 'aca')
+    shutil.rmtree(target, ignore_errors=True)
+    if 'allen-coral-atlas' not in region.get('sources', []):
+        return
+    os.makedirs(target)
+    classes = ','.join(f"'{name}'" for name in build_unit.ACA_WATLEV)
+    minlon, minlat, maxlon, maxlat = fetch_bounds(region)
+    total = 0
+    for s in range(math.floor(minlat), math.ceil(maxlat)):
+        for w in range(math.floor(minlon), math.ceil(maxlon)):
+            cql = f"class_name IN ({classes}) AND BBOX(geom,{w},{s},{w + 1},{s + 1},'EPSG:4326')"
+            features = []
+            while True:
+                batch = aca_page(cql, len(features))
+                features += batch
+                if len(batch) < ACA_PAGE:
+                    break
+            if not features:
+                continue
+            path = os.path.join(target, f'reefs_{s:+03d}_{w:+04d}.geojsonseq')
+            with open(path + '.part', 'w', encoding='utf-8') as fh:
+                for f in features:
+                    feature = {
+                        'type': 'Feature',
+                        'id': f['id'],
+                        'properties': {'class_name': f['properties']['class_name']},
+                    }
+                    fh.write(json.dumps({**feature, 'geometry': f['geometry']}, separators=(',', ':')) + '\n')
+            os.replace(path + '.part', path)
+            total += len(features)
+    print(f'aca: {total} reef features in {len(os.listdir(target))} squares', flush=True)
+
+
 FETCHERS = {
     'wfs': fetch_wfs,
     'dem': fetch_dem,
@@ -386,6 +434,7 @@ FETCHERS = {
     'relief': fetch_relief,
     'etopo': fetch_etopo,
     'arcgis': fetch_arcgis,
+    'aca': fetch_aca,
 }
 
 

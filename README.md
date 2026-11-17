@@ -31,7 +31,9 @@ model of the coast, together with OpenStreetMap and the Copernicus DEM.
 Shom publishes Corsica's model on mean sea level rather than on the lowest
 astronomical tide; the tide there ranges over a few tens of centimetres.
 New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and
-coastal structures.
+coastal structures, and the tropical regions the Allen Coral Atlas's reef
+map, which charts reef flats, crests and shallow lagoons where no finer reef
+map has them.
 
 The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
 come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no

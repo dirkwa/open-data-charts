@@ -60,6 +60,7 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
         '--osm': os.path.join(inputs, 'osm.geojsonseq'),
         '--nc-reefs': os.path.join(inputs, 'nc', 'reefs.geojson'),
         '--nc-structures': os.path.join(inputs, 'nc', 'structures.geojson'),
+        '--aca-reefs': os.path.join(inputs, 'aca'),
     }
     args += [item for flag, path in optional.items() if os.path.exists(path) for item in (flag, path)]
     dem = dem_mosaic(inputs, work)
