@@ -25,6 +25,10 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/netherlands/friesland-latest.osm.pbf",
       "https://download.geofabrik.de/europe/netherlands/friesland-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/netherlands/flevoland-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/netherlands/flevoland-latest.osm.pbf"
     ]
   ],
   "attribution": [
