@@ -1,0 +1,44 @@
+{
+  "id": "france-atlantic",
+  "name": "France: Atlantic coast",
+  "bbox": [
+    -5.3,
+    43.3,
+    -0.71,
+    48.45
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_ATL100m_HOMONIM_PBMA_4326_PACK_DL",
+      "prepackage": "MNT_FACADE_ATLANTIQUE_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/bretagne-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/bretagne-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/pays_de_la_loire-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/pays-de-la-loire-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/poitou_charentes-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/poitou-charentes-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/aquitaine-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/aquitaine-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2015, MNT bathymetrique de facade Atlantique (Projet Homonim), doi:10.17183/MNT_ATL100m_HOMONIM_WGS84"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "france-mediterranean",
+  "name": "France: Mediterranean coast",
+  "bbox": [
+    2.82,
+    42.33,
+    7.73,
+    43.8
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_MED100m_GDL_CA_HOMONIM_PBMA_4326_PACK_DL",
+      "prepackage": "MNT_FACADE_GDL-CA_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/languedoc_roussillon-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/languedoc-roussillon-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/provence_alpes_cote_d_azur-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/provence-alpes-cote-d-azur-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/monaco-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2015, MNT bathymetrique de facade du Golfe du Lion - Cote d'Azur (Projet Homonim), doi:10.17183/MNT_MED100m_GDL_CA_HOMONIM_WGS84"
+  ]
+}

@@ -36,7 +36,9 @@ and neither are the charts built from them.
   the models it uses and their attribution, for example "Shom 2016, MNT
   bathymétrique de façade de La Réunion (Projet Homonim),
   doi:10.17183/MNT_REU100m_HOMONIM_WGS84". Every unit's attribution lists
-  the models of its region.
+  the models of its region. Corsica's model is the one Shom publishes on
+  mean sea level (`_NM`); its lowest-astronomical-tide version comes only
+  as BAG, which the builder cannot read.
 
 The scanned Shom paper charts (RasterMarine) are under a commercial licence
 and are not used.
