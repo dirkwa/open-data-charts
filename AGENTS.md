@@ -14,8 +14,11 @@ the index and the docs say so.
 
 ## Layout
 
-- `regions/<id>.json`: a region's bbox, its sources and their download
-  details. Adding a region starts here.
+- `regions/<id>.json`: a region's bbox, its sources, its Shom bathymetric
+  models (`dem`, none or several), its OpenStreetMap extracts (`osm`, each a
+  list of alternative URLs) and the attribution of its own sources. Adding a
+  region starts here; no unit may belong to two regions (tested).
+- `odc/attribution.py`: the shared attribution plus each region's.
 - `odc/grid.py`: the global 0.000125° chart grid, the z9 units and
   `MAX_ZOOM` (17 for every unit). Every grid computation happens on this
   grid, so neighbouring units agree on their shared edge.
@@ -26,10 +29,11 @@ the index and the docs say so.
 - `odc/mirror.py`: the survey mirror, one reduced `.npz` per survey in the
   draft release `mirror`, named `<survey>.<md5-12>.npz`.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
-  Shom-IRD DEM, OpenStreetMap, the Gouvernement's reefs and structures,
-  Copernicus DEM).
-- `odc/units.py`: which units a region has and each unit's version, a hash
-  of the builder and of every input reaching the unit's build box.
+  region's bathymetric models, OpenStreetMap, New Caledonia's reefs and
+  structures, Copernicus DEM).
+- `odc/units.py`: which units a region has (those with land or model data)
+  and each unit's version, a hash of the builder and of every input reaching
+  the unit's build box.
 - `odc/build_unit.py`: one unit's S-57-shaped GeoJSON layers, built on the
   unit plus a margin (`Unit.build_box`).
 - `odc/tile.py`: tippecanoe, cut to the unit's bounds, `type=S-57`.
@@ -44,7 +48,8 @@ the index and the docs say so.
 
 - `mirror-surveys.yml` (weekly): reduces new or changed Shom surveys into
   the `mirror` release.
-- `build-units.yml` (weekly): plans the units whose version changed, builds
+- `build-units.yml` (daily, one region a day in turn, once all of the
+  region's surveys are mirrored): plans the units whose version changed, builds
   them in a matrix and, when publishing is on (`ODC_PUBLISH` or a manual
   run with `publish`), uploads them to `units-<region>` and deploys the
   index to Pages.

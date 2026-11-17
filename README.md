@@ -47,11 +47,11 @@ Its format and compatibility policy are in
 
 ## How it is built
 
-- Every week a workflow mirrors the region's Shom surveys, each reduced to
+- Every week a workflow mirrors the regions' Shom surveys, each reduced to
   the shoalest sounding per cell of one global grid.
-- Every week another workflow works out which units have new inputs,
-  builds only those, uploads them to the region's release and republishes
-  the index. A unit's version is a hash of everything it is built from, so
+- Every day another workflow takes one region in turn, works out which of
+  its units have new inputs, builds only those, uploads them to the
+  region's release and republishes the index. A unit's version is a hash of everything it is built from, so
   an unchanged unit is never rebuilt or downloaded again.
 - Units are built on a shared grid with a margin around each one, so
   neighbouring units meet without seams.
