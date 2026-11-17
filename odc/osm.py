@@ -36,8 +36,8 @@ def is_area(tags, from_relation):
 
 
 def drop_inland_buildings(src, dst, near, bounds, step):
-    """Copies the export, leaving out buildings whose bbox centre lies outside
-    near (see sources.near_sea) or on one of its False cells."""
+    """Copies the export, leaving out buildings whose bbox covers no True cell
+    of near (see sources.near_sea)."""
     minlon, _, _, maxlat = bounds
     nrows, ncols = near.shape
     kept = dropped = 0
@@ -46,9 +46,11 @@ def drop_inland_buildings(src, dst, near, bounds, step):
             feature = json.loads(line.lstrip('\x1e'))
             if 'building' in (feature.get('properties') or {}):
                 x0, y0, x1, y1 = bbox_of(feature['geometry'])
-                row = int((maxlat - (y0 + y1) / 2) / step)
-                col = int(((x0 + x1) / 2 - minlon) / step)
-                if not (0 <= row < nrows and 0 <= col < ncols and near[row, col]):
+                r0 = max(int((maxlat - y1) / step), 0)
+                r1 = min(int((maxlat - y0) / step), nrows - 1)
+                c0 = max(int((x0 - minlon) / step), 0)
+                c1 = min(int((x1 - minlon) / step), ncols - 1)
+                if r0 > r1 or c0 > c1 or not near[r0 : r1 + 1, c0 : c1 + 1].any():
                     dropped += 1
                     continue
             out.write(line)

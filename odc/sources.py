@@ -21,7 +21,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 
-from osgeo import gdal
+from osgeo import gdal, ogr
 
 from odc import osm, shom
 from odc.grid import units_in
@@ -181,16 +181,29 @@ def fetch_osm(region, out):
 
 
 def near_sea(land_path, bounds):
-    """Cells of NEAR_SEA_STEP within NEAR_SEA_CELLS of a cell whose centre is
-    not on land, over bounds (row 0 at the top)."""
+    """Cells of NEAR_SEA_STEP within NEAR_SEA_CELLS of a cell holding sea,
+    over bounds (row 0 at the top). A cell holds sea when its centre is off
+    land or a coastline crosses it, so inlets narrower than a cell count."""
     minlon, minlat, maxlon, maxlat = bounds
     ncols = math.ceil((maxlon - minlon) / NEAR_SEA_STEP)
     nrows = math.ceil((maxlat - minlat) / NEAR_SEA_STEP)
-    raster = gdal.GetDriverByName('MEM').Create('', ncols, nrows, 1, gdal.GDT_Byte)
-    raster.SetGeoTransform((minlon, NEAR_SEA_STEP, 0.0, maxlat, 0.0, -NEAR_SEA_STEP))
-    land = gdal.OpenEx(land_path, gdal.OF_VECTOR)
-    gdal.RasterizeLayer(raster, [1], land.GetLayer(0), burn_values=[1])
-    near = raster.GetRasterBand(1).ReadAsArray() == 0
+    land_ds = gdal.OpenEx(land_path, gdal.OF_VECTOR)
+    land = land_ds.GetLayer(0)
+    coast_ds = gdal.GetDriverByName('MEM').CreateVector('')
+    coast = coast_ds.CreateLayer('coast', geom_type=ogr.wkbMultiLineString)
+    for feature in land:
+        line = ogr.Feature(coast.GetLayerDefn())
+        line.SetGeometry(feature.GetGeometryRef().Boundary())
+        coast.CreateFeature(line)
+
+    def burn(layer, options=None):
+        raster = gdal.GetDriverByName('MEM').Create('', ncols, nrows, 1, gdal.GDT_Byte)
+        raster.SetGeoTransform((minlon, NEAR_SEA_STEP, 0.0, maxlat, 0.0, -NEAR_SEA_STEP))
+        gdal.RasterizeLayer(raster, [1], layer, burn_values=[1], options=options or [])
+        return raster.GetRasterBand(1).ReadAsArray() == 1
+
+    land.ResetReading()
+    near = ~burn(land) | burn(coast, ['ALL_TOUCHED=TRUE'])
     for _ in range(NEAR_SEA_CELLS):
         grown = near.copy()
         grown[1:] |= near[:-1]
@@ -302,7 +315,10 @@ def main():
     with open(region_path, encoding='utf-8') as fh:
         region = json.load(fh)
     os.makedirs(out, exist_ok=True)
-    for name in names or FETCHERS:
+    names = list(names or FETCHERS)
+    if 'osm' in names and 'land' not in names and not os.path.exists(os.path.join(out, 'land.gpkg')):
+        names.insert(names.index('osm'), 'land')  # near_sea reads it
+    for name in names:
         print(f'== {name}', flush=True)
         FETCHERS[name](region, out)
 
