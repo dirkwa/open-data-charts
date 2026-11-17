@@ -7,6 +7,7 @@ from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     SOUNDING_MINZOOM,
     depth_quality,
+    dilate_disk,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -79,6 +80,32 @@ def test_a_measured_cell_counts_for_the_survey_that_sounded_it():
         (None, None, 'A', None, {'end': '20100101', 'tecsou': 'multi-beam echosounder'}),
         (None, None, 'B', None, {'end': '20100101', 'tecsou': 'single-beam echosounder'}),
     ]
-    quality, used = depth_quality(entries, rank, rank >= 0, land, box, unit)
+    quality, used = depth_quality(entries, rank, rank >= 0, rank >= 0, land, box, unit)
     assert quality['share'] == {'multibeam': 0.5, 'survey-recent': 0.5}
     assert used == [0, 1]
+
+
+def test_water_without_a_survey_or_model_depth_is_not_model():
+    unit = Unit(492, 288)
+    box = unit.build_box
+    r, c = unit.cells.iy0 - box.iy0 + 100, unit.cells.ix0 - box.ix0 + 100
+    land = np.ones((box.nrows, box.ncols), bool)
+    land[r : r + 100, c : c + 100] = False
+    from_model = np.zeros_like(land)
+    from_model[r : r + 100, c : c + 25] = True
+    quality, used = depth_quality([], None, None, from_model, land, box, unit)
+    assert quality == {'best': 'model', 'share': {'model': 0.25, 'none': 0.75}}
+    assert used == []
+    quality, _ = depth_quality([], None, None, np.zeros_like(land), land, box, unit)
+    assert quality == {'best': 'none', 'share': {'none': 1.0}}
+
+
+def test_dilate_disk_reaches_exactly_the_euclidean_radius():
+    mask = np.zeros((41, 43), bool)
+    mask[20, 21] = True
+    mask[3, 40] = True
+    rows, cols = np.indices(mask.shape)
+    expected = np.zeros_like(mask)
+    for r, c in zip(*np.nonzero(mask), strict=True):
+        expected |= (rows - r) ** 2 + (cols - c) ** 2 <= 12**2
+    assert (dilate_disk(mask, 12) == expected).all()

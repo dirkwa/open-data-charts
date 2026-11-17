@@ -45,7 +45,7 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
   "schemaVersion": 1,
   "generated": "2026-12-01T03:00:00Z",
   "disclaimer": "Not for navigation. …",
-  "attribution": "Shom, Licence Ouverte Etalab 2.0; …; (c) OpenStreetMap contributors, ODbL; …",
+  "attribution": "Shom, Licence Ouverte Etalab 2.0; …; (c) OpenStreetMap contributors, ODbL; …",  // every region's sources
   "license": "odbl-1.0",                    // licence of every unit file as a whole
   "licenses": [
     { "id": "etalab-2.0", "name": "Licence Ouverte Etalab 2.0", "url": "https://…", "attribution": "Shom, <year>" }
@@ -56,7 +56,8 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
       "name": "New Caledonia",
       "bbox": [158.0, -26.0, 172.0, -17.0],
       "overview": null,                       // or { "url", "sha256", "size", "version", "minzoom", "maxzoom" }
-      "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"]
+      "sources": ["shom-wfs", "shom-surveys", "shom-ird-dem", "osm", "nc-reefs", "nc-oblic", "copernicus"],
+      "attribution": "Shom, Licence Ouverte Etalab 2.0; …"   // the attribution of this region's units
     }
   ],
   "units": [
@@ -93,6 +94,7 @@ Shares of the unit's water area, by where its depths come from:
 | `survey-recent` | Survey since 1990 | any other survey ended 1990 or later |
 | `survey-old` | Survey before 1990 | single-beam or lead-line survey before 1990 |
 | `model` | Model only | no survey; depths from a bathymetric model (100 m or coarser) |
+| `none` | No depth data | neither a survey nor a model; charted as unsurveyed |
 
 `best` is the first of these, in this order, whose share is above zero.
 Consumers show an unknown category as "Other".

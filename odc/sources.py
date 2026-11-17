@@ -1,7 +1,7 @@
 """Download a region's chart inputs other than the surveys (see odc.mirror):
 
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
-  dem/*.asc                       Shom bathymetric DEM of the region's facade
+  dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   osm.geojsonseq                  OSM features the chart uses (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
@@ -106,31 +106,44 @@ def fetch_wfs(region, out):
 
 
 def fetch_dem(region, out):
-    dem = region['dem']
-    survey = {'group': dem['group'], 'name': dem['prepackage']}
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out) as tmp:
-        for item in shom.list_files(survey):
-            archive = os.path.join(tmp, item['fileName'])
-            shom.download(shom.file_url(survey, item['fileName']), archive, item['fileSize'], item['fileMd5'])
-            subprocess.run(
-                ['7z', 'e', '-y', f'-o{target}', archive, '*.asc', '-r'], check=True, stdout=subprocess.DEVNULL
-            )
+        for dem in region.get('dem', []):
+            survey = {'group': dem['group'], 'name': dem['prepackage']}
+            for item in shom.list_files(survey):
+                archive = os.path.join(tmp, item['fileName'])
+                shom.download(shom.file_url(survey, item['fileName']), archive, item['fileSize'], item['fileMd5'])
+                subprocess.run(
+                    ['7z', 'e', '-y', f'-o{target}', archive, '*.asc', '-r'], check=True, stdout=subprocess.DEVNULL
+                )
+                os.remove(archive)
     print('dem:', sorted(os.listdir(target)), flush=True)
 
 
+def download_extract(alternatives, path):
+    for url in alternatives:
+        try:
+            save_url(url, path)
+            return
+        except (OSError, urllib.error.URLError) as exc:
+            print(f'osm: {url} failed ({exc})', flush=True)
+    raise RuntimeError(f'no OSM extract could be downloaded from {alternatives}')
+
+
 def fetch_osm(region, out):
+    """region['osm']: the extracts covering the region, each a list of
+    alternative URLs for the same extract."""
     with tempfile.TemporaryDirectory(dir=out) as tmp:
+        parts = []
+        for i, alternatives in enumerate(region['osm']):
+            parts.append(os.path.join(tmp, f'part{i}.osm.pbf'))
+            download_extract(alternatives, parts[-1])
         extract = os.path.join(tmp, 'extract.osm.pbf')
-        for url in region['osm']:
-            try:
-                save_url(url, extract)
-                break
-            except (OSError, urllib.error.URLError) as exc:
-                print(f'osm: {url} failed ({exc})', flush=True)
+        if len(parts) == 1:
+            os.replace(parts[0], extract)
         else:
-            raise RuntimeError('no OSM extract could be downloaded')
+            subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
         filtered = os.path.join(tmp, 'filtered.osm.pbf')
         subprocess.run(['osmium', 'tags-filter', '-O', '-o', filtered, extract, *osm.OSMIUM_FILTER], check=True)
         subprocess.run(

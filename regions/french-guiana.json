@@ -1,0 +1,32 @@
+{
+  "id": "french-guiana",
+  "name": "French Guiana",
+  "bbox": [
+    -54.6,
+    3.8,
+    -51.5,
+    6.2
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_GUY100m_HOMONIM_PACK_DL",
+      "prepackage": "MNT_FACADE_GUYANE_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/south-america/guyane-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/guyane-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2016, MNT bathymetrique de facade de la Guyane (Projet Homonim), doi:10.17183/MNT_GUY100m_HOMONIM_WGS84"
+  ]
+}

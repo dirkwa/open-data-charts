@@ -1,0 +1,34 @@
+{
+  "id": "saint-martin-saint-barthelemy",
+  "name": "Saint-Martin and Saint-Barthelemy",
+  "bbox": [
+    -63.2,
+    17.85,
+    -62.75,
+    18.15
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_ANTN100m_HOMONIM_PACK_DL",
+      "prepackage": "MNT_FACADE_ANTN_HOMONIM_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/central-america/saint_martin-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/central-america/saint_barthelemy-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2018, MNT bathymetrique de facade de Saint-Martin et Saint-Barthelemy (Projet Homonim), doi:10.17183/MNT_ANTN100m_HOMONIM_WGS84"
+  ]
+}

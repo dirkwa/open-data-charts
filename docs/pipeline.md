@@ -27,3 +27,13 @@ The reader used here was replaced by one about 2.5 times faster on the same
 survey (S202000400: 97 s before, 39 s after). On GitHub's 4-CPU runners the
 whole region fits in one job; the shard limit (12 GiB of source per job)
 only matters for the large metropolitan regions.
+
+## Units
+
+`build-units.yml` builds one region a day, taking the files in `regions/` in
+turn, and skips a region until every survey of it is in the mirror. A region has
+the units of its bbox that are not all land and that hold land or data in
+the region's bathymetric model. A survey footprint alone does not qualify a
+unit: old ocean crossings would add hundreds of open-ocean units to French
+Polynesia with a sounding every few miles. Where neither a survey nor a model gives a depth, the unit
+marks the water as unsurveyed.

@@ -47,6 +47,7 @@ DRYING_TOP_Z = 50.0  # above any drying height in the DEM (max ~5 m)
 MIN_UNSARE_DEG2 = 1e-9  # only numerical crumbs; real gaps must not turn into holes
 FILL_SEARCH_CELLS = 4  # fill DEM gaps up to 4 cells (~400 m) from data
 FILL_MAX_DEPTH = 2.0  # filled near-shore cells are at most 2 m deep
+EMPTY_DEM_STEP = 0.001  # degrees; about the 100 m of the Shom DEMs
 SIMPLIFY_DEG = 0.00003  # ~3 m, applied to grid-derived geometry only
 MIN_AREA_DEG2 = 1e-8
 COAST_EDGE_DEG = 1e-7  # see build_land()  # ~120 m2; drop slivers from land/DEM mismatch
@@ -79,7 +80,8 @@ LAND_PIECES = 16  # see tiled_parts()
 # (deepest VALDCO the rule applies to, minimum length).
 DEPCNT_MIN_RING = ((10.0, 0.0005), (5000.0, 0.004))  # ~55 m; ~430 m (~140 m across)
 SOUNDING_MINZOOM = 10
-QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model')
+QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'none')
+SURVEY_CATEGORIES = QUALITY_ORDER[:3]
 TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'))
 
 # Harbour structures. OSM man_made -> S-57 CATSLC (shoreline construction).
@@ -209,14 +211,38 @@ def shrunk(envelope, d):
 # --------------------------------------------------------------------- DEM
 
 
+def empty_dem(path, window):
+    minx, maxy, maxx, miny = window
+    ncols, nrows = (round((maxx - minx) / EMPTY_DEM_STEP), round((maxy - miny) / EMPTY_DEM_STEP))
+    ds = gdal.GetDriverByName('GTiff').Create(path, ncols, nrows, 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((minx, EMPTY_DEM_STEP, 0.0, maxy, 0.0, -EMPTY_DEM_STEP))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetProjection(srs.ExportToWkt())
+    band = ds.GetRasterBand(1)
+    band.SetNoDataValue(NODATA)
+    band.Fill(NODATA)
+    ds = None
+
+
+def dem_meets(dem_path, window):
+    minx, maxy, maxx, miny = window
+    ds = gdal.Open(dem_path)
+    x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+    x1, y1 = x0 + dx * ds.RasterXSize, y0 + dy * ds.RasterYSize
+    return x0 < maxx and minx < x1 and y1 < maxy and miny < y0
+
+
 def prepare_dem(dem_path, bbox, work):
     minx, miny, maxx, maxy = bbox
     margin = 0.01
     clipped = os.path.join(work, 'dem_clip.tif')
-    # The .asc grid carries no CRS; it is WGS84 geographic per the metadata.
-    gdal.Translate(
-        clipped, dem_path, outputSRS='EPSG:4326', projWin=[minx - margin, maxy + margin, maxx + margin, miny - margin]
-    )
+    window = [minx - margin, maxy + margin, maxx + margin, miny - margin]
+    if dem_path and dem_meets(dem_path, window):
+        # The .asc grid carries no CRS; it is WGS84 geographic per the metadata.
+        gdal.Translate(clipped, dem_path, outputSRS='EPSG:4326', projWin=window)
+    else:
+        empty_dem(clipped, window)
     # The DEM's land mask is 100 m blocks, so between its last water cell
     # and the OSM coastline there is a stair-stepped strip without depth.
     # Fill it from the neighbouring cells, but never deeper than
@@ -904,6 +930,29 @@ def dilate(mask, cells):
     return out
 
 
+def dilate_disk(mask, radius):
+    """Cells within Euclidean distance radius of a True cell, the reach of
+    gdal.FillNodata's maxSearchDist. Each row band is widened once per half
+    width, so it costs O(radius) array passes, not O(radius**2)."""
+    height = mask.shape[0]
+    out = mask.copy()
+    wide = mask.copy()
+    for half in range(radius + 1):
+        if half:
+            grown = wide.copy()
+            grown[:, 1:] |= wide[:, :-1]
+            grown[:, :-1] |= wide[:, 1:]
+            wide = grown
+        for dy in range(-radius, radius + 1):
+            if math.isqrt(radius * radius - dy * dy) != half:
+                continue
+            if dy >= 0:
+                out[dy:] |= wide[: height - dy]
+            else:
+                out[:dy] |= wide[-dy:]
+    return out
+
+
 def osm_buildings(osm_items, land_cells, bbox):
     """BUISGL areas for the buildings within ~150 m of the sea; the ones
     further inland do not help anybody on the water and only cost size."""
@@ -1059,7 +1108,7 @@ def quality_category(meta):
     return 'survey-recent' if end >= 19900101 else 'survey-old'
 
 
-def depth_quality(entries, rank, from_survey, land_cells, box, unit):
+def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit):
     """Share of the unit's water by where its depths come from (see
     docs/index-format.md), and the ranks of the surveys that reach the unit.
 
@@ -1067,31 +1116,36 @@ def depth_quality(entries, rank, from_survey, land_cells, box, unit):
     interpolated from it (INTERP_CELLS around them, where the model did not
     reject the interpolation). A measured cell counts for the survey that
     sounded it, an interpolated one for the best category within reach. A
-    survey reaches the unit when it sounded a cell within INTERP_CELLS of it."""
+    survey reaches the unit when it sounded a cell within INTERP_CELLS of it.
+    Water no survey covers is the model's where the bathymetric model has a
+    depth, and 'none' (charted unsurveyed) elsewhere."""
     cells = unit.cells
     rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
     cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
     water = ~land_cells[rows, cols]
     total = int(water.sum())
-    if rank is None or not entries:
-        return {'best': 'model', 'share': {'model': 1.0}} if total else None, []
-    categories = np.array([quality_category(e[4]) for e in entries])
-    taken = np.zeros_like(water)
-    share = {}
-    # A measured cell belongs to the survey that won it; an interpolated one
-    # to the best survey within INTERP_CELLS.
-    measured = rank[rows, cols] >= 0
-    for category in QUALITY_ORDER[:-1]:
-        mask = np.isin(rank, np.flatnonzero(categories == category))
-        reached = np.where(measured, mask[rows, cols], dilate(mask, INTERP_CELLS)[rows, cols])
-        covered = reached & from_survey[rows, cols] & water & ~taken
-        taken |= covered
-        share[category] = int(covered.sum())
-    share['model'] = total - int(taken.sum())
     if not total:
         return None, []
+    taken = np.zeros_like(water)
+    share = {}
+    if rank is not None and entries:
+        categories = np.array([quality_category(e[4]) for e in entries])
+        # A measured cell belongs to the survey that won it; an interpolated one
+        # to the best survey within INTERP_CELLS.
+        measured = rank[rows, cols] >= 0
+        for category in SURVEY_CATEGORIES:
+            mask = np.isin(rank, np.flatnonzero(categories == category))
+            reached = np.where(measured, mask[rows, cols], dilate_disk(mask, INTERP_CELLS)[rows, cols])
+            covered = reached & from_survey[rows, cols] & water & ~taken
+            taken |= covered
+            share[category] = int(covered.sum())
+    model = from_model[rows, cols] & water & ~taken
+    share['model'] = int(model.sum())
+    share['none'] = total - int(taken.sum()) - share['model']
     share = {k: round(v / total, 3) for k, v in share.items() if v}
     best = next(c for c in QUALITY_ORDER if c in share)
+    if rank is None or not entries:
+        return {'best': best, 'share': share}, []
     near = rank[
         max(0, rows.start - INTERP_CELLS) : rows.stop + INTERP_CELLS,
         max(0, cols.start - INTERP_CELLS) : cols.stop + INTERP_CELLS,
@@ -1141,7 +1195,7 @@ def main():
     ap.add_argument('--unit', required=True, help='unit id, e.g. z9-492-288')
     ap.add_argument('--wfs', required=True)
     ap.add_argument('--land', required=True, help='OSM land polygons (osmdata.openstreetmap.de), any OGR format')
-    ap.add_argument('--dem', required=True)
+    ap.add_argument('--dem', help='bathymetric DEM; without it, depths come from the surveys alone')
     ap.add_argument('--leves', help='directory of <survey>.npz files from odc.reduce_survey')
     ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
@@ -1184,7 +1238,9 @@ def main():
     del survey_depth
     land_cells = land_mask(land, args.bbox)
     soundings = []
-    quality, used = depth_quality(entries, rank, from_survey, land_cells, box, unit)
+    from_model = gdal.Open(os.path.join(args.work, 'dem_grid.tif')).ReadAsArray() != NODATA
+    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit)
+    del from_model
     del from_survey
     if entries:
         step('Soundings')

@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import build_unit, shom
+from odc import attribution, build_unit, shom
 from odc.grid import Unit, units_in
 
 gdal.UseExceptions()
@@ -40,21 +40,50 @@ def bounds_polygon(minlon, minlat, maxlon, maxlat):
     return build_unit.bbox_polygon(minlon, minlat, maxlon, maxlat)
 
 
-def discover(region, land_path):
-    """The region's units that are not all land."""
-    land = ogr.Open(land_path)
+def dem_has_data(paths, bounds):
+    minlon, minlat, maxlon, maxlat = bounds
+    for path in paths:
+        ds = gdal.Open(path)
+        x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+        c0 = max(0, int(np.floor((minlon - x0) / dx)))
+        c1 = min(ds.RasterXSize, int(np.ceil((maxlon - x0) / dx)))
+        r0 = max(0, int(np.floor((maxlat - y0) / dy)))
+        r1 = min(ds.RasterYSize, int(np.ceil((minlat - y0) / dy)))
+        if c1 <= c0 or r1 <= r0:
+            continue
+        band = ds.GetRasterBand(1)
+        window = band.ReadAsArray(c0, r0, c1 - c0, r1 - r0)
+        if (window != band.GetNoDataValue()).any():
+            return True
+    return False
+
+
+def discover(region, inputs):
+    """The region's units that have water and something to chart near it:
+    land, or the region's bathymetric model. Survey footprints do not count:
+    old ocean crossings cover hundreds of units of open ocean in French
+    Polynesia with a sounding every few miles."""
+    land = ogr.Open(os.path.join(inputs, 'land.gpkg'))
     layer = land.GetLayer(0)
+    dems = sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc')))
     units = []
     for unit in units_in(*region['bbox']):
         area = bounds_polygon(*unit.bounds)
         layer.SetSpatialFilter(area)
         water = area
+        has_land = False
         for feature in layer:
-            water = water.Difference(feature.GetGeometryRef())
+            geometry = feature.GetGeometryRef()
+            if not geometry.Intersects(area):
+                continue
+            has_land = True
+            water = water.Difference(geometry)
             if water.IsEmpty():
                 break
         layer.ResetReading()
-        if not water.IsEmpty():
+        if water.IsEmpty():
+            continue
+        if has_land or dem_has_data(dems, unit.bounds):
             units.append(unit)
     return units
 
@@ -148,9 +177,10 @@ def add_surveys(digests, mirror_index):
         digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 
 
-def unit_versions(units, inputs, mirror_index, builder):
+def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     digests = Digests(units)
     digests.add_all(f'builder {builder}')
+    digests.add_all(f'attribution {attribution_text}')
     for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
@@ -174,6 +204,7 @@ def plan(region, units, versions, old_index, batch=BATCH):
     batches = [build[i : i + batch] for i in range(0, len(build), batch)]
     return {
         'region': region['id'],
+        'attribution': attribution.of_region(region),
         'versions': {u.id: versions[u.id] for u in units},
         'build': build,
         'kept': kept,
@@ -208,8 +239,8 @@ def main():
     region = json.load(open(region_path, encoding='utf-8'))
     mirror_index = json.load(open(mirror_path, encoding='utf-8'))
     old_index = None if old_path == '-' else json.load(open(old_path, encoding='utf-8'))
-    units = discover(region, os.path.join(inputs, 'land.gpkg'))
-    versions = unit_versions(units, inputs, mirror_index, builder_id())
+    units = discover(region, inputs)
+    versions = unit_versions(units, inputs, mirror_index, builder_id(), attribution.of_region(region))
     result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH)
     with open(out, 'w', encoding='utf-8') as fh:
         json.dump(result, fh, indent=1)

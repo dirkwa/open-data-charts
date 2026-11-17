@@ -1,0 +1,22 @@
+{
+  "id": "wallis-futuna",
+  "name": "Wallis and Futuna",
+  "bbox": [
+    -178.4,
+    -14.5,
+    -175.9,
+    -13.0
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "osm",
+    "copernicus"
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/wallis_et_futuna-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/wallis-et-futuna-latest.osm.pbf"
+    ]
+  ]
+}

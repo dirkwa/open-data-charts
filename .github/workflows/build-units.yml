@@ -2,18 +2,22 @@ name: Build units
 
 # Rebuilds the units of a region whose inputs changed (odc.units), uploads
 # them to the release units-<region> and republishes the index on Pages.
-# Publishing runs only while the repository variable ODC_PUBLISH is 'true',
-# or when a manual run asks for it; otherwise the built units stay as
-# workflow artifacts for review.
+# The daily run takes the regions in turn, one a day. Runs share one index,
+# and the mirror run deletes superseded survey assets a build may be about
+# to download, so builds and mirror runs never overlap (concurrency below). A region whose surveys are not
+# in the mirror yet is skipped, so its first units are not built without
+# them. Publishing runs only while the repository variable ODC_PUBLISH is
+# 'true', or when a manual run asks for it; otherwise the built units stay
+# as workflow artifacts for review.
 
 on:
   schedule:
-    - cron: '41 5 * * 2'
+    - cron: '41 5 * * *'
   workflow_dispatch:
     inputs:
       region:
-        description: Region id (regions/<id>.json)
-        default: new-caledonia
+        description: Region id (regions/<id>.json); empty for the region of the day
+        default: ''
       publish:
         description: Upload the units and publish the index
         type: boolean
@@ -25,13 +29,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: build-units
+  group: mirror-and-units
   cancel-in-progress: false
+  queue: max
 
 env:
   GH_TOKEN: ${{ github.token }}
   MIRROR_TAG: mirror
-  REGION: ${{ inputs.region || 'new-caledonia' }}
   PAGES_URL: https://dirkwa.github.io/open-data-charts
 
 jobs:
@@ -39,18 +43,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
+      region: ${{ steps.region.outputs.region }}
+      ready: ${{ steps.ready.outputs.ready }}
       batches: ${{ steps.plan.outputs.batches }}
       build: ${{ steps.plan.outputs.build }}
       removed: ${{ steps.plan.outputs.removed }}
     steps:
       - uses: actions/checkout@v7
+      - name: Pick the region
+        id: region
+        env:
+          REQUESTED: ${{ inputs.region }}
+        run: |
+          if [ -n "$REQUESTED" ]; then
+            region="$REQUESTED"
+          else
+            mapfile -t ids < <(ls regions/*.json | xargs -n1 basename | sed 's/\.json$//' | sort)
+            region="${ids[$(( $(date -u +%s) / 86400 % ${#ids[@]} ))]}"
+          fi
+          [ -f "regions/$region.json" ] || { echo "::error::no regions/$region.json"; exit 1; }
+          echo "region=$region" >> "$GITHUB_OUTPUT"
+          echo "REGION=$region" >> "$GITHUB_ENV"
       - name: Build the builder image
         run: docker build -f builder/Dockerfile -t odc-builder .
-      - name: Download the region's inputs
-        run: |
-          mkdir -p inputs && chmod 777 inputs
-          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
-            odc-builder python3 -m odc.sources "regions/$REGION.json" inputs
       - name: Download the mirror index and the published site
         run: |
           gh release download "$MIRROR_TAG" -p mirror-index.json -p footprints.geojson -D mirror
@@ -65,15 +80,30 @@ jobs:
               *) echo "::error::$PAGES_URL/$f answered $status"; exit 1 ;;
             esac
           done
+      - name: Check that the region's surveys are mirrored
+        id: ready
+        run: |
+          counts=$(jq -c --arg r "$REGION" '.regions[$r] // {}' mirror/mirror-index.json)
+          echo "$REGION in the mirror: $counts"
+          ready=$(echo "$counts" | jq '.surveys > 0 and .mirrored == .surveys')
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Download the region's inputs
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          mkdir -p inputs && chmod 777 inputs
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.sources "regions/$REGION.json" inputs
       - name: Plan
         id: plan
+        if: steps.ready.outputs.ready == 'true'
         run: |
           old=-
           [ -f old/open-data-index.json ] && old=old/open-data-index.json
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
             odc-builder python3 -m odc.units plan "regions/$REGION.json" inputs mirror/mirror-index.json "$old" plan.json
           cat github-output >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v7
+      - if: steps.ready.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
         with:
           name: unit-inputs
           path: |
@@ -85,9 +115,11 @@ jobs:
 
   build:
     needs: plan
-    if: needs.plan.outputs.build != '0'
+    if: needs.plan.outputs.ready == 'true' && needs.plan.outputs.build != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    env:
+      REGION: ${{ needs.plan.outputs.region }}
     strategy:
       fail-fast: false
       max-parallel: 8
@@ -126,10 +158,13 @@ jobs:
   publish:
     needs: [plan, build]
     if: >-
-      always() && needs.plan.result == 'success' && needs.build.result != 'failure' &&
+      always() && needs.plan.result == 'success' && needs.plan.outputs.ready == 'true' &&
+      needs.build.result != 'failure' &&
       needs.build.result != 'cancelled' &&
       (vars.ODC_PUBLISH == 'true' || inputs.publish)
     runs-on: ubuntu-latest
+    env:
+      REGION: ${{ needs.plan.outputs.region }}
     environment:
       name: github-pages
     steps:

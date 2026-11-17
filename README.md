@@ -21,9 +21,14 @@ reads that index, lets the user pick units on a map, downloads only those
 units (and on updates only the units that changed) and assembles them into
 one chart on the boat.
 
-The first region is New Caledonia, from Shom open data (surveys, seamarks,
-the Shom-IRD bathymetric model), the Gouvernement de la Nouvelle-Calédonie's
-reef map and coastal structures, OpenStreetMap and the Copernicus DEM.
+The regions are the French overseas territories with Shom open data: New
+Caledonia, French Polynesia, Wallis and Futuna, Réunion, Mayotte,
+Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana and
+Saint-Pierre and Miquelon. Each is built from Shom's surveys, seamarks and,
+where Shom publishes one, its bathymetric model of the coast, together with
+OpenStreetMap and the Copernicus DEM. New Caledonia adds the Gouvernement de
+la Nouvelle-Calédonie's reef map and coastal structures. Each region is a
+file in `regions/`.
 
 ## Using the charts
 
@@ -42,11 +47,11 @@ Its format and compatibility policy are in
 
 ## How it is built
 
-- Every week a workflow mirrors the region's Shom surveys, each reduced to
+- Every week a workflow mirrors the regions' Shom surveys, each reduced to
   the shoalest sounding per cell of one global grid.
-- Every week another workflow works out which units have new inputs,
-  builds only those, uploads them to the region's release and republishes
-  the index. A unit's version is a hash of everything it is built from, so
+- Every day another workflow takes one region in turn, works out which of
+  its units have new inputs, builds only those, uploads them to the
+  region's release and republishes the index. A unit's version is a hash of everything it is built from, so
   an unchanged unit is never rebuilt or downloaded again.
 - Units are built on a shared grid with a margin around each one, so
   neighbouring units meet without seams.

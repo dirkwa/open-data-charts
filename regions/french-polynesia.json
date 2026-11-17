@@ -1,0 +1,32 @@
+{
+  "id": "french-polynesia",
+  "name": "French Polynesia",
+  "bbox": [
+    -155.0,
+    -28.0,
+    -134.3,
+    -7.5
+  ],
+  "sources": [
+    "shom-wfs",
+    "shom-surveys",
+    "shom-dem",
+    "osm",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "group": "MNT_FACADE_TAHITI_MOOREA_100m_PACK_DL",
+      "prepackage": "MNT_FACADE_TAHITI_MOOREA_METEO-FRANCE_PBMA"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/polynesie-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/polynesie-francaise-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Shom 2023, MNT bathymetrique de facade de Tahiti et Moorea (Projet Meteo-France), doi:10.17183/MNT_FACADE_TAHITI_MOOREA_METEO-FRANCE_100m_WGS84"
+  ]
+}
