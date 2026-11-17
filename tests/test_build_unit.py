@@ -16,6 +16,7 @@ from odc.build_unit import (  # noqa: E402
     deep_water,
     depth_quality,
     dilate_disk,
+    linestring,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -228,3 +229,13 @@ def test_an_osm_reef_keeps_only_what_the_maps_leave_out(tmp_path):
     items = build_reefs(None, aca, osm, [], box)
     kept = [(a['OBJNAM'], round(g.GetArea() * 1e6, 3)) for g, a, _ in items if 'OBJNAM' in a]
     assert kept == [('long', round((0.01 - 0.0025) * 0.002 * 1e6, 3))]
+
+
+def test_an_osm_reef_line_keeps_only_what_the_maps_leave_out(tmp_path):
+    box = bbox_polygon(-144.9, -16.9, -144.8, -16.8)
+    aca = write_aca(tmp_path, [('a', 'Inner Reef Flat', square(-144.85, -16.85, 0.002))])
+    lines = {'long': [(-144.85, -16.849), (-144.84, -16.849)], 'covered': [(-144.8495, -16.849), (-144.8485, -16.849)]}
+    osm = [(linestring(coords), {'OBJNAM': n}) for n, coords in lines.items()]
+    items = build_reefs(None, aca, osm, [], box)
+    kept = [(a['OBJNAM'], round(g.Length(), 6)) for g, a, _ in items if 'OBJNAM' in a]
+    assert kept == [('long', 0.01 - 0.0025)]

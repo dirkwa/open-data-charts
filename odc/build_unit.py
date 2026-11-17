@@ -1008,18 +1008,26 @@ def build_reefs(reef_path, aca_dir, osm_reefs, land_index, bbox_geom):
         ]
     n_aca, n_osm = len(items) - n_map, 0
     for geom, attrs in osm_reefs:
-        charted = list(overlapping(mapped, geom.Buffer(REEF_MATCH_DEG)))
-        if geom.GetDimension() < 2:
+        charted, dim = list(overlapping(mapped, geom.Buffer(REEF_MATCH_DEG))), geom.GetDimension()
+        if dim == 0:
             if charted:
                 continue  # the maps have this reef
         else:
             for part in charted:  # keep only what the maps leave out
                 geom = geom.Difference(part.Buffer(REEF_MATCH_DEG))
-            geom = minus(geom, land_index) if not geom.IsEmpty() else None
-            parts = [p for p in polygon_parts(geom) if p.GetArea() >= MIN_AREA_DEG2]
-            if not parts:
-                continue
-            geom = multipolygon(parts)
+            if dim == 2:
+                geom = minus(geom, land_index) if not geom.IsEmpty() else None
+                parts = [p for p in polygon_parts(geom) if p.GetArea() >= MIN_AREA_DEG2]
+                if not parts:
+                    continue
+                geom = multipolygon(parts)
+            else:
+                parts = list(line_parts(geom))
+                if not parts:
+                    continue
+                geom = ogr.Geometry(ogr.wkbMultiLineString)
+                for part in parts:
+                    geom.AddGeometry(part)
         items.append((geom, {**attrs, 'NATSUR': NATSUR_CORAL}, None))
         n_osm += 1
     print(f'  reefs: {n_map} reef-map areas, {n_aca} Allen Coral Atlas areas, {n_osm} OSM reefs the maps lack')
