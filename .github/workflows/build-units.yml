@@ -73,7 +73,7 @@ jobs:
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_OUTPUT=/src/github-output \
             odc-builder python3 -m odc.units plan "regions/$REGION.json" inputs mirror/mirror-index.json "$old" plan.json
           cat github-output >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: unit-inputs
           path: |
@@ -117,7 +117,7 @@ jobs:
           mkdir -p built && chmod 777 built
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
             odc-builder python3 -m odc.run_unit inputs surveys mirror/mirror-index.json plan.json built $units
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: built-${{ matrix.batch }}
           path: built
