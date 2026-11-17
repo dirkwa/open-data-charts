@@ -316,7 +316,9 @@ def main():
         region = json.load(fh)
     os.makedirs(out, exist_ok=True)
     names = list(names or FETCHERS)
-    if 'osm' in names and 'land' not in names and not os.path.exists(os.path.join(out, 'land.gpkg')):
+    if 'osm' in names and ('land' in names or not os.path.exists(os.path.join(out, 'land.gpkg'))):
+        if 'land' in names:
+            names.remove('land')
         names.insert(names.index('osm'), 'land')  # near_sea reads it
     for name in names:
         print(f'== {name}', flush=True)

@@ -40,6 +40,7 @@ def test_only_buildings_near_the_sea_are_kept(tmp_path):
     features = [
         building(0.0515, 0.05, name='coast'),
         building(0.09, 0.05, name='inland'),
+        building(0.09, 0.06, name='inland pier', man_made='pier'),
         building(0.5, 0.05, name='outside'),
         pier,
     ]
@@ -49,8 +50,8 @@ def test_only_buildings_near_the_sea_are_kept(tmp_path):
         str(src), str(tmp_path / 'out.geojsonseq'), near, BOUNDS, sources.NEAR_SEA_STEP
     )
     out = [json.loads(line) for line in (tmp_path / 'out.geojsonseq').read_text().splitlines()]
-    assert (kept, dropped) == (2, 2)
-    assert [f['properties'].get('name') for f in out] == ['coast', None]
+    assert (kept, dropped) == (3, 2)
+    assert [f['properties'].get('name') for f in out] == ['coast', 'inland pier', None]
 
 
 def test_the_sea_mask_reaches_further_than_the_builder_keeps_buildings(tmp_path):
@@ -112,3 +113,7 @@ def test_an_osm_fetch_fetches_land_first_when_it_is_missing(tmp_path, monkeypatc
     (tmp_path / 'out' / 'land.gpkg').write_text('')
     sources.main()
     assert calls == ['osm']
+    calls.clear()
+    monkeypatch.setattr('sys.argv', ['sources', str(region), str(tmp_path / 'out'), 'osm', 'land'])
+    sources.main()
+    assert calls == ['land', 'osm']

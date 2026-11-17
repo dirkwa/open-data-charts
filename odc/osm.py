@@ -21,6 +21,14 @@ OSMIUM_FILTER = (
     'r/building',
 )
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
+# The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
+OTHER_ROLES = {
+    rule.split('/')[1].split('=')[0]: set(rule.split('=')[1].split(',')) for rule in OSMIUM_FILTER if '=' in rule
+}
+
+
+def building_only(tags):
+    return 'building' in tags and not any(tags.get(key) in values for key, values in OTHER_ROLES.items())
 
 
 def is_area(tags, from_relation):
@@ -44,7 +52,7 @@ def drop_inland_buildings(src, dst, near, bounds, step):
     with open(src, encoding='utf-8') as fh, open(dst + '.part', 'w', encoding='utf-8') as out:
         for line in fh:
             feature = json.loads(line.lstrip('\x1e'))
-            if 'building' in (feature.get('properties') or {}):
+            if building_only(feature.get('properties') or {}):
                 x0, y0, x1, y1 = bbox_of(feature['geometry'])
                 r0 = max(int((maxlat - y1) / step), 0)
                 r1 = min(int((maxlat - y0) / step), nrows - 1)
