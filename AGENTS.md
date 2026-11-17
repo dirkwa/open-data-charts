@@ -6,19 +6,21 @@ the shorter walk-through for people.
 ## What this is
 
 A data pipeline: GitHub Actions build vector nautical charts from open data
-(Shom, Gouvernement de la Nouvelle-Calédonie, OpenStreetMap, Copernicus) as
-one MBTiles per *unit*, a z9 Web-Mercator tile, and publish them as release
-assets with an index on GitHub Pages. The consumer is the "Open Data Charts"
+(Shom, EMODnet, Gouvernement de la Nouvelle-Calédonie, OpenStreetMap,
+Copernicus) as one MBTiles per *unit*, a z9 Web-Mercator tile, and publish
+them as release assets with an index on GitHub Pages. The consumer is the "Open Data Charts"
 tab of signalk-charts-provider-simple. **Not for navigation**: every chart,
 the index and the docs say so.
 
 ## Layout
 
-- `regions/<id>.json`: a region's bbox, its sources, its Shom bathymetric
-  models (`dem`, none or several), its OpenStreetMap extracts (`osm`, each a
+- `regions/<id>.json`: a region's bbox, its sources, its bathymetric
+  models (`dem`, none or several: Shom prepackages, or
+  `{"source": "emodnet"}` for the EMODnet DTM over the region), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
-- `odc/attribution.py`: the shared attribution plus each region's.
+- `odc/attribution.py`: the shared attribution, Shom's for regions built
+  from Shom data, plus each region's.
 - `odc/grid.py`: the global 0.000125° chart grid, the z9 units and
   `MAX_ZOOM` (17 for every unit). Every grid computation happens on this
   grid, so neighbouring units agree on their shared edge.
@@ -29,7 +31,7 @@ the index and the docs say so.
 - `odc/mirror.py`: the survey mirror, one reduced `.npz` per survey in the
   draft release `mirror`, named `<survey>.<md5-12>.npz`.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
-  region's bathymetric models, OpenStreetMap, New Caledonia's reefs and
+  region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
   structures, Copernicus DEM).
 - `odc/units.py`: which units a region has (those with land or model data)
   and each unit's version, a hash of the builder and of every input reaching

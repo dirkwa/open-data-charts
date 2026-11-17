@@ -2,6 +2,7 @@
 
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
+  dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
@@ -10,6 +11,7 @@
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 """
 
+import glob
 import json
 import math
 import os
@@ -46,6 +48,17 @@ COPERNICUS = 'https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif'
 # carries.
 NEAR_SEA_STEP = 0.001
 NEAR_SEA_CELLS = 5
+# Whole degrees fall on the DTM's 1/16 arc-minute grid, so chunks fit edge to edge.
+EMODNET_WCS = (
+    'https://ows.emodnet-bathymetry.eu/wcs?service=WCS&version=2.0.1&request=GetCoverage'
+    '&coverageId=emodnet__mean&format=image/tiff&subset=Lat({s},{n})&subset=Long({w},{e})'
+)
+EMODNET_CHUNK_DEG = 2
+# The DTM carries land elevations, where a Shom model has no data. Keep
+# drying heights (a few metres above chart datum) and drop the rest, or a
+# 115 m land cell spilling past the OSM coastline charts as a drying bank.
+EMODNET_MAX_HEIGHT_M = 5.0
+EMODNET_NODATA = -9999.0
 ARCGIS_PAGE = 1000
 CHUNK = 1 << 20
 
@@ -106,6 +119,8 @@ def fetch_bounds(region):
 
 
 def fetch_wfs(region, out):
+    if 'shom-wfs' not in region.get('sources', []):
+        return
     for name in wfs_layers():
         features = sorted(wfs_features(name, fetch_bounds(region)), key=lambda f: str(f.get('id')))
         save_json(
@@ -115,11 +130,40 @@ def fetch_wfs(region, out):
         print(f'{len(features):6d}  {name}', flush=True)
 
 
+def dem_grids(inputs):
+    """The region's bathymetric model grids, in the order the mosaic
+    stacks them: a later grid wins where they overlap."""
+    dem = os.path.join(inputs, 'dem')
+    return sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif'))) + sorted(glob.glob(os.path.join(dem, '*.asc')))
+
+
+def fetch_emodnet(bounds, target):
+    minlon, minlat, maxlon, maxlat = bounds
+    step = EMODNET_CHUNK_DEG
+    for s in range(math.floor(minlat), math.ceil(maxlat), step):
+        for w in range(math.floor(minlon), math.ceil(maxlon), step):
+            url = EMODNET_WCS.format(s=s, n=s + step, w=w, e=w + step)
+            path = os.path.join(target, f'emodnet_{s:+03d}_{w:+04d}.tif')
+            save_url(url, path + '.wcs.tif', timeout=1800)
+            source = gdal.Open(path + '.wcs.tif')
+            heights = source.GetRasterBand(1).ReadAsArray()
+            heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
+            grid = gdal.GetDriverByName('GTiff').CreateCopy(path, source, options=['COMPRESS=DEFLATE', 'PREDICTOR=3'])
+            band = grid.GetRasterBand(1)
+            band.SetNoDataValue(EMODNET_NODATA)
+            band.WriteArray(heights)
+            grid = source = None
+            os.remove(path + '.wcs.tif')
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         for dem in region.get('dem', []):
+            if dem.get('source') == 'emodnet':
+                fetch_emodnet(fetch_bounds(region), target)
+                continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
                 archive = os.path.join(tmp, item['fileName'])

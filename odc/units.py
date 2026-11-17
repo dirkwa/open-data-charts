@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import attribution, build_unit, shom
+from odc import attribution, build_unit, shom, sources
 from odc.grid import Unit, units_in
 
 gdal.UseExceptions()
@@ -65,7 +65,7 @@ def discover(region, inputs):
     Polynesia with a sounding every few miles."""
     land = ogr.Open(os.path.join(inputs, 'land.gpkg'))
     layer = land.GetLayer(0)
-    dems = sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc')))
+    dems = sources.dem_grids(inputs)
     units = []
     for unit in units_in(*region['bbox']):
         area = bounds_polygon(*unit.bounds)
@@ -189,7 +189,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
-    add_raster_windows(digests, 'dem', sorted(glob.glob(os.path.join(inputs, 'dem', '*.asc'))))
+    add_raster_windows(digests, 'dem', sources.dem_grids(inputs))
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()
