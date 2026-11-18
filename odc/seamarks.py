@@ -7,6 +7,7 @@ values. Lights, topmarks, fog signals, daymarks and radar transponders on
 an object are their own S-57 objects at its position, as in an ENC.
 """
 
+import math
 import re
 
 COLOUR = {
@@ -256,6 +257,12 @@ PARTS = {
     'fog_signal': 'FOGSIG',
     'radar_transponder': 'RTPBCN',
 }
+DANGERS = {'WRECKS', 'UWTROC', 'OBSTRN', 'OFSPLF', 'PILPNT', 'MORFAC'}
+AID_CLASSES = ({objl for objl, _, _ in TYPES.values()} - DANGERS) | set(PARTS.values()) | {'LIGHTS'}
+# A unit holding French and foreign coast has Shom's aids and OSM's; an OSM
+# mark this close to a Shom aid is taken to be one Shom already charts.
+SHOM_AID_RADIUS_M = 1852.0
+METRES_PER_DEGREE = 111320.0
 NUMBER = re.compile(r'[-+]?\d+(?:\.\d+)?')
 LIGHT_KEY = re.compile(r'^seamark:light(?::(\d+))?:([a-z_]+)$')
 GROUP = re.compile(r'^\s*([A-Za-z.+]+)\s*\(([^)]*)\)\s*$')
@@ -389,9 +396,49 @@ def objects(tags):
     return out
 
 
-def seamark_layers(items, bbox_geom, source):
+class Nearby:
+    """Whether a point lies within radius_m of any of the given points."""
+
+    def __init__(self, points, radius_m):
+        self.cell = radius_m / METRES_PER_DEGREE
+        self.radius_m = radius_m
+        self.cells = {}
+        for lon, lat in points:
+            self.cells.setdefault(self.key(lon, lat), []).append((lon, lat))
+
+    def key(self, lon, lat):
+        return math.floor(lon / self.cell), math.floor(lat / self.cell)
+
+    def __call__(self, lon, lat):
+        kx, ky = self.key(lon, lat)
+        # A degree of longitude is never longer than one of latitude, so
+        # cells one radius wide in longitude reach far enough at any latitude.
+        reach = math.ceil(1 / max(math.cos(math.radians(lat)), 0.01))
+        for dx in range(-reach, reach + 1):
+            for dy in (-1, 0, 1):
+                for x, y in self.cells.get((kx + dx, ky + dy), ()):
+                    east = (x - lon) * METRES_PER_DEGREE * math.cos(math.radians(lat))
+                    north = (y - lat) * METRES_PER_DEGREE
+                    if math.hypot(east, north) <= self.radius_m:
+                        return True
+        return False
+
+
+def shom_aids(wfs_layers):
+    """Nearby over the aids to navigation among the Shom WFS objects."""
+    points = []
+    for objl in AID_CLASSES:
+        for geom, _, _ in wfs_layers.get(objl, []):
+            centre = geom if geom.GetDimension() == 0 else geom.PointOnSurface()
+            if centre is not None and not centre.IsEmpty():
+                points.append((centre.GetX(), centre.GetY()))
+    return Nearby(points, SHOM_AID_RADIUS_M)
+
+
+def seamark_layers(items, bbox_geom, source, charted=None):
     """S-57 items per class from (tags, geometry) of seamark-tagged OSM objects
-    inside bbox_geom, each at a point of its object."""
+    inside bbox_geom, each at a point of its object, leaving out those
+    charted(lon, lat) says another source has."""
     layers = {}
     for tags, geom in items:
         found = objects(tags)
@@ -399,6 +446,8 @@ def seamark_layers(items, bbox_geom, source):
             continue
         where = geom if geom.GetDimension() == 0 else geom.PointOnSurface()
         if where is None or where.IsEmpty() or not bbox_geom.Contains(where):
+            continue
+        if charted is not None and charted(where.GetX(), where.GetY()):
             continue
         for objl, attrs in found:
             layers.setdefault(objl, []).append((where.Clone(), {**attrs, 'INFORM': source}, None))

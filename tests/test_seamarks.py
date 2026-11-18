@@ -120,3 +120,25 @@ def test_a_racon_keeps_its_category_morse_letter_and_range():
         'seamark:radar_transponder:range': '10',
     }
     assert seamarks.objects(tags) == [('RTPBCN', {'CATRTB': 2, 'SIGGRP': '(Z)', 'VALMXR': 10})]
+
+
+def test_osm_marks_near_a_shom_aid_are_left_to_shom():
+    shom = {
+        'BOYLAT': [(node(0.5, 0.5), {}, None)],
+        'WRECKS': [(node(0.2, 0.2), {}, None)],
+    }
+    charted = seamarks.shom_aids(shom)
+    one_mile = 1852 / 111320
+    items = [
+        ({'seamark:type': 'buoy_lateral'}, node(0.5 + 0.9 * one_mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.5 + 1.1 * one_mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.2, 0.2)),
+    ]
+    kept = seamarks.seamark_layers(items, BBOX, 'OSM', charted)['BOYLAT']
+    assert sorted(round(g.GetX(), 4) for g, _, _ in kept) == [0.2, round(0.5 + 1.1 * one_mile, 4)]
+
+
+def test_nearby_measures_longitude_shorter_away_from_the_equator():
+    near = seamarks.Nearby([(0.0, 60.0)], 1852)
+    assert near(1852 / 111320 / 0.5 * 0.95, 60.0)
+    assert not near(1852 / 111320 / 0.5 * 1.05, 60.0)
