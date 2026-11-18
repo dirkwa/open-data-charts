@@ -33,7 +33,13 @@ astronomical tide; the tide there ranges over a few tens of centimetres.
 New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and
 coastal structures, and the tropical regions the Allen Coral Atlas's reef
 map, which charts reef flats, crests and shallow lagoons where no finer reef
-map has them.
+map has them. In the units charted for their land or model, water that the
+atlas's satellite-derived bathymetry covers and no survey or model does is
+charted in coarse depth bands (0-2, 2-5 and over 5 m) without soundings or
+contours. The bands are set shallower than the satellite reads: against
+Shom's soundings in the Tuamotus its median reads 1 to 4 m too deep,
+depending on the depth, and single readings differ more. The index marks
+the water as satellite-derived.
 
 The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
 come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no

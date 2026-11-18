@@ -42,4 +42,36 @@ the units of its bbox that are not all land and that hold land or data in
 the region's bathymetric model. A survey footprint alone does not qualify a
 unit: old ocean crossings would add hundreds of open-ocean units to French
 Polynesia with a sounding every few miles. Where neither a survey nor a model gives a depth, the unit
-marks the water as unsurveyed.
+charts the satellite-derived depth bands where they cover the water (see
+*Satellite depths*), and marks the rest as unsurveyed.
+
+## Satellite depths
+
+The Allen Coral Atlas publishes satellite-derived bathymetry only in
+download packages a person requests for an area. `aca-depth.yml` takes the
+link the atlas mails and cuts the package into 1-degree squares on the chart
+grid (`odc/aca_depth.py`): each cell keeps the shoalest depth inside it, in
+whole metres. The atlas maps whole atolls and the water around them, so a
+square over an atoll group is about 25 MB. The
+squares are assets of the release `aca-depth`, and `odc.sources` fetches
+those under a region's units for every region with `allen-coral-atlas` in its
+sources. A run uploads each square as `next-<square>` and renames it over
+the old one once it is complete; the next run finishes a rename a stopped
+run left. Runs queue, each merging into what the last one published.
+
+The builder bands and sieves a square as a whole (`square_bands`), never a
+unit's box, so neighbouring units agree on every cell, and a unit's version
+hashes every square it meets. Specks under 6 cells take the band around
+them, and patches of the deepest band under 50 cells the band above it, or
+no depth where only water without satellite depth surrounds them.
+
+### Measured: Tahanea, Tuamotus (2026-11-18)
+
+Against 34,598 Shom soundings of Tahanea, the satellite depth reads deeper
+than the survey: by a median of 1.2 m at 2-5 m, 2.5 m at 5-10 m and 3.9 m at
+10-15 m, and it stays at about 18 m over water of 60 m and more. Per
+satellite depth, the 5th percentile of the true depth is about 1.5 m below
+4 m, 3 m at 4-8 m, 5 m at 8-16 m and 11 m beyond. The builder's bands
+(`SATELLITE_BANDS`) start there: 0-2 m, 2-5 m and over 5 m. A fourth band
+over 10 m was tried and dropped, since around the 10 m line the satellite's
+noise drew thousands of specks and nearly tripled a unit's size.

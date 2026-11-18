@@ -184,6 +184,25 @@ def add_raster_windows(digests, label, paths, margin=0.0):
             digests.parts[unit_id].append(f'{label} {name} {c0} {r0} {digest}')
 
 
+def add_squares(digests, label, paths):
+    """Whole rasters for the units meeting them: the builder sieves a
+    satellite depth square as a whole (build_unit.square_bands), so any
+    cell of it can change a unit's bands."""
+    for path in paths:
+        ds = gdal.Open(path)
+        x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+        bbox = (x0, y0 + dy * ds.RasterYSize, x0 + dx * ds.RasterXSize, y0)
+        band = ds.GetRasterBand(1)
+        cells = band.ReadAsArray()
+        reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()} {cells.dtype}'
+        digest = hashlib.sha256(reading.encode() + cells.tobytes()).hexdigest()
+        # The same test as build_unit.satellite_bands, on every box: a square
+        # only touching a box takes no part in it.
+        for unit_id, (minlon, minlat, maxlon, maxlat) in digests.boxes.items():
+            if bbox[0] < maxlon and bbox[2] > minlon and bbox[1] < maxlat and bbox[3] > minlat:
+                digests.parts[unit_id].append(f'{label} {os.path.basename(path)} {digest}')
+
+
 def add_surveys(digests, mirror_index):
     for name, survey in mirror_index['surveys'].items():
         # start, end and tecsou set the survey's priority and quality category.
@@ -221,6 +240,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
     etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)
+    add_squares(digests, 'aca-depth', sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif'))))
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()

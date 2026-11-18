@@ -69,6 +69,9 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
     deep = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     if deep:
         args += ['--deep-dem', *deep]
+    satellite = sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif')))
+    if satellite:
+        args += ['--satellite-depth', *satellite]
     relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
     if relief:
         args += ['--relief-dem', *relief]

@@ -9,11 +9,14 @@
   etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
   nc/reefs.geojson, nc/structures.geojson   Gouvernement de la Nouvelle-Calédonie (Licence Ouverte)
   aca/reefs_*.geojsonseq          Allen Coral Atlas reef geomorphology (CC BY 4.0), per 1-degree square
+  aca-depth/depth_*.tif           Allen Coral Atlas satellite-derived bathymetry (CC BY 4.0), the
+                                  1-degree squares the aca-depth release has (odc.aca_depth)
 
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 """
 
 import glob
+import hashlib
 import json
 import math
 import os
@@ -27,7 +30,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import build_unit, osm, shom
+from odc import aca_depth, build_unit, osm, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -80,6 +83,14 @@ def save_json(path, value):
     with open(path + '.part', 'w', encoding='utf-8') as fh:
         json.dump(value, fh, ensure_ascii=False, sort_keys=True)
     os.replace(path + '.part', path)
+
+
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(CHUNK), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def save_url(url, path, timeout=600):
@@ -444,6 +455,111 @@ def fetch_aca(region, out):
     print(f'aca: {total} reef features in {len(os.listdir(target))} squares', flush=True)
 
 
+ACA_DEPTH_RELEASE = 'https://api.github.com/repos/{repo}/releases/tags/' + aca_depth.RELEASE
+
+
+def release_assets(url):
+    """Asset name -> (download URL, 'sha256:<hex>'), or {} while the release does not exist."""
+    token = os.environ.get('GITHUB_TOKEN')
+    headers = {'Accept': 'application/vnd.github+json', **({'Authorization': f'Bearer {token}'} if token else {})}
+    try:
+        with shom.get(url, headers=headers) as response:
+            release = json.load(response)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return {}
+        raise
+    # Listed from the release's own asset list, which pages.
+    assets, page = {}, 1
+    while True:
+        with shom.get(f'{release["assets_url"]}?per_page=100&page={page}', headers=headers) as response:
+            listed = json.load(response)
+        # An asset still uploading is listed too, but cannot be downloaded whole yet.
+        assets.update(
+            {
+                a['name']: (a['browser_download_url'], a.get('digest'))
+                for a in listed
+                if a.get('state', 'uploaded') == 'uploaded' and a.get('size', 1) > 0
+            }
+        )
+        if len(listed) < 100:
+            return assets
+        page += 1
+
+
+def aca_depth_assets(release, names):
+    """Download URL and digest of each listed square among names."""
+    listed = release_assets(release)
+    assets = {}
+    for name in names:
+        # While aca-depth.yml replaces a square, it may be listed only as next-<square>.
+        found = listed.get(name) or listed.get(f'next-{name}')
+        if found:
+            assets[name] = found
+    return assets
+
+
+# A square replaced while a fetch lists and downloads it can move on more than once.
+SQUARE_FETCH_ATTEMPTS = 3
+
+
+class DigestMismatch(OSError):
+    pass
+
+
+def save_square(url, digest, path):
+    """Replaces the square at path only with a download that matches its digest:
+    a connection closing early can end a download without an error."""
+    if not digest:
+        raise DigestMismatch(f'{url}: the release lists no digest to check the download against')
+    save_url(url, path + '.new')
+    if f'sha256:{sha256_of(path + ".new")}' != digest:
+        os.remove(path + '.new')
+        raise DigestMismatch(f'{url}: the download does not match {digest}')
+    os.replace(path + '.new', path)
+
+
+def fetch_aca_depth(region, out):
+    """The satellite-derived bathymetry squares under the region's units,
+    for regions charting Allen Coral Atlas reefs."""
+    target = os.path.join(out, 'aca-depth')
+    assets = {}
+    if 'allen-coral-atlas' in region.get('sources', []):
+        repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
+        release = ACA_DEPTH_RELEASE.format(repo=repo)
+        minlon, minlat, maxlon, maxlat = fetch_bounds(region)
+        names = {
+            aca_depth.square_name(s, w)
+            for s in range(math.floor(minlat), math.ceil(maxlat))
+            for w in range(math.floor(minlon), math.ceil(maxlon))
+        }
+        assets = aca_depth_assets(release, names)
+    os.makedirs(target, exist_ok=True)
+    for stale in set(os.listdir(target)) - set(assets):
+        os.remove(os.path.join(target, stale))
+    for name in sorted(assets):
+        url, digest = assets[name]
+        path = os.path.join(target, name)
+        if os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest:
+            continue
+        for attempt in range(SQUARE_FETCH_ATTEMPTS):
+            try:
+                save_square(url, digest, path)
+                break
+            except (urllib.error.HTTPError, DigestMismatch) as error:
+                # An import may have replaced the square since it was listed: list it again.
+                missing = isinstance(error, urllib.error.HTTPError)
+                if (missing and error.code != 404) or attempt == SQUARE_FETCH_ATTEMPTS - 1:
+                    raise
+                relisted = aca_depth_assets(release, [name]).get(name)
+                # A 404 can come between deleting a square and renaming its replacement
+                # into place, which may list the same URL and digest again.
+                if relisted is None or (relisted == (url, digest) and not missing):
+                    raise
+                url, digest = relisted
+    print('aca-depth:', sorted(assets), flush=True)
+
+
 FETCHERS = {
     'wfs': fetch_wfs,
     'dem': fetch_dem,
@@ -453,6 +569,7 @@ FETCHERS = {
     'etopo': fetch_etopo,
     'arcgis': fetch_arcgis,
     'aca': fetch_aca,
+    'aca-depth': fetch_aca_depth,
 }
 
 

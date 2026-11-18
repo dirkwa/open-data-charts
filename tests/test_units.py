@@ -238,3 +238,41 @@ def test_surveys_are_fetched_from_their_release():
         }
     }
     assert units.surveys_for(mirror_index, [A.id]) == ['mirror S2.c0.npz', 'mirror-b S1.b0.npz']
+
+
+def square_versions(tmp_path, east):
+    """Versions with one satellite square ending at longitude east, beside A's build box."""
+    from osgeo import gdal
+
+    minlon, minlat, maxlon, maxlat = A.build_box.bbox
+    path = str(tmp_path / f'depth_{east}.tif')
+    ds = gdal.GetDriverByName('GTiff').Create(path, 10, 10, 1, gdal.GDT_Byte)
+    ds.SetGeoTransform((east - 0.1, 0.01, 0, maxlat, 0, -0.01))
+    ds.GetRasterBand(1).WriteArray(np.full((10, 10), 3, np.uint8))
+    ds = None
+    digests = units.Digests([A, B])
+    units.add_squares(digests, 'aca-depth', [path])
+    return digests.versions()
+
+
+def test_a_square_only_touching_the_build_box_does_not_reach_the_unit(tmp_path):
+    minlon = A.build_box.bbox[0]
+    none = units.Digests([A, B]).versions()
+    assert square_versions(tmp_path, minlon)[A.id] == none[A.id]
+    assert square_versions(tmp_path, minlon + 0.05)[A.id] != none[A.id]
+
+
+def test_a_square_at_the_antimeridian_reaches_the_unit_beside_it(tmp_path):
+    from osgeo import gdal
+
+    from odc.grid import unit_at
+
+    unit = unit_at(-179.95, -16.5)
+    path = str(tmp_path / 'depth_-17_-180.tif')
+    ds = gdal.GetDriverByName('GTiff').Create(path, 10, 10, 1, gdal.GDT_Byte)
+    ds.SetGeoTransform((-180.0, 0.1, 0, -16.0, 0, -0.1))
+    ds.GetRasterBand(1).WriteArray(np.full((10, 10), 3, np.uint8))
+    ds = None
+    digests = units.Digests([unit])
+    units.add_squares(digests, 'aca-depth', [path])
+    assert digests.parts[unit.id]
