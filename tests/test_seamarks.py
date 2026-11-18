@@ -151,3 +151,20 @@ def test_osm_dangers_near_a_shom_aid_are_kept():
         ({'seamark:type': 'rock', 'seamark:rock:water_level': 'awash'}, node(0.5, 0.5)),
     ]
     assert sorted(seamarks.seamark_layers(items, BBOX, 'OSM', charted)) == ['UWTROC', 'WRECKS']
+
+
+def test_the_documented_part_submerged_water_level_is_read():
+    tags = {'seamark:type': 'wreck', 'seamark:wreck:water_level': 'part-submerged'}
+    assert dict(seamarks.objects(tags))['WRECKS']['WATLEV'] == 1
+
+
+def test_a_light_tagged_with_its_type_alone_is_still_a_light():
+    assert seamarks.objects({'seamark:type': 'light_minor', 'seamark:name': 'Pier'}) == [('LIGHTS', {})]
+    assert classes({'seamark:type': 'buoy_lateral'}) == ['BOYLAT']
+
+
+def test_the_aid_window_reaches_a_mile_beyond_the_box():
+    window = seamarks.aid_window((0.0, 60.0, 1.0, 61.0))
+    mile = 1852 / 111320
+    assert window[1] == 60.0 - mile and window[3] == 61.0 + mile
+    assert abs(window[0] + mile / 0.4848) < 1e-3  # cos 61 degrees

@@ -157,6 +157,7 @@ CATFOG = {
     'horn': 10,
 }
 WATLEV = {
+    'part-submerged': 1,
     'partially_submerged': 1,
     'dry': 2,
     'submerged': 3,
@@ -392,7 +393,10 @@ def objects(tags):
         keys = subkeys(tags, prefix)
         if keys and kind != prefix:
             out.append((objl, part_object(objl, keys)))
-    out += [('LIGHTS', attrs) for attrs in lights(tags)]
+    found = lights(tags)
+    if not found and kind in LIGHT_ONLY:
+        found = [{}]  # the type alone says there is a light
+    out += [('LIGHTS', attrs) for attrs in found]
     return out
 
 
@@ -422,6 +426,14 @@ class Nearby:
                     if math.hypot(east, north) <= self.radius_m:
                         return True
         return False
+
+
+def aid_window(bbox):
+    """bbox grown by SHOM_AID_RADIUS_M, so a Shom aid just beyond it still counts."""
+    minlon, minlat, maxlon, maxlat = bbox
+    dlat = SHOM_AID_RADIUS_M / METRES_PER_DEGREE
+    dlon = dlat / max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.01)
+    return minlon - dlon, minlat - dlat, maxlon + dlon, maxlat + dlat
 
 
 def shom_aids(wfs_layers):

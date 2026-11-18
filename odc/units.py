@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import attribution, build_unit, shom, sources
+from odc import attribution, build_unit, seamarks, shom, sources
 from odc.grid import Unit, units_in
 from odc.mirror import MIRROR_TAG
 
@@ -128,12 +128,13 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
 
 
-def add_feature_collection(digests, label, path):
+def add_feature_collection(digests, label, path, grow=None):
     with open(path, encoding='utf-8') as fh:
         data = json.load(fh)
     for feature in data.get('features') or []:
         if feature.get('geometry'):
-            digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
+            bbox = shom.bbox_of(feature['geometry'])
+            digests.add(grow(bbox) if grow else bbox, f'{label} {canonical(feature)}')
 
 
 def add_geojsonseq(digests, label, path):
@@ -226,15 +227,17 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     digests = Digests(units)
     digests.add_all(f'builder {builder}')
     digests.add_all(f'attribution {attribution_text}')
+    seamarks_path = os.path.join(inputs, 'seamarks.geojsonseq')
+    # OSM seamarks give way to Shom aids up to a mile beyond the build box.
+    grow = seamarks.aid_window if os.path.exists(seamarks_path) else None
     for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
-        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path)
+        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, grow)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
     add_aca(digests, sorted(glob.glob(os.path.join(inputs, 'aca', '*.geojsonseq'))))
     osm_path = os.path.join(inputs, 'osm.geojsonseq')
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
-    seamarks_path = os.path.join(inputs, 'seamarks.geojsonseq')
     if os.path.exists(seamarks_path):
         add_geojsonseq(digests, 'seamarks', seamarks_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))

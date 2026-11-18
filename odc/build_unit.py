@@ -1493,7 +1493,8 @@ def main():
         layers.setdefault(objl, []).extend(items)
     if args.seamarks:
         step('OSM seamarks')
-        charted = seamarks.shom_aids(layers)
+        window = bbox_polygon(*seamarks.aid_window(args.bbox))
+        charted = seamarks.shom_aids(wfs_features(args.wfs, attributes, classes, None, window))
         marks = seamarks.seamark_layers(osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted)
         for objl, items in marks.items():
             layers.setdefault(objl, []).extend(items)
