@@ -667,12 +667,19 @@ def satellite_bands(sdb_paths, bbox):
     """Chart-grid cells numbered by their SATELLITE_BANDS index + 1 (0: no
     satellite depth), or None. The squares (odc.aca_depth) are on the chart
     grid already, in metres."""
-    if not sdb_paths:
+    minlon, minlat, maxlon, maxlat = bbox
+    squares = []
+    for path in sdb_paths or []:
+        ds = gdal.Open(path)
+        x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+        if x0 < maxlon and x0 + dx * ds.RasterXSize > minlon and y0 > minlat and y0 + dy * ds.RasterYSize < maxlat:
+            squares.append(square_bands(ds))
+    if not squares:
         return None
-    ncols, nrows, gt = chart_grid(bbox)
+    ncols, nrows, _ = chart_grid(bbox)
     ds = gdal.Warp(
         '',
-        sdb_paths,
+        squares,
         format='MEM',
         outputBounds=list(bbox),
         width=ncols,
@@ -682,6 +689,14 @@ def satellite_bands(sdb_paths, bbox):
         dstNodata=0,
         outputType=gdal.GDT_Byte,
     )
+    bands = ds.GetRasterBand(1).ReadAsArray()
+    return bands if bands.any() else None
+
+
+def square_bands(ds):
+    """A whole square's cells in bands, specks removed. Sieving the whole
+    square, never a unit's box, gives every unit the same band in a cell."""
+    gt = ds.GetGeoTransform()
     sdb = ds.GetRasterBand(1).ReadAsArray()
     bands = np.zeros(sdb.shape, np.uint8)
     lower = 0
@@ -689,14 +704,21 @@ def satellite_bands(sdb_paths, bbox):
         cells = sdb > lower if upper is None else (sdb > lower) & (sdb <= upper)
         bands[cells] = i + 1
         lower = upper
-    if not bands.any():
-        return None
     mds = mem_raster(bands, gt, gdal.GDT_Byte, None)
     band = mds.GetRasterBand(1)
     gdal.SieveFilter(band, None, band, SATELLITE_MIN_CELLS, 8)
-    deep = mem_raster((band.ReadAsArray() >= SATELLITE_DEEP_BAND).astype(np.uint8), gt, gdal.GDT_Byte, None)
-    gdal.SieveFilter(band, deep.GetRasterBand(1), band, SATELLITE_DEEP_MIN_CELLS, 8)
-    return band.ReadAsArray()
+    bands = band.ReadAsArray()
+    bands[sdb == 0] = 0  # a speck of no data stays without a depth
+    # Deep patches too small to be the open water they claim: the shallower
+    # band around them, or no depth where none is around.
+    deep, shallower, nothing = 1, 2, 3
+    kind = np.where(bands >= SATELLITE_DEEP_BAND, deep, np.where(bands > 0, shallower, nothing)).astype(np.uint8)
+    kds = mem_raster(kind, gt, gdal.GDT_Byte, None)
+    gdal.SieveFilter(kds.GetRasterBand(1), None, kds.GetRasterBand(1), SATELLITE_DEEP_MIN_CELLS, 8)
+    sieved = kds.GetRasterBand(1).ReadAsArray()
+    bands[(kind == deep) & (sieved == shallower)] = SATELLITE_DEEP_BAND - 1
+    bands[(kind == deep) & (sieved == nothing)] = 0
+    return mem_raster(bands, gt, gdal.GDT_Byte, 0)
 
 
 def gap_polygons(cells, gt, water):
@@ -806,10 +828,13 @@ def build_depths(depth_grid, box, water, land_cells, satellite=None):
             attrs = {'DRVAL1': drval1, 'INFORM': SDB_SRC}
             if drval2 is not None:
                 attrs['DRVAL2'] = drval2
+            # Only what is drawn: a dropped sliver stays unsurveyed.
+            drawn = ogr.Geometry(ogr.wkbMultiPolygon)
             for part in polygon_parts(area):
                 if part.GetArea() >= MIN_AREA_DEG2:
                     depare.append((part, attrs))
-            covered = covered.Union(area)
+                    drawn.AddGeometry(part)
+            covered = covered.Union(drawn)
     unsare = []
     if gaps.any():
         area = gap_polygons(gaps, gt, water)
@@ -1333,7 +1358,7 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
             taken |= covered
             share[category] = int(covered.sum())
     share['none'] = total - int(taken.sum())
-    share = {k: round(v / total, 3) for k, v in share.items() if v}
+    share = {k: published for k, v in share.items() if (published := round(v / total, 3))}
     best = next(c for c in QUALITY_ORDER if c in share)
     if rank is None or not entries:
         return {'best': best, 'share': share}, []

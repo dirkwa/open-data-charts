@@ -17,7 +17,7 @@ import numpy as np
 from osgeo import gdal, ogr
 
 from odc import attribution, build_unit, shom, sources
-from odc.grid import GRID_STEP, Unit, units_in
+from odc.grid import Unit, units_in
 from odc.mirror import MIRROR_TAG
 
 gdal.UseExceptions()
@@ -184,6 +184,19 @@ def add_raster_windows(digests, label, paths, margin=0.0):
             digests.parts[unit_id].append(f'{label} {name} {c0} {r0} {digest}')
 
 
+def add_squares(digests, label, paths):
+    """Whole rasters for the units meeting them: the builder sieves a
+    satellite depth square as a whole (build_unit.square_bands), so any
+    cell of it can change a unit's bands."""
+    for path in paths:
+        ds = gdal.Open(path)
+        x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+        bbox = (x0, y0 + dy * ds.RasterYSize, x0 + dx * ds.RasterXSize, y0)
+        with open(path, 'rb') as fh:
+            digest = hashlib.file_digest(fh, 'sha256').hexdigest()
+        digests.add(bbox, f'{label} {os.path.basename(path)} {digest}')
+
+
 def add_surveys(digests, mirror_index):
     for name, survey in mirror_index['surveys'].items():
         # start, end and tecsou set the survey's priority and quality category.
@@ -221,8 +234,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
     etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)
-    aca_depth = sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif')))
-    add_raster_windows(digests, 'aca-depth', aca_depth, GRID_STEP)
+    add_squares(digests, 'aca-depth', sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif'))))
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()
