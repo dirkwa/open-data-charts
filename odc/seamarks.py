@@ -437,8 +437,9 @@ def shom_aids(wfs_layers):
 
 def seamark_layers(items, bbox_geom, source, charted=None):
     """S-57 items per class from (tags, geometry) of seamark-tagged OSM objects
-    inside bbox_geom, each at a point of its object, leaving out those
-    charted(lon, lat) says another source has."""
+    inside bbox_geom, each at a point of its object, leaving out aids
+    charted(lon, lat) says another source has. Dangers are always kept: an
+    aid nearby does not mean the other source charts the wreck or rock."""
     layers = {}
     for tags, geom in items:
         found = objects(tags)
@@ -447,7 +448,7 @@ def seamark_layers(items, bbox_geom, source, charted=None):
         where = geom if geom.GetDimension() == 0 else geom.PointOnSurface()
         if where is None or where.IsEmpty() or not bbox_geom.Contains(where):
             continue
-        if charted is not None and charted(where.GetX(), where.GetY()):
+        if found[0][0] in AID_CLASSES and charted is not None and charted(where.GetX(), where.GetY()):
             continue
         for objl, attrs in found:
             layers.setdefault(objl, []).append((where.Clone(), {**attrs, 'INFORM': source}, None))

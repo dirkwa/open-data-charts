@@ -59,9 +59,10 @@ the Wadden unit z9-263-166 (Harlingen, Vlieland) this gives 876 lateral
 buoys, 265 lights, 497 topmarks and some 460 other aids.
 
 A region with both, the Channel with England's south coast, charts Shom's
-aids and OpenStreetMap's on the other coast: an OSM mark within a nautical
-mile of a Shom aid is left out as one Shom already charts. Shom's WFS stops
-at French waters, so the English coast keeps its OSM marks.
+aids and OpenStreetMap's on the other coast: an OSM aid within a nautical
+mile of a Shom aid is left out as one Shom already charts. OSM wrecks,
+rocks and other dangers are kept wherever they are. Shom's WFS stops at
+French waters, so the English coast keeps its OSM marks.
 
 ## Satellite depths
 

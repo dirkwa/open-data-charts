@@ -142,3 +142,12 @@ def test_nearby_measures_longitude_shorter_away_from_the_equator():
     near = seamarks.Nearby([(0.0, 60.0)], 1852)
     assert near(1852 / 111320 / 0.5 * 0.95, 60.0)
     assert not near(1852 / 111320 / 0.5 * 1.05, 60.0)
+
+
+def test_osm_dangers_near_a_shom_aid_are_kept():
+    charted = seamarks.shom_aids({'BOYLAT': [(node(0.5, 0.5), {}, None)]})
+    items = [
+        ({'seamark:type': 'wreck', 'seamark:wreck:category': 'dangerous'}, node(0.5, 0.5)),
+        ({'seamark:type': 'rock', 'seamark:rock:water_level': 'awash'}, node(0.5, 0.5)),
+    ]
+    assert sorted(seamarks.seamark_layers(items, BBOX, 'OSM', charted)) == ['UWTROC', 'WRECKS']
