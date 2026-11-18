@@ -99,7 +99,7 @@ def test_rasters_of_one_run_keep_the_shoaler_depth_where_they_overlap(tmp_path):
 
 def test_a_run_replaces_earlier_depths_even_where_its_second_raster_brings_them(tmp_path):
     out = str(tmp_path / 'squares')
-    earlier = np.full((100, 100), 100, np.int16)
+    earlier = np.full((200, 200), 100, np.int16)
     cut([package(tmp_path, earlier, name='earlier.tif')], out)
     first = np.full((100, 100), 500, np.int16)
     second = np.full((100, 100), 900, np.int16)

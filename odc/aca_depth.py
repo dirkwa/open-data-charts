@@ -133,7 +133,8 @@ def write_square(path, data, south, west, projection):
 def cut(sources, out_dir):
     """Writes the run's depths into the squares in out_dir. Where the run's
     rasters overlap, the shoaler depth wins; where the run has a depth, it
-    replaces what earlier runs wrote, which stays where the run has none."""
+    replaces what earlier runs wrote, which stays where the run has none.
+    The run's squares are staged beside the squares until every raster is read."""
     os.makedirs(out_dir, exist_ok=True)
     squares = {}
     for source in sources:
@@ -144,22 +145,21 @@ def cut(sources, out_dir):
                 if not data.any():
                     continue
                 name = square_name(south, west + i)
-                path = os.path.join(out_dir, name)
+                staged = os.path.join(out_dir, name + '.run')
                 if name in squares:
-                    kept = read_square(path)
+                    kept = read_square(staged)
                     data = np.where((kept != NODATA) & ((data == NODATA) | (kept < data)), kept, data)
                 else:
                     squares[name] = (south, west + i, src.GetProjection())
-                    if os.path.exists(path):
-                        os.replace(path, path + '.earlier')
-                write_square(path, data, south, west + i, src.GetProjection())
+                write_square(staged, data, south, west + i, src.GetProjection())
                 print(name, file=sys.stderr, flush=True)
     for name, (south, west, projection) in squares.items():
         path = os.path.join(out_dir, name)
-        if os.path.exists(path + '.earlier'):
-            data = read_square(path)
-            write_square(path, np.where(data != NODATA, data, read_square(path + '.earlier')), south, west, projection)
-            os.remove(path + '.earlier')
+        staged = path + '.run'
+        if os.path.exists(path):
+            data = read_square(staged)
+            write_square(staged, np.where(data != NODATA, data, read_square(path)), south, west, projection)
+        os.replace(staged, path)
     return list(squares)
 
 
