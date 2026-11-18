@@ -6,7 +6,7 @@ set -euo pipefail
 if [ $# -gt 0 ]; then
   select=".tag_name == \"$1\""
 else
-  select='.tag_name == env.MIRROR_TAG or (.tag_name | startswith(env.MIRROR_TAG + "-"))'
+  select='.tag_name == env.MIRROR_TAG or (.tag_name | test("^" + env.MIRROR_TAG + "-[0-9a-f]$"))'
 fi
 gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select($select) | \"\(.id) \(.tag_name)\"" |
   while read -r id tag; do
