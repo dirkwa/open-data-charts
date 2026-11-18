@@ -42,7 +42,8 @@ the units of its bbox that are not all land and that hold land or data in
 the region's bathymetric model. A survey footprint alone does not qualify a
 unit: old ocean crossings would add hundreds of open-ocean units to French
 Polynesia with a sounding every few miles. Where neither a survey nor a model gives a depth, the unit
-marks the water as unsurveyed.
+charts the satellite-derived depth bands where they cover the water (see
+*Satellite depths*), and marks the rest as unsurveyed.
 
 ## Satellite depths
 
@@ -54,7 +55,14 @@ whole metres. The atlas maps whole atolls and the water around them, so a
 square over an atoll group is about 25 MB. The
 squares are assets of the release `aca-depth`, and `odc.sources` fetches
 those under a region's units for every region with `allen-coral-atlas` in its
-sources.
+sources. A run uploads each square as `next-<square>` and renames it over
+the old one once it is complete; the next run finishes a rename a stopped
+run left. Runs queue, each merging into what the last one published.
+
+The builder bands and sieves a square as a whole (`square_bands`), never a
+unit's box, so neighbouring units agree on every cell, and a unit's version
+hashes every square it meets. Specks under 6 cells take the band around
+them, and patches of the deepest band under 50 cells the band above it.
 
 ### Measured: Tahanea, Tuamotus (2026-11-18)
 

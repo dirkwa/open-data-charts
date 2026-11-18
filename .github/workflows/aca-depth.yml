@@ -16,6 +16,11 @@ on:
 permissions:
   contents: write
 
+# Each import merges into the squares the previous one published.
+concurrency:
+  group: aca-depth
+  cancel-in-progress: false
+
 env:
   GH_TOKEN: ${{ github.token }}
   RELEASE: aca-depth
@@ -32,10 +37,23 @@ jobs:
           gh release view "$RELEASE" >/dev/null 2>&1 ||
             gh release create "$RELEASE" --title 'Satellite-derived bathymetry' \
               --notes 'Allen Coral Atlas satellite-derived bathymetry (CC BY 4.0), cut into 1-degree squares for the unit builds. Not for navigation.'
+      - name: Finish a publication an earlier run left halfway
+        run: |
+          # A next-<square> asset is a complete square whose publication stopped
+          # before it replaced <square>.
+          gh release view "$RELEASE" --json assets --jq '.assets[].name' > assets.txt
+          { grep '^next-depth_.*\.tif$' assets.txt || true; } | while read -r staged; do
+            sh .github/scripts/aca-depth-publish.sh "${staged#next-}"
+          done
       - name: Fetch the squares the release has
         run: |
           mkdir -p squares && chmod 777 squares
-          gh release download "$RELEASE" -D squares --pattern 'depth_*.tif' || true
+          # A square that fails to download must stop the run: the cut would
+          # replace it with only the new package's part.
+          gh release view "$RELEASE" --json assets --jq '.assets[].name' > assets.txt
+          if grep -q '^depth_.*\.tif$' assets.txt; then
+            gh release download "$RELEASE" -D squares --pattern 'depth_*.tif'
+          fi
       - name: Cut the package into squares
         env:
           PACKAGE_URL: ${{ inputs.package_url }}
@@ -43,8 +61,15 @@ jobs:
           # The package is read straight from the link, in large forward ranges.
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e PACKAGE_URL \
             -e CPL_VSIL_CURL_CHUNK_SIZE=16777216 -e GDAL_HTTP_MAX_RETRY=5 -e GDAL_HTTP_RETRY_DELAY=10 \
+            -e GDAL_HTTP_USERAGENT='open-data-charts/0.1 (+https://github.com/dirkwa/open-data-charts)' \
             odc-builder sh -c 'python3 -m odc.aca_depth squares "$PACKAGE_URL"' | tee written.txt
       - name: Upload the changed squares
         run: |
           [ -s written.txt ] || { echo 'the package has no bathymetry'; exit 1; }
-          sed 's|^|squares/|' written.txt | xargs gh release upload "$RELEASE" --clobber
+          # Each square goes up as next-<square> and replaces the old one only
+          # once it is complete, so a stopped run never loses a square.
+          while read -r square; do
+            cp "squares/$square" "next-$square"
+            gh release upload "$RELEASE" "next-$square" --clobber
+            sh .github/scripts/aca-depth-publish.sh "$square"
+          done < written.txt

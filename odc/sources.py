@@ -462,16 +462,18 @@ def release_assets(url):
     """Asset name -> (download URL, 'sha256:<hex>'), or {} while the release does not exist."""
     token = os.environ.get('GITHUB_TOKEN')
     headers = {'Accept': 'application/vnd.github+json', **({'Authorization': f'Bearer {token}'} if token else {})}
+    try:
+        with shom.get(url, headers=headers) as response:
+            release = json.load(response)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return {}
+        raise
+    # Listed from the release's own asset list, which pages.
     assets, page = {}, 1
     while True:
-        try:
-            with shom.get(f'{url}?per_page=100&page={page}', headers=headers) as response:
-                release = json.load(response)
-        except urllib.error.HTTPError as error:
-            if error.code == 404:
-                return {}
-            raise
-        listed = release.get('assets') or []
+        with shom.get(f'{release["assets_url"]}?per_page=100&page={page}', headers=headers) as response:
+            listed = json.load(response)
         assets.update({a['name']: (a['browser_download_url'], a.get('digest')) for a in listed})
         if len(listed) < 100:
             return assets

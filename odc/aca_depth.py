@@ -97,6 +97,11 @@ def degree_rows(src):
 
 
 def mem_strip(src, data, r0):
+    # Only depths below the surface take part in the minimum: the source's
+    # own nodata, whatever its value, becomes NODATA.
+    nodata = src.GetRasterBand(1).GetNoDataValue()
+    keep = data > 0 if nodata is None else (data > 0) & (data != nodata)
+    data = np.where(keep, data, NODATA).astype(np.int16)
     x0, dx, _, y0, _, dy = src.GetGeoTransform()
     ds = gdal.GetDriverByName('MEM').Create('', data.shape[1], data.shape[0], 1, gdal.GDT_Int16)
     ds.SetGeoTransform((x0, dx, 0.0, y0 + r0 * dy, 0.0, dy))
