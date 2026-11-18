@@ -29,6 +29,9 @@ RELEASE = 'aca-depth'
 NODATA = 0
 PACKAGE_CM_PER_UNIT = 100  # package depths are in cm, down positive
 CELLS_PER_DEGREE = round(1 / GRID_STEP)
+DESCRIPTION = (
+    'Allen Coral Atlas satellite-derived bathymetry, shoalest depth per chart cell in metres. NOT FOR NAVIGATION.'
+)
 CREATION = ['COMPRESS=DEFLATE', 'ZLEVEL=9', 'PREDICTOR=2', 'TILED=YES', 'BLOCKXSIZE=512', 'BLOCKYSIZE=512']
 
 
@@ -111,17 +114,21 @@ def mem_strip(src, data, r0):
     return ds
 
 
-def write_square(path, data, south, west, projection):
+def write_square(path, data, south, west, projection, shoalest=False):
     if os.path.exists(path):
         existing = gdal.Open(path)
         kept = existing.GetRasterBand(1).ReadAsArray()
         existing = None
-        data = np.where(data != NODATA, data, kept)
+        if shoalest:
+            data = np.where((kept != NODATA) & ((data == NODATA) | (kept < data)), kept, data)
+        else:
+            data = np.where(data != NODATA, data, kept)
     out = gdal.GetDriverByName('MEM').Create('', CELLS_PER_DEGREE, CELLS_PER_DEGREE, 1, gdal.GDT_Byte)
     out.SetGeoTransform((west, GRID_STEP, 0.0, south + 1, 0.0, -GRID_STEP))
     out.SetProjection(projection)
     out.GetRasterBand(1).WriteArray(data)
     out.GetRasterBand(1).SetNoDataValue(NODATA)
+    out.SetMetadataItem('TIFFTAG_IMAGEDESCRIPTION', DESCRIPTION)
     gdal.Translate(path + '.part', out, format='GTiff', creationOptions=CREATION)
     os.replace(path + '.part', path)
 
@@ -137,7 +144,10 @@ def cut(sources, out_dir):
                 if not data.any():
                     continue
                 name = square_name(south, west + i)
-                write_square(os.path.join(out_dir, name), data, south, west + i, src.GetProjection())
+                # Rasters read in one run overlap at their edges: there the shoaler depth wins,
+                # while a later run's depths replace what earlier runs wrote.
+                path = os.path.join(out_dir, name)
+                write_square(path, data, south, west + i, src.GetProjection(), shoalest=name in written)
                 if name not in written:
                     written.append(name)
                 print(name, file=sys.stderr, flush=True)

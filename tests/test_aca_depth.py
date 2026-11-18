@@ -22,9 +22,9 @@ from odc.grid import GridBox, Unit  # noqa: E402
 PACKAGE_PIXEL = 0.0000898  # the atlas's 10 m
 
 
-def package(tmp_path, cm, west=-145.0, north=-16.0, name='bathymetry_0.tif', nodata=0):
+def package(tmp_path, cm, west=-145.0, north=-16.0, name='bathymetry_0.tif', nodata=0, dtype=gdal.GDT_Int16):
     path = str(tmp_path / name)
-    ds = gdal.GetDriverByName('GTiff').Create(path, cm.shape[1], cm.shape[0], 1, gdal.GDT_Int16)
+    ds = gdal.GetDriverByName('GTiff').Create(path, cm.shape[1], cm.shape[0], 1, dtype)
     ds.SetGeoTransform((west, PACKAGE_PIXEL, 0, north, 0, -PACKAGE_PIXEL))
     ds.GetRasterBand(1).SetNoDataValue(nodata)
     ds.GetRasterBand(1).WriteArray(cm)
@@ -69,6 +69,41 @@ def test_a_later_package_keeps_the_square_where_it_has_no_data(tmp_path):
     ds = gdal.Open(f'{out}/{square_name(-17, -145)}')
     m = ds.GetRasterBand(1).ReadAsArray()
     assert set(np.unique(m)) == {0, 3, 9}
+
+
+def test_depths_beyond_the_cap_read_as_the_cap(tmp_path):
+    cm = np.zeros((100, 100), np.uint16)
+    cm[10:20, 10:20] = 40000
+    out = tmp_path / 'squares'
+    cut([package(tmp_path, cm, dtype=gdal.GDT_UInt16)], str(out))
+    ds = gdal.Open(str(out / square_name(-17, -145)))
+    m = ds.GetRasterBand(1).ReadAsArray()
+    assert set(np.unique(m)) == {0, 255}
+
+
+def test_rasters_of_one_run_keep_the_shoaler_depth_where_they_overlap(tmp_path):
+    deep = np.full((100, 100), 40000, np.uint16)
+    shoal = np.full((100, 100), 400, np.uint16)
+    out = tmp_path / 'squares'
+    cut(
+        [
+            package(tmp_path, shoal, name='a.tif', dtype=gdal.GDT_UInt16),
+            package(tmp_path, deep, name='b.tif', dtype=gdal.GDT_UInt16),
+        ],
+        str(out),
+    )
+    ds = gdal.Open(str(out / square_name(-17, -145)))
+    m = ds.GetRasterBand(1).ReadAsArray()
+    assert set(np.unique(m)) == {0, 4}
+
+
+def test_a_square_says_it_is_not_for_navigation(tmp_path):
+    cm = np.zeros((100, 100), np.int16)
+    cm[10:20, 10:20] = 437
+    out = tmp_path / 'squares'
+    cut([package(tmp_path, cm)], str(out))
+    ds = gdal.Open(str(out / square_name(-17, -145)))
+    assert 'NOT FOR NAVIGATION' in ds.GetMetadataItem('TIFFTAG_IMAGEDESCRIPTION')
 
 
 def squares(tmp_path, metres, bbox):
