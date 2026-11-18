@@ -250,10 +250,12 @@ def fetch_osm(region, out):
             subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
         exported = os.path.join(tmp, 'exported.geojsonseq')
         export_filtered(extract, osm.OSMIUM_FILTER, exported, tmp)
+        target = os.path.join(out, 'seamarks.geojsonseq')
         if 'openseamap' in region.get('sources', []):
-            target = os.path.join(out, 'seamarks.geojsonseq')
             export_filtered(extract, (osm.SEAMARK_FILTER,), target + '.part', tmp)
             os.replace(target + '.part', target)
+        elif os.path.exists(target):
+            os.remove(target)
         bounds = fetch_bounds(region)
         near = near_sea(os.path.join(out, 'land.gpkg'), bounds)
         target = os.path.join(out, 'osm.geojsonseq')
