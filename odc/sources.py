@@ -499,6 +499,10 @@ def aca_depth_assets(release, names):
     return assets
 
 
+# A square replaced while a fetch lists and downloads it can move on more than once.
+SQUARE_FETCH_ATTEMPTS = 3
+
+
 class DigestMismatch(OSError):
     pass
 
@@ -506,8 +510,10 @@ class DigestMismatch(OSError):
 def save_square(url, digest, path):
     """Replaces the square at path only with a download that matches its digest:
     a connection closing early can end a download without an error."""
+    if not digest:
+        raise DigestMismatch(f'{url}: the release lists no digest to check the download against')
     save_url(url, path + '.new')
-    if digest and f'sha256:{sha256_of(path + ".new")}' != digest:
+    if f'sha256:{sha256_of(path + ".new")}' != digest:
         os.remove(path + '.new')
         raise DigestMismatch(f'{url}: the download does not match {digest}')
     os.replace(path + '.new', path)
@@ -534,18 +540,20 @@ def fetch_aca_depth(region, out):
     for name in sorted(assets):
         url, digest = assets[name]
         path = os.path.join(target, name)
-        if digest and os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest:
+        if os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest:
             continue
-        try:
-            save_square(url, digest, path)
-        except (urllib.error.HTTPError, DigestMismatch) as error:
-            # An import may have replaced the square since it was listed: list it again.
-            if isinstance(error, urllib.error.HTTPError) and error.code != 404:
-                raise
-            relisted = aca_depth_assets(release, [name])[name]
-            if relisted == (url, digest):
-                raise
-            save_square(*relisted, path)
+        for attempt in range(SQUARE_FETCH_ATTEMPTS):
+            try:
+                save_square(url, digest, path)
+                break
+            except (urllib.error.HTTPError, DigestMismatch) as error:
+                # An import may have replaced the square since it was listed: list it again.
+                if isinstance(error, urllib.error.HTTPError) and error.code != 404:
+                    raise
+                relisted = aca_depth_assets(release, [name]).get(name)
+                if relisted in (None, (url, digest)) or attempt == SQUARE_FETCH_ATTEMPTS - 1:
+                    raise
+                url, digest = relisted
     print('aca-depth:', sorted(assets), flush=True)
 
 

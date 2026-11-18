@@ -235,24 +235,51 @@ def test_a_share_rounding_to_nothing_is_not_the_best():
     assert quality == {'best': 'model-coarse', 'share': {'model-coarse': 1.0}}
 
 
+def sha(data):
+    import hashlib
+
+    return f'sha256:{hashlib.sha256(data).hexdigest()}'
+
+
 def test_a_square_replaced_after_listing_is_listed_again(tmp_path, monkeypatch):
     import urllib.error
 
     from odc import sources
 
     name = square_name(-17, -145)
-    listings = iter([{name: ('old', None)}, {f'next-{name}': ('new', None)}])
+    # Renamed from next-<square> to <square> between the second listing and its download.
+    listings = iter(
+        [
+            {name: ('old', sha(b'old'))},
+            {f'next-{name}': ('next', sha(b'new'))},
+            {name: ('new', sha(b'new'))},
+        ]
+    )
     monkeypatch.setattr(sources, 'release_assets', lambda release: next(listings))
     monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
 
     def save_url(url, path):
-        if url == 'old':
+        if url != 'new':
             raise urllib.error.HTTPError(url, 404, 'Not Found', None, None)
-        open(path, 'w').write(url)
+        open(path, 'wb').write(b'new')
 
     monkeypatch.setattr(sources, 'save_url', save_url)
     sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
-    assert (tmp_path / 'aca-depth' / name).read_text() == 'new'
+    assert (tmp_path / 'aca-depth' / name).read_bytes() == b'new'
+
+
+def test_a_square_listed_without_a_digest_is_not_taken(tmp_path, monkeypatch):
+    from odc import sources
+
+    name = square_name(-17, -145)
+    (tmp_path / 'aca-depth').mkdir()
+    (tmp_path / 'aca-depth' / name).write_text('kept')
+    monkeypatch.setattr(sources, 'release_assets', lambda release: {name: ('url', None)})
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    monkeypatch.setattr(sources, 'save_url', lambda url, path: open(path, 'w').write('unchecked'))
+    with pytest.raises(OSError):
+        sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_text() == 'kept'
 
 
 def test_a_download_not_matching_its_digest_keeps_the_square(tmp_path, monkeypatch):
@@ -271,12 +298,10 @@ def test_a_download_not_matching_its_digest_keeps_the_square(tmp_path, monkeypat
 
 
 def test_a_square_replaced_with_new_bytes_after_listing_is_listed_again(tmp_path, monkeypatch):
-    import hashlib
-
     from odc import sources
 
     name = square_name(-17, -145)
-    new = f'sha256:{hashlib.sha256(b"new").hexdigest()}'
+    new = sha(b'new')
     listings = iter([{name: ('url', 'sha256:00')}, {name: ('url', new)}])
     monkeypatch.setattr(sources, 'release_assets', lambda release: next(listings))
     monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
