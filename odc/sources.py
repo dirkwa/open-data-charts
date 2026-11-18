@@ -499,6 +499,16 @@ def aca_depth_assets(release, names):
     return assets
 
 
+def save_square(url, digest, path):
+    """Replaces the square at path only with a download that matches its digest:
+    a connection closing early can end a download without an error."""
+    save_url(url, path + '.new')
+    if digest and f'sha256:{sha256_of(path + ".new")}' != digest:
+        os.remove(path + '.new')
+        raise OSError(f'{url}: the download does not match {digest}')
+    os.replace(path + '.new', path)
+
+
 def fetch_aca_depth(region, out):
     """The satellite-derived bathymetry squares under the region's units,
     for regions charting Allen Coral Atlas reefs."""
@@ -523,13 +533,12 @@ def fetch_aca_depth(region, out):
         if digest and os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest:
             continue
         try:
-            save_url(url, path)
+            save_square(url, digest, path)
         except urllib.error.HTTPError as error:
             # An import may have replaced the square since it was listed: list it again.
             if error.code != 404:
                 raise
-            url, _ = aca_depth_assets(release, [name])[name]
-            save_url(url, path)
+            save_square(*aca_depth_assets(release, [name])[name], path)
     print('aca-depth:', sorted(assets), flush=True)
 
 
