@@ -20,6 +20,7 @@ permissions:
 concurrency:
   group: aca-depth
   cancel-in-progress: false
+  queue: max
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -43,7 +44,7 @@ jobs:
           # before it replaced <square>.
           gh release view "$RELEASE" --json assets --jq '.assets[].name' > assets.txt
           { grep '^next-depth_.*\.tif$' assets.txt || true; } | while read -r staged; do
-            sh .github/scripts/aca-depth-publish.sh "${staged#next-}"
+            sh .github/scripts/aca-depth-publish.sh "${staged#next-}" recover
           done
       - name: Fetch the squares the release has
         run: |

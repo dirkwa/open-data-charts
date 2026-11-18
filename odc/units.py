@@ -192,8 +192,10 @@ def add_squares(digests, label, paths):
         ds = gdal.Open(path)
         x0, dx, _, y0, _, dy = ds.GetGeoTransform()
         bbox = (x0, y0 + dy * ds.RasterYSize, x0 + dx * ds.RasterXSize, y0)
-        with open(path, 'rb') as fh:
-            digest = hashlib.file_digest(fh, 'sha256').hexdigest()
+        band = ds.GetRasterBand(1)
+        cells = band.ReadAsArray()
+        reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()} {cells.dtype}'
+        digest = hashlib.sha256(reading.encode() + cells.tobytes()).hexdigest()
         digests.add(bbox, f'{label} {os.path.basename(path)} {digest}')
 
 

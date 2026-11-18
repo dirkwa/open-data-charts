@@ -62,7 +62,8 @@ run left. Runs queue, each merging into what the last one published.
 The builder bands and sieves a square as a whole (`square_bands`), never a
 unit's box, so neighbouring units agree on every cell, and a unit's version
 hashes every square it meets. Specks under 6 cells take the band around
-them, and patches of the deepest band under 50 cells the band above it.
+them, and patches of the deepest band under 50 cells the band above it, or
+no depth where only water without satellite depth surrounds them.
 
 ### Measured: Tahanea, Tuamotus (2026-11-18)
 

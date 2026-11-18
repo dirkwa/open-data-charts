@@ -487,13 +487,20 @@ def fetch_aca_depth(region, out):
     names = set()
     if 'allen-coral-atlas' in region.get('sources', []):
         repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
-        assets = release_assets(ACA_DEPTH_RELEASE.format(repo=repo))
+        listed = release_assets(ACA_DEPTH_RELEASE.format(repo=repo))
         minlon, minlat, maxlon, maxlat = fetch_bounds(region)
         names = {
             aca_depth.square_name(s, w)
             for s in range(math.floor(minlat), math.ceil(maxlat))
             for w in range(math.floor(minlon), math.ceil(maxlon))
-        } & set(assets)
+        }
+        # While aca-depth.yml replaces a square, it may be listed only as next-<square>.
+        assets = {}
+        for name in names:
+            found = listed.get(name) or listed.get(f'next-{name}')
+            if found:
+                assets[name] = found
+        names = set(assets)
     os.makedirs(target, exist_ok=True)
     for stale in set(os.listdir(target)) - names:
         os.remove(os.path.join(target, stale))

@@ -49,9 +49,9 @@ def test_the_source_nodata_takes_no_part_in_the_shoalest_depth(tmp_path):
     clean = np.zeros((200, 200), np.int16)
     clean[50:60, 50:60] = 437
     clean[50:60:2, 50:60:2] = 0
-    holes = np.where(clean > 0, clean, -9999).astype(np.int16)
+    holes = np.where(clean > 0, clean, 100).astype(np.int16)  # shoaler than any depth, were it one
     cut([package(tmp_path, clean, name='clean.tif')], str(tmp_path / 'clean'))
-    cut([package(tmp_path, holes, name='holes.tif', nodata=-9999)], str(tmp_path / 'holes'))
+    cut([package(tmp_path, holes, name='holes.tif', nodata=100)], str(tmp_path / 'holes'))
     name = square_name(-17, -145)
     a = gdal.Open(str(tmp_path / 'clean' / name))
     b = gdal.Open(str(tmp_path / 'holes' / name))
@@ -120,8 +120,7 @@ def test_small_deep_patches_take_the_band_above_or_none(tmp_path):
 def test_neighbouring_boxes_give_shared_cells_the_same_band(tmp_path):
     def metres(nrows, ncols):
         a = np.full((nrows, ncols), 12, np.uint8)
-        a[:, 38:41] = 3  # crosses the edge of the left box
-        a[20:22, 39] = 6  # a speck seen whole only by the right box
+        a[20, 37:43] = 3  # six cells, three of them past the left box's edge
         return a
 
     paths = squares(tmp_path, metres, BBOX)
@@ -130,6 +129,7 @@ def test_neighbouring_boxes_give_shared_cells_the_same_band(tmp_path):
     a = satellite_bands(paths, left)
     b = satellite_bands(paths, right)
     assert np.array_equal(a[:, 32:], b[:, :8])
+    assert set(np.unique(a[20, 37:40])) == {1}
 
 
 def test_unsurveyed_water_with_satellite_depth_becomes_banded_depth_areas(tmp_path):
