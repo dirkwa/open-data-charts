@@ -499,13 +499,17 @@ def aca_depth_assets(release, names):
     return assets
 
 
+class DigestMismatch(OSError):
+    pass
+
+
 def save_square(url, digest, path):
     """Replaces the square at path only with a download that matches its digest:
     a connection closing early can end a download without an error."""
     save_url(url, path + '.new')
     if digest and f'sha256:{sha256_of(path + ".new")}' != digest:
         os.remove(path + '.new')
-        raise OSError(f'{url}: the download does not match {digest}')
+        raise DigestMismatch(f'{url}: the download does not match {digest}')
     os.replace(path + '.new', path)
 
 
@@ -534,11 +538,14 @@ def fetch_aca_depth(region, out):
             continue
         try:
             save_square(url, digest, path)
-        except urllib.error.HTTPError as error:
+        except (urllib.error.HTTPError, DigestMismatch) as error:
             # An import may have replaced the square since it was listed: list it again.
-            if error.code != 404:
+            if isinstance(error, urllib.error.HTTPError) and error.code != 404:
                 raise
-            save_square(*aca_depth_assets(release, [name])[name], path)
+            relisted = aca_depth_assets(release, [name])[name]
+            if relisted == (url, digest):
+                raise
+            save_square(*relisted, path)
     print('aca-depth:', sorted(assets), flush=True)
 
 

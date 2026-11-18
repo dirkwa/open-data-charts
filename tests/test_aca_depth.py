@@ -112,8 +112,10 @@ def test_a_run_replaces_earlier_depths_even_where_its_second_raster_brings_them(
     )
     ds = gdal.Open(f'{out}/{square_name(-17, -145)}')
     m = ds.GetRasterBand(1).ReadAsArray()
-    assert set(np.unique(m)) == {0, 5, 9}
-    assert not list((tmp_path / 'squares').glob('*.earlier'))
+    assert m[10, 10] == 9  # the run's second raster, over the earlier depth
+    assert m[10, 4010] == 5  # the run's first raster
+    assert m[120, 120] == 1  # the earlier run alone
+    assert not list((tmp_path / 'squares').glob('*.run'))
 
 
 def test_a_square_says_it_is_not_for_navigation(tmp_path):
@@ -266,3 +268,18 @@ def test_a_download_not_matching_its_digest_keeps_the_square(tmp_path, monkeypat
         sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
     assert (tmp_path / 'aca-depth' / name).read_text() == 'kept'
     assert not (tmp_path / 'aca-depth' / f'{name}.new').exists()
+
+
+def test_a_square_replaced_with_new_bytes_after_listing_is_listed_again(tmp_path, monkeypatch):
+    import hashlib
+
+    from odc import sources
+
+    name = square_name(-17, -145)
+    new = f'sha256:{hashlib.sha256(b"new").hexdigest()}'
+    listings = iter([{name: ('url', 'sha256:00')}, {name: ('url', new)}])
+    monkeypatch.setattr(sources, 'release_assets', lambda release: next(listings))
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    monkeypatch.setattr(sources, 'save_url', lambda url, path: open(path, 'wb').write(b'new'))
+    sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_bytes() == b'new'
