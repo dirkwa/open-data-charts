@@ -62,7 +62,8 @@ buoys, 265 lights, 497 topmarks and some 460 other aids.
 
 The Allen Coral Atlas publishes satellite-derived bathymetry only in
 download packages a person requests for an area. `aca-depth.yml` takes the
-link the atlas mails and cuts the package into 1-degree squares on the chart
+link the atlas mails, downloads and unpacks the package on the runner and
+cuts it into 1-degree squares on the chart
 grid (`odc/aca_depth.py`): each cell keeps the shoalest depth inside it, in
 whole metres. The atlas maps whole atolls and the water around them, so a
 square over an atoll group is about 25 MB. The

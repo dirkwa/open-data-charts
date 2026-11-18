@@ -55,15 +55,28 @@ jobs:
           if grep -q '^depth_.*\.tif$' assets.txt; then
             gh release download "$RELEASE" -D squares --pattern 'depth_*.tif'
           fi
-      - name: Cut the package into squares
+      - name: Download the package
         env:
           PACKAGE_URL: ${{ inputs.package_url }}
         run: |
-          # The package is read straight from the link, in large forward ranges.
-          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e PACKAGE_URL \
-            -e CPL_VSIL_CURL_CHUNK_SIZE=16777216 -e GDAL_HTTP_MAX_RETRY=5 -e GDAL_HTTP_RETRY_DELAY=10 \
-            -e GDAL_HTTP_USERAGENT='open-data-charts/0.1 (+https://github.com/dirkwa/open-data-charts)' \
-            odc-builder sh -c 'python3 -m odc.aca_depth squares "$PACKAGE_URL"' | tee written.txt
+          # Read through the link, the deflated GeoTIFFs inside the zip took
+          # over four hours to inflate for one package; unpacked on the
+          # runner's temporary disk they are read like any file.
+          sudo mkdir -p /mnt/package && sudo chown "$USER" /mnt/package
+          curl -fsSL --retry 5 --retry-delay 10 -C - \
+            -A 'open-data-charts/0.1 (+https://github.com/dirkwa/open-data-charts)' \
+            -o /mnt/package/package.zip "$PACKAGE_URL"
+          # unzip's * crosses folders; 11 means nothing matched, checked below.
+          unzip -o -d /mnt/package /mnt/package/package.zip 'Bathymetry*.tif' || [ "$?" -eq 11 ]
+          rm /mnt/package/package.zip
+          find /mnt/package -name '*.tif' -print0 | sort -z > rasters.lst
+          [ -s rasters.lst ] || { echo 'the package has no bathymetry GeoTIFF'; exit 1; }
+      - name: Cut the package into squares
+        run: |
+          # NUL-separated, so a file name with spaces stays one argument.
+          mapfile -d '' rasters < rasters.lst
+          docker run --rm -v "$PWD:/src" -v /mnt/package:/mnt/package -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.aca_depth squares "${rasters[@]}" | tee written.txt
       - name: Upload the changed squares
         run: |
           [ -s written.txt ] || { echo 'the package has no bathymetry'; exit 1; }
