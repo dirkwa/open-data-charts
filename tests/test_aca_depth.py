@@ -366,14 +366,21 @@ def test_the_last_attempt_fails_without_listing_again(tmp_path, monkeypatch):
     from odc import sources
 
     name = square_name(-17, -145)
-    listings = []
-    monkeypatch.setattr(sources, 'release_assets', lambda release: listings.append(1) or {name: ('url', sha(b'new'))})
-    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    calls, errors = [], []
+
+    def release_assets(release):
+        calls.append('list')
+        return {name: ('url', sha(b'new'))}
 
     def save_url(url, path):
-        raise urllib.error.HTTPError(url, 404, 'Not Found', None, None)
+        calls.append('download')
+        errors.append(urllib.error.HTTPError(url, 404, f'Not Found {len(errors)}', None, None))
+        raise errors[-1]
 
+    monkeypatch.setattr(sources, 'release_assets', release_assets)
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
     monkeypatch.setattr(sources, 'save_url', save_url)
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(urllib.error.HTTPError) as raised:
         sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
-    assert len(listings) == sources.SQUARE_FETCH_ATTEMPTS
+    assert calls == ['list', 'download'] * sources.SQUARE_FETCH_ATTEMPTS
+    assert raised.value is errors[-1]
