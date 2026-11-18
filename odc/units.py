@@ -196,7 +196,11 @@ def add_squares(digests, label, paths):
         cells = band.ReadAsArray()
         reading = f'{ds.GetGeoTransform()} {band.GetNoDataValue()} {cells.dtype}'
         digest = hashlib.sha256(reading.encode() + cells.tobytes()).hexdigest()
-        digests.add(bbox, f'{label} {os.path.basename(path)} {digest}')
+        for unit_id in digests.units_meeting(bbox):
+            # Like build_unit.satellite_bands, a square only touching the box takes no part.
+            minlon, minlat, maxlon, maxlat = digests.boxes[unit_id]
+            if bbox[0] < maxlon and bbox[2] > minlon and bbox[1] < maxlat and bbox[3] > minlat:
+                digests.parts[unit_id].append(f'{label} {os.path.basename(path)} {digest}')
 
 
 def add_surveys(digests, mirror_index):
