@@ -45,6 +45,19 @@ Polynesia with a sounding every few miles. Where neither a survey nor a model gi
 charts the satellite-derived depth bands where they cover the water (see
 *Satellite depths*), and marks the rest as unsurveyed.
 
+## Seamarks
+
+Regions without Shom's WFS take their aids to navigation from
+OpenStreetMap's `seamark:*` tags when `openseamap` is in their sources
+(`odc/seamarks.py`). The tagging scheme mirrors S-57, so each object maps
+onto the class and attributes Shom's WFS gives French waters; its lights
+(one per sector), topmark, daymark, fog signal and racon become objects of
+their own at its position, as in an ENC. Mooring posts, dolphins and
+bollards are left out: in the Dutch extracts they are about 7,500 of 9,000
+moorings and line every quay and canal, so only mooring buoys are kept. In
+the Wadden unit z9-263-166 (Harlingen, Vlieland) this gives 876 lateral
+buoys, 265 lights, 497 topmarks and some 460 other aids.
+
 ## Satellite depths
 
 The Allen Coral Atlas publishes satellite-derived bathymetry only in

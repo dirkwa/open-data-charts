@@ -17,7 +17,7 @@ the index and the docs say so.
 - `regions/<id>.json`: a region's bbox, its sources, its bathymetric
   models (`dem`, none or several: Shom prepackages, or
   `{"source": "emodnet"}` for the EMODnet DTM over the region), its OpenStreetMap extracts (`osm`, each a
-  list of alternative URLs) and the attribution of its own sources. Adding a
+  list of alternative URLs; with `openseamap` in its sources their seamarks too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
   from Shom data, plus each region's.
@@ -32,6 +32,9 @@ the index and the docs say so.
   named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
   `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
   release); the draft release `mirror` holds the index.
+- `odc/seamarks.py`: aids to navigation from OpenStreetMap's `seamark:*`
+  tags (OpenSeaMap), as S-57 objects, for regions listing `openseamap`
+  (those without Shom's WFS).
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
   structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022

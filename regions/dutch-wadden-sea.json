@@ -10,6 +10,7 @@
   "sources": [
     "emodnet-dtm",
     "osm",
+    "openseamap",
     "copernicus"
   ],
   "dem": [

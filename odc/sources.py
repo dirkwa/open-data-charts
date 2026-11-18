@@ -4,6 +4,7 @@
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
+  seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
   etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
@@ -213,6 +214,27 @@ def download_extract(alternatives, path):
     raise RuntimeError(f'no OSM extract could be downloaded from {alternatives}')
 
 
+def export_filtered(extract, rules, target, tmp):
+    filtered = os.path.join(tmp, 'filtered.osm.pbf')
+    subprocess.run(['osmium', 'tags-filter', '-O', '-o', filtered, extract, *rules], check=True)
+    subprocess.run(
+        [
+            'osmium',
+            'export',
+            '-O',
+            '-f',
+            'geojsonseq',
+            '--add-unique-id=type_id',
+            '-x',
+            'print_record_separator=false',
+            '-o',
+            target,
+            filtered,
+        ],
+        check=True,
+    )
+
+
 def fetch_osm(region, out):
     """region['osm']: the extracts covering the region, each a list of
     alternative URLs for the same extract."""
@@ -226,25 +248,12 @@ def fetch_osm(region, out):
             os.replace(parts[0], extract)
         else:
             subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
-        filtered = os.path.join(tmp, 'filtered.osm.pbf')
-        subprocess.run(['osmium', 'tags-filter', '-O', '-o', filtered, extract, *osm.OSMIUM_FILTER], check=True)
         exported = os.path.join(tmp, 'exported.geojsonseq')
-        subprocess.run(
-            [
-                'osmium',
-                'export',
-                '-O',
-                '-f',
-                'geojsonseq',
-                '--add-unique-id=type_id',
-                '-x',
-                'print_record_separator=false',
-                '-o',
-                exported,
-                filtered,
-            ],
-            check=True,
-        )
+        export_filtered(extract, osm.OSMIUM_FILTER, exported, tmp)
+        if 'openseamap' in region.get('sources', []):
+            target = os.path.join(out, 'seamarks.geojsonseq')
+            export_filtered(extract, (osm.SEAMARK_FILTER,), target + '.part', tmp)
+            os.replace(target + '.part', target)
         bounds = fetch_bounds(region)
         near = near_sea(os.path.join(out, 'land.gpkg'), bounds)
         target = os.path.join(out, 'osm.geojsonseq')

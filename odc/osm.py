@@ -20,6 +20,9 @@ OSMIUM_FILTER = (
     'w/building',
     'r/building',
 )
+# Kept apart from the filter above: only regions without Shom's aids to
+# navigation chart them (odc.seamarks).
+SEAMARK_FILTER = 'nwr/seamark:type'
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
 # The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
 OTHER_ROLES = {
