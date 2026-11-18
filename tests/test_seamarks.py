@@ -1,3 +1,5 @@
+import json
+
 from osgeo import ogr
 
 from odc import build_unit, seamarks
@@ -120,3 +122,77 @@ def test_a_racon_keeps_its_category_morse_letter_and_range():
         'seamark:radar_transponder:range': '10',
     }
     assert seamarks.objects(tags) == [('RTPBCN', {'CATRTB': 2, 'SIGGRP': '(Z)', 'VALMXR': 10})]
+
+
+def test_osm_marks_near_a_shom_aid_are_left_to_shom():
+    shom = {
+        'BOYLAT': [(node(0.5, 0.5), {}, None)],
+        'WRECKS': [(node(0.2, 0.2), {}, None)],
+    }
+    charted = seamarks.shom_aids(shom)
+    one_mile = 1852 / 111320
+    items = [
+        ({'seamark:type': 'buoy_lateral'}, node(0.5 + 0.9 * one_mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.5 + 1.1 * one_mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.2, 0.2)),
+    ]
+    kept = seamarks.seamark_layers(items, BBOX, 'OSM', charted)['BOYLAT']
+    assert sorted(round(g.GetX(), 4) for g, _, _ in kept) == [0.2, round(0.5 + 1.1 * one_mile, 4)]
+
+
+def test_nearby_measures_longitude_shorter_away_from_the_equator():
+    near = seamarks.Nearby([(0.0, 60.0)], 1852)
+    assert near(1852 / 111320 / 0.5 * 0.95, 60.0)
+    assert not near(1852 / 111320 / 0.5 * 1.05, 60.0)
+
+
+def test_osm_dangers_near_a_shom_aid_are_kept():
+    charted = seamarks.shom_aids({'BOYLAT': [(node(0.5, 0.5), {}, None)]})
+    items = [
+        ({'seamark:type': 'wreck', 'seamark:wreck:category': 'dangerous'}, node(0.5, 0.5)),
+        ({'seamark:type': 'rock', 'seamark:rock:water_level': 'awash'}, node(0.5, 0.5)),
+    ]
+    assert sorted(seamarks.seamark_layers(items, BBOX, 'OSM', charted)) == ['UWTROC', 'WRECKS']
+
+
+def test_the_documented_part_submerged_water_level_is_read():
+    tags = {'seamark:type': 'wreck', 'seamark:wreck:water_level': 'part-submerged'}
+    assert dict(seamarks.objects(tags))['WRECKS']['WATLEV'] == 1
+
+
+def test_a_light_tagged_with_its_type_alone_is_still_a_light():
+    assert seamarks.objects({'seamark:type': 'light_minor', 'seamark:name': 'Pier'}) == [('LIGHTS', {})]
+    assert classes({'seamark:type': 'buoy_lateral'}) == ['BOYLAT']
+
+
+def test_the_aid_window_reaches_a_mile_beyond_the_box():
+    window = seamarks.aid_window((0.0, 60.0, 1.0, 61.0))
+    mile = 1852 / 111320
+    assert window[1] == 60.0 - mile and window[3] == 61.0 + mile
+    assert abs(window[0] + mile / 0.4848) < 1e-3  # cos 61 degrees
+
+
+def test_with_seamarks_the_shom_aids_are_fetched_a_mile_past_the_region():
+    from odc import sources
+
+    region = {'bbox': [-1.0, 49.0, 0.0, 50.0], 'sources': ['shom-wfs']}
+    plain = sources.wfs_bounds(region)
+    wider = sources.wfs_bounds({**region, 'sources': ['shom-wfs', 'openseamap']})
+    assert plain == sources.fetch_bounds(region)
+    assert wider == seamarks.aid_window(plain)
+
+
+def test_a_shom_aid_past_the_build_box_still_takes_the_place_of_an_osm_aid(tmp_path):
+    mile = 1852 / 111320
+    shom = {'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Point', 'coordinates': [-0.5 * mile, 0.5]}}
+    wreck = {'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Point', 'coordinates': [-0.5 * mile, 0.6]}}
+    (tmp_path / 'BALISAGE_BDD_WFS__boylat.json').write_text(json.dumps({'features': [shom]}))
+    (tmp_path / 'EPAVES_BDD_WFS__wrecks.json').write_text(json.dumps({'features': [wreck]}))
+    classes, attributes = build_unit.load_s57_tables()
+    charted = build_unit.shom_aids_near(str(tmp_path), attributes, classes, (0.0, 0.0, 1.0, 1.0))
+    items = [
+        ({'seamark:type': 'buoy_lateral'}, node(0.1 * mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.1 * mile, 0.6)),
+    ]
+    kept = seamarks.seamark_layers(items, BBOX, 'OSM', charted)['BOYLAT']
+    assert [round(g.GetY(), 1) for g, _, _ in kept] == [0.6]

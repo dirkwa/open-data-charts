@@ -31,7 +31,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import aca_depth, build_unit, osm, shom
+from odc import aca_depth, build_unit, osm, seamarks, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -142,13 +142,20 @@ def fetch_bounds(region):
     )
 
 
+def wfs_bounds(region):
+    """With OSM seamarks, a mile wider: an OSM aid gives way to a Shom aid
+    up to a mile beyond the region's edge as well."""
+    bounds = fetch_bounds(region)
+    return seamarks.aid_window(bounds) if 'openseamap' in region.get('sources', []) else bounds
+
+
 def fetch_wfs(region, out):
     if 'shom-wfs' not in region.get('sources', []):
         for stale in glob.glob(os.path.join(out, 'wfs', '*.json')):
             os.remove(stale)
         return
     for name in wfs_layers():
-        features = sorted(wfs_features(name, fetch_bounds(region)), key=lambda f: str(f.get('id')))
+        features = sorted(wfs_features(name, wfs_bounds(region)), key=lambda f: str(f.get('id')))
         save_json(
             os.path.join(out, 'wfs', name.replace(':', '__') + '.json'),
             {'type': 'FeatureCollection', 'features': features},
