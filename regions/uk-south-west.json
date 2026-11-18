@@ -1,0 +1,30 @@
+{
+  "id": "uk-south-west",
+  "name": "United Kingdom: Isles of Scilly and Land's End",
+  "bbox": [
+    -8.437,
+    49.383,
+    -5.626,
+    51.178
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/united_kingdom/england/south_west-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/united-kingdom/england-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

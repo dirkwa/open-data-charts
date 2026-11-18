@@ -1,6 +1,6 @@
 {
   "id": "france-channel",
-  "name": "France: Channel and North Sea coast",
+  "name": "France: Channel and North Sea coast, England: south coast",
   "bbox": [
     -5.3,
     48.46,
@@ -12,6 +12,7 @@
     "shom-surveys",
     "shom-dem",
     "osm",
+    "openseamap",
     "copernicus"
   ],
   "dem": [
@@ -40,6 +41,14 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/france/nord_pas_de_calais-latest.osm.pbf",
       "https://download.geofabrik.de/europe/france/nord-pas-de-calais-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/united_kingdom/england/south_west-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/united-kingdom/england-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/united_kingdom/england/south_east-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/united-kingdom/england-latest.osm.pbf"
     ]
   ],
   "attribution": [

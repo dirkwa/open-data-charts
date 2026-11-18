@@ -41,13 +41,15 @@ Shom's soundings in the Tuamotus its median reads 1 to 4 m too deep,
 depending on the depth, and single readings differ more. The index marks
 the water as satellite-derived.
 
-The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
-come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no
-soundings), so it can be compared with the official charts there. Its
-buoys, beacons, lights and other aids to navigation come from
-OpenStreetMap's seamark tags (the OpenSeaMap scheme), which volunteers keep
-and which can lag behind changes at sea. Each region is a file in
-`regions/`.
+The United Kingdom (the Isles of Scilly and Land's End, England and Wales
+with the Irish Sea, and Scotland with Northern Ireland and North East
+England) and the Dutch Wadden Sea are built for coasts without Shom data:
+their depths come from the EMODnet Bathymetry DTM alone (a model at about
+115 m, no soundings). England's south coast lies in the Channel region and
+takes its depths from Shom's model there. Outside Shom's waters, buoys,
+beacons, lights and other aids to navigation come from OpenStreetMap's
+seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
+lag behind changes at sea. Each region is a file in `regions/`.
 
 Everywhere, deep water (200 m and more) that no survey or finer model
 covers takes its depths from NOAA's ETOPO 2022 global model (about 460 m),
