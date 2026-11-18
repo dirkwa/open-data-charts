@@ -114,15 +114,12 @@ def mem_strip(src, data, r0):
     return ds
 
 
-def write_square(path, data, south, west, projection, shoalest=False):
-    if os.path.exists(path):
-        existing = gdal.Open(path)
-        kept = existing.GetRasterBand(1).ReadAsArray()
-        existing = None
-        if shoalest:
-            data = np.where((kept != NODATA) & ((data == NODATA) | (kept < data)), kept, data)
-        else:
-            data = np.where(data != NODATA, data, kept)
+def read_square(path):
+    ds = gdal.Open(path)
+    return ds.GetRasterBand(1).ReadAsArray()
+
+
+def write_square(path, data, south, west, projection):
     out = gdal.GetDriverByName('MEM').Create('', CELLS_PER_DEGREE, CELLS_PER_DEGREE, 1, gdal.GDT_Byte)
     out.SetGeoTransform((west, GRID_STEP, 0.0, south + 1, 0.0, -GRID_STEP))
     out.SetProjection(projection)
@@ -134,8 +131,11 @@ def write_square(path, data, south, west, projection, shoalest=False):
 
 
 def cut(sources, out_dir):
+    """Writes the run's depths into the squares in out_dir. Where the run's
+    rasters overlap, the shoaler depth wins; where the run has a depth, it
+    replaces what earlier runs wrote, which stays where the run has none."""
     os.makedirs(out_dir, exist_ok=True)
-    written = []
+    squares = {}
     for source in sources:
         src = gdal.Open(source)
         for south, west, row in degree_rows(src):
@@ -144,14 +144,23 @@ def cut(sources, out_dir):
                 if not data.any():
                     continue
                 name = square_name(south, west + i)
-                # Rasters read in one run overlap at their edges: there the shoaler depth wins,
-                # while a later run's depths replace what earlier runs wrote.
                 path = os.path.join(out_dir, name)
-                write_square(path, data, south, west + i, src.GetProjection(), shoalest=name in written)
-                if name not in written:
-                    written.append(name)
+                if name in squares:
+                    kept = read_square(path)
+                    data = np.where((kept != NODATA) & ((data == NODATA) | (kept < data)), kept, data)
+                else:
+                    squares[name] = (south, west + i, src.GetProjection())
+                    if os.path.exists(path):
+                        os.replace(path, path + '.earlier')
+                write_square(path, data, south, west + i, src.GetProjection())
                 print(name, file=sys.stderr, flush=True)
-    return written
+    for name, (south, west, projection) in squares.items():
+        path = os.path.join(out_dir, name)
+        if os.path.exists(path + '.earlier'):
+            data = read_square(path)
+            write_square(path, np.where(data != NODATA, data, read_square(path + '.earlier')), south, west, projection)
+            os.remove(path + '.earlier')
+    return list(squares)
 
 
 def main():

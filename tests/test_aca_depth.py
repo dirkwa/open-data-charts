@@ -97,6 +97,25 @@ def test_rasters_of_one_run_keep_the_shoaler_depth_where_they_overlap(tmp_path):
     assert set(np.unique(m)) == {0, 4}
 
 
+def test_a_run_replaces_earlier_depths_even_where_its_second_raster_brings_them(tmp_path):
+    out = str(tmp_path / 'squares')
+    earlier = np.full((100, 100), 100, np.int16)
+    cut([package(tmp_path, earlier, name='earlier.tif')], out)
+    first = np.full((100, 100), 500, np.int16)
+    second = np.full((100, 100), 900, np.int16)
+    cut(
+        [
+            package(tmp_path, first, west=-144.5, name='a.tif'),
+            package(tmp_path, second, name='b.tif'),
+        ],
+        out,
+    )
+    ds = gdal.Open(f'{out}/{square_name(-17, -145)}')
+    m = ds.GetRasterBand(1).ReadAsArray()
+    assert set(np.unique(m)) == {0, 5, 9}
+    assert not list((tmp_path / 'squares').glob('*.earlier'))
+
+
 def test_a_square_says_it_is_not_for_navigation(tmp_path):
     cm = np.zeros((100, 100), np.int16)
     cm[10:20, 10:20] = 437
@@ -232,3 +251,18 @@ def test_a_square_replaced_after_listing_is_listed_again(tmp_path, monkeypatch):
     monkeypatch.setattr(sources, 'save_url', save_url)
     sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
     assert (tmp_path / 'aca-depth' / name).read_text() == 'new'
+
+
+def test_a_download_not_matching_its_digest_keeps_the_square(tmp_path, monkeypatch):
+    from odc import sources
+
+    name = square_name(-17, -145)
+    (tmp_path / 'aca-depth').mkdir()
+    (tmp_path / 'aca-depth' / name).write_text('kept')
+    monkeypatch.setattr(sources, 'release_assets', lambda release: {name: ('url', 'sha256:00')})
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    monkeypatch.setattr(sources, 'save_url', lambda url, path: open(path, 'w').write('trunc'))
+    with pytest.raises(OSError):
+        sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_text() == 'kept'
+    assert not (tmp_path / 'aca-depth' / f'{name}.new').exists()
