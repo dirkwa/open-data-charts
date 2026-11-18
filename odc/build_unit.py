@@ -888,7 +888,7 @@ def wfs_layer(path):
     return os.path.basename(path)[:-5].split('__', 1)[1]
 
 
-def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
+def wfs_features(wfs_dir, attributes, classes, land, bbox_geom, only=None):
     """S-57 features from the WFS downloads, clipped to the chart bbox.
 
     The WFS returns whole features that touch the bbox: submarine cables to
@@ -898,6 +898,8 @@ def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
     by_class = {}
     for path in sorted(glob.glob(os.path.join(wfs_dir, '*__*.json'))):
         layer = wfs_layer(path)
+        if only is not None and wfs_layer_class(layer) not in only:
+            continue
         data = json.load(open(path, encoding='utf-8'))
         for feat in data.get('features', []):
             geom_json = feat.get('geometry')
@@ -927,6 +929,12 @@ def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
             lnam = props.get('inspireid') or feat.get('id')
             by_class.setdefault(objl, []).append((geom, attrs, lnam))
     return by_class
+
+
+def shom_aids_near(wfs_dir, attributes, classes, bbox):
+    """The Shom aids an OSM aid in bbox may give way to, a mile past its edge included."""
+    window = bbox_polygon(*seamarks.aid_window(bbox))
+    return seamarks.shom_aids(wfs_features(wfs_dir, attributes, classes, None, window, seamarks.AID_CLASSES))
 
 
 # ------------------------------------------------------------------ output
@@ -1506,8 +1514,7 @@ def main():
         layers.setdefault(objl, []).extend(items)
     if args.seamarks:
         step('OSM seamarks')
-        window = bbox_polygon(*seamarks.aid_window(args.bbox))
-        charted = seamarks.shom_aids(wfs_features(args.wfs, attributes, classes, None, window))
+        charted = shom_aids_near(args.wfs, attributes, classes, args.bbox)
         marks = seamarks.seamark_layers(osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted)
         for objl, items in marks.items():
             layers.setdefault(objl, []).extend(items)

@@ -1,3 +1,5 @@
+import json
+
 from osgeo import ogr
 
 from odc import build_unit, seamarks
@@ -178,3 +180,19 @@ def test_with_seamarks_the_shom_aids_are_fetched_a_mile_past_the_region():
     wider = sources.wfs_bounds({**region, 'sources': ['shom-wfs', 'openseamap']})
     assert plain == sources.fetch_bounds(region)
     assert wider == seamarks.aid_window(plain)
+
+
+def test_a_shom_aid_past_the_build_box_still_takes_the_place_of_an_osm_aid(tmp_path):
+    mile = 1852 / 111320
+    shom = {'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Point', 'coordinates': [-0.5 * mile, 0.5]}}
+    wreck = {'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Point', 'coordinates': [-0.5 * mile, 0.6]}}
+    (tmp_path / 'BALISAGE_BDD_WFS__boylat.json').write_text(json.dumps({'features': [shom]}))
+    (tmp_path / 'EPAVES_BDD_WFS__wrecks.json').write_text(json.dumps({'features': [wreck]}))
+    classes, attributes = build_unit.load_s57_tables()
+    charted = build_unit.shom_aids_near(str(tmp_path), attributes, classes, (0.0, 0.0, 1.0, 1.0))
+    items = [
+        ({'seamark:type': 'buoy_lateral'}, node(0.1 * mile, 0.5)),
+        ({'seamark:type': 'buoy_lateral'}, node(0.1 * mile, 0.6)),
+    ]
+    kept = seamarks.seamark_layers(items, BBOX, 'OSM', charted)['BOYLAT']
+    assert [round(g.GetY(), 1) for g, _, _ in kept] == [0.6]
