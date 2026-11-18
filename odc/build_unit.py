@@ -35,7 +35,7 @@ import time
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import osm
+from odc import osm, seamarks
 from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, mercator_pixel
 
 gdal.UseExceptions()
@@ -1416,6 +1416,7 @@ def main():
     ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
     ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
+    ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
     ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
     ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
     ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
@@ -1490,6 +1491,11 @@ def main():
         layers['SOUNDG'] = soundings
     for objl, items in marine_layers.items():
         layers.setdefault(objl, []).extend(items)
+    if args.seamarks:
+        step('OSM seamarks')
+        marks = seamarks.seamark_layers(osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC)
+        for objl, items in marks.items():
+            layers.setdefault(objl, []).extend(items)
     if args.nc_structures:
         step('OBLIC coastal structures')
         layers.setdefault('SLCONS', []).extend(oblic_structures(args.nc_structures, bbox_geom))

@@ -34,6 +34,7 @@ BUILDER_FILES = (
     'odc/osm.py',
     'odc/tile.py',
     'odc/run_unit.py',
+    'odc/seamarks.py',
 )
 
 
@@ -233,6 +234,9 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     osm_path = os.path.join(inputs, 'osm.geojsonseq')
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
+    seamarks_path = os.path.join(inputs, 'seamarks.geojsonseq')
+    if os.path.exists(seamarks_path):
+        add_geojsonseq(digests, 'seamarks', seamarks_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
     dem = sources.dem_grids(inputs)
     # The mosaic's origin, pixel size and nodata depend on every grid, so they reach every unit.

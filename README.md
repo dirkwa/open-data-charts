@@ -43,8 +43,11 @@ the water as satellite-derived.
 
 The Dutch Wadden Sea is a pilot for coasts without Shom data: its depths
 come from the EMODnet Bathymetry DTM alone (a model at about 115 m, no
-soundings), so it can be compared with the official charts there. Each
-region is a file in `regions/`.
+soundings), so it can be compared with the official charts there. Its
+buoys, beacons, lights and other aids to navigation come from
+OpenStreetMap's seamark tags (the OpenSeaMap scheme), which volunteers keep
+and which can lag behind changes at sea. Each region is a file in
+`regions/`.
 
 Everywhere, deep water (200 m and more) that no survey or finer model
 covers takes its depths from NOAA's ETOPO 2022 global model (about 460 m),
