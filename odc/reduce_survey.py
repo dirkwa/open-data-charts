@@ -1,7 +1,7 @@
 """Reduce one Shom survey XYZ stream to the shoalest sounding per cell of
 the global chart grid.
 
-Input on stdin: header lines, then `lon,lat,depth` with depth in m,
+Input on stdin: header lines, then `lon,lat,depth[,…]` with depth in m,
 down positive, LAT (drying heights negative). The caller streams it out of
 the survey's 7z: `7z x -so S….7z '*.xyz' -r | python3 -m odc.reduce_survey out.npz`.
 
@@ -56,26 +56,30 @@ def fields_per_line(text):
 
 
 def parse_lines(text):
-    """Rows of a chunk. Lines that are not numbers (the header of each
-    survey file, as 7z streams one after another) are skipped; a numeric
-    line without exactly three fields is an error, never merged with the next."""
+    """Rows of a chunk as lon, lat, depth. Lines that are not numbers (the
+    header of each survey file, as 7z streams one after another) are skipped.
+    Some surveys add columns after the depth, numbers or text, which are
+    dropped; a numeric line with fewer than three fields is an error, never
+    merged with the next."""
     counts = fields_per_line(text)
-    rows = int(np.count_nonzero(counts == 3))
-    if np.all((counts == 3) | (counts == 0)):
+    width = np.unique(counts[counts > 0])
+    if len(width) == 1 and width[0] >= 3:
+        width = int(width[0])
+        rows = int(np.count_nonzero(counts))
         try:
             values = np.fromstring(text, dtype=np.float64, sep=' ')
-        except ValueError:  # a three-word header line; newer NumPy raises instead of stopping
+        except ValueError:  # a header line; newer NumPy raises instead of stopping
             values = None
-        if values is not None and len(values) == 3 * rows:
-            return values.reshape(-1, 3)
+        if values is not None and len(values) == width * rows:
+            return values.reshape(-1, width)[:, :3]
     kept = []
     for line in text.split(b'\n'):
         fields = line.split()
-        if not fields or not all(is_number(f) for f in fields):
+        if not fields or not all(is_number(f) for f in fields[:3]):
             continue
-        if len(fields) != 3:
+        if len(fields) < 3:
             raise ValueError(f'malformed XYZ line: {line[:80]!r}')
-        kept.append(line)
+        kept.append(b' '.join(fields[:3]))
     return np.fromstring(b'\n'.join(kept), dtype=np.float64, sep=' ').reshape(-1, 3)
 
 

@@ -49,10 +49,32 @@ def test_reads_every_file_of_a_concatenated_stream():
     assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
 
 
-def test_rejects_rows_without_three_fields():
-    text = HEADER + b'166,-22,5\n166.1,-22.1\n6,166.2,-22.2,7\n'
+def test_rejects_rows_with_fewer_than_three_fields():
+    text = HEADER + b'166,-22,5\n166.1,-22.1\n166.2,-22.2,7\n'
     with pytest.raises(ValueError):
         reduce_stream(io.BytesIO(text))
+
+
+def test_drops_columns_after_the_depth():
+    text = HEADER + b'166.1 -22.1 5.0 1 \n166.2 -22.2 6.0 1 \n'
+    reduced, total = reduce_stream(io.BytesIO(text))
+    assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
+
+
+def test_drops_columns_after_the_depth_without_a_header():
+    reduced, total = reduce_stream(io.BytesIO(b'166.1 -22.1 5.0 1\n166.2 -22.2 6.0 1\n'))
+    assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
+
+
+def test_drops_text_columns_after_the_depth():
+    reduced, total = reduce_stream(io.BytesIO(HEADER + b'166.1 -22.1 5.0 A\n166.2 -22.2 6.0 B\n'))
+    assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
+
+
+def test_reads_files_of_three_and_four_columns_in_one_stream():
+    text = HEADER + b'166.1,-22.1,5.0\n' + HEADER + b'166.2,-22.2,6.0,1\n'
+    reduced, total = reduce_stream(io.BytesIO(text))
+    assert total == 2 and sorted(reduced['z']) == [5.0, 6.0]
 
 
 def test_antimeridian_is_one_column():
