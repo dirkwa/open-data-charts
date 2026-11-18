@@ -58,8 +58,9 @@ def fields_per_line(text):
 def parse_lines(text):
     """Rows of a chunk as lon, lat, depth. Lines that are not numbers (the
     header of each survey file, as 7z streams one after another) are skipped.
-    Some surveys add columns after the depth, which are dropped; a numeric
-    line with fewer than three fields is an error, never merged with the next."""
+    Some surveys add columns after the depth, numbers or text, which are
+    dropped; a numeric line with fewer than three fields is an error, never
+    merged with the next."""
     counts = fields_per_line(text)
     width = np.unique(counts[counts > 0])
     if len(width) == 1 and width[0] >= 3:
@@ -74,7 +75,7 @@ def parse_lines(text):
     kept = []
     for line in text.split(b'\n'):
         fields = line.split()
-        if not fields or not all(is_number(f) for f in fields):
+        if not fields or not all(is_number(f) for f in fields[:3]):
             continue
         if len(fields) < 3:
             raise ValueError(f'malformed XYZ line: {line[:80]!r}')
