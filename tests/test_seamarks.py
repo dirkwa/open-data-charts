@@ -105,3 +105,18 @@ def test_only_mooring_buoys_are_charted():
     assert classes({'seamark:type': 'mooring', 'seamark:mooring:category': 'post'}) == []
     tags = {'seamark:type': 'mooring', 'seamark:mooring:category': 'buoy', 'seamark:mooring:shape': 'spherical'}
     assert seamarks.objects(tags) == [('MORFAC', {'CATMOR': '7', 'BOYSHP': 3})]
+
+
+def test_light_categories_use_the_documented_words():
+    tags = {'seamark:type': 'light_minor', 'seamark:light:category': 'horizontal;floodlight;strip_light;vertical'}
+    assert dict(seamarks.objects(tags))['LIGHTS']['CATLIT'] == '19,8,9,20'
+
+
+def test_a_racon_keeps_its_category_morse_letter_and_range():
+    tags = {
+        'seamark:type': 'radar_transponder',
+        'seamark:radar_transponder:category': 'racon',
+        'seamark:radar_transponder:group': 'Z',
+        'seamark:radar_transponder:range': '10',
+    }
+    assert seamarks.objects(tags) == [('RTPBCN', {'CATRTB': 2, 'SIGGRP': '(Z)', 'VALMXR': 10})]

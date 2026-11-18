@@ -191,14 +191,15 @@ LITCHR = {
     'Al': 28,
     'Al.FFl': 29,
 }
+CATRTB = {'ramark': 1, 'racon': 2, 'leading': 3}
 CATLIT = {
     'directional': 1,
     'leading': 4,
     'aero': 5,
     'air_obstruction': 6,
     'fog_detector': 7,
-    'flood': 8,
-    'strip': 9,
+    'floodlight': 8,
+    'strip_light': 9,
     'subsidiary': 10,
     'spotlight': 11,
     'front': 12,
@@ -208,8 +209,8 @@ CATLIT = {
     'moire': 16,
     'emergency': 17,
     'bearing': 18,
-    'horizontally': 19,
-    'vertically': 20,
+    'horizontal': 19,
+    'vertical': 20,
 }
 LITVIS = {
     'high': 1,
@@ -320,6 +321,11 @@ def part_object(objl, keys):
     if objl == 'FOGSIG':
         put(attrs, 'CATFOG', enum(keys.get('category'), CATFOG))
         put(attrs, 'SIGPER', number(keys.get('period')))
+        put(attrs, 'VALMXR', number(keys.get('range')))
+    if objl == 'RTPBCN':
+        put(attrs, 'CATRTB', enum(keys.get('category'), CATRTB))
+        group = (keys.get('group') or '').strip()
+        put(attrs, 'SIGGRP', f'({group})' if group else None)
         put(attrs, 'VALMXR', number(keys.get('range')))
     return attrs
 
