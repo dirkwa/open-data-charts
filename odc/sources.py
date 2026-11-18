@@ -474,7 +474,14 @@ def release_assets(url):
     while True:
         with shom.get(f'{release["assets_url"]}?per_page=100&page={page}', headers=headers) as response:
             listed = json.load(response)
-        assets.update({a['name']: (a['browser_download_url'], a.get('digest')) for a in listed})
+        # An asset still uploading is listed too, but cannot be downloaded whole yet.
+        assets.update(
+            {
+                a['name']: (a['browser_download_url'], a.get('digest'))
+                for a in listed
+                if a.get('state', 'uploaded') == 'uploaded' and a.get('size', 1) > 0
+            }
+        )
         if len(listed) < 100:
             return assets
         page += 1
