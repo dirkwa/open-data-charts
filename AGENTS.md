@@ -28,8 +28,10 @@ the index and the docs say so.
   downloads over a few connections).
 - `odc/reduce_survey.py`: one survey's XYZ (streamed out of its 7z) to the
   shoalest sounding per grid cell.
-- `odc/mirror.py`: the survey mirror, one reduced `.npz` per survey in the
-  draft release `mirror`, named `<survey>.<md5-12>.npz`.
+- `odc/mirror.py`: the survey mirror, one reduced `.npz` per survey,
+  named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
+  `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
+  release); the draft release `mirror` holds the index.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
   structures, the Allen Coral Atlas's reefs, Copernicus DEM, ETOPO 2022 for deep water).

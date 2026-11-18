@@ -18,6 +18,7 @@ from osgeo import gdal, ogr
 
 from odc import attribution, build_unit, shom, sources
 from odc.grid import Unit, units_in
+from odc.mirror import MIRROR_TAG
 
 gdal.UseExceptions()
 VERSION_HEX = 16
@@ -254,7 +255,12 @@ def builder_id(root=ROOT):
 def surveys_for(mirror_index, unit_ids):
     boxes = [Unit.parse(u).build_box.bbox for u in unit_ids]
     surveys = mirror_index['surveys'].values()
-    return sorted(s['reduced']['asset'] for s in surveys if any(shom.intersects(s['bbox'], b) for b in boxes))
+    # An index written before the mirror spread over several releases has no release field.
+    return sorted(
+        f'{s["reduced"].get("release", MIRROR_TAG)} {s["reduced"]["asset"]}'
+        for s in surveys
+        if any(shom.intersects(s['bbox'], b) for b in boxes)
+    )
 
 
 def main():

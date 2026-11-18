@@ -6,12 +6,18 @@ source files, `<survey>.<md5-12>.npz`, so the asset list alone tells which
 surveys are current. A run that stops halfway loses nothing: the next one
 finds the assets it already uploaded.
 
+GitHub holds at most 1000 assets per release, so the assets are spread over
+the draft releases `mirror-0` to `mirror-f` by the first digit of the md5.
+The draft release `mirror` holds the index and the footprints, and the
+assets uploaded before the split until a new source replaces them.
+
   python3 -m odc.mirror plan <regions dir> <assets.json> <work dir> [max shard bytes]
   python3 -m odc.mirror reduce <shard.json> <out dir>
   python3 -m odc.mirror index <work dir> <assets.json> <old index or -> <out dir>
+  python3 -m odc.mirror releases <asset path>...
 
-assets.json is the release's asset list as the GitHub API gives it
-(name, size, digest).
+assets.json lists the assets of all mirror releases as the GitHub API gives
+them (name, size, digest), each with its release's tag.
 """
 
 import glob
@@ -51,8 +57,16 @@ def source_md5(files):
     return hashlib.md5(''.join(f['fileMd5'] for f in sorted(files, key=lambda f: f['fileName'])).encode()).hexdigest()
 
 
+MIRROR_TAG = 'mirror'
+BUCKET_RELEASES = [f'{MIRROR_TAG}-{digit}' for digit in '0123456789abcdef']
+
+
 def asset_name(survey):
     return f'{survey["name"]}.{survey["md5"][:12]}.npz'
+
+
+def asset_release(name):
+    return f'{MIRROR_TAG}-{name.split(".")[1][0]}'
 
 
 def discover(regions):
@@ -163,7 +177,12 @@ def index_entry(survey, asset):
         'bbox': survey['bbox'],
         'regions': survey['regions'],
         'source': {'files': [f['fileName'] for f in survey['files']], 'bytes': survey['size'], 'md5': survey['md5']},
-        'reduced': {'asset': asset['name'], 'bytes': asset['size'], 'sha256': asset['digest'].removeprefix('sha256:')},
+        'reduced': {
+            'release': asset['release'],
+            'asset': asset['name'],
+            'bytes': asset['size'],
+            'sha256': asset['digest'].removeprefix('sha256:'),
+        },
     }
 
 
@@ -196,7 +215,8 @@ def build_index(work, assets_path, old_index_path, out_dir):
         # A survey whose new source failed to reduce keeps its last reduction
         # until a run brings the replacement.
         if previous and previous['reduced']['asset'] in assets:
-            entries[survey['name']] = previous
+            release = assets[previous['reduced']['asset']]['release']
+            entries[survey['name']] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
     index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(surveys, entries)}
     footprints = {
         'type': 'FeatureCollection',
@@ -216,7 +236,7 @@ def build_index(work, assets_path, old_index_path, out_dir):
     with open(os.path.join(out_dir, 'footprints.geojson'), 'w', encoding='utf-8') as fh:
         json.dump(footprints, fh)
     current = {e['reduced']['asset'] for e in entries.values()} | {'mirror-index.json', 'footprints.geojson'}
-    stale = sorted(set(assets) - current)
+    stale = [{'release': assets[name]['release'], 'name': name} for name in sorted(set(assets) - current)]
     with open(os.path.join(out_dir, 'stale-assets.json'), 'w', encoding='utf-8') as fh:
         json.dump(stale, fh)
     print(f'{len(entries)} surveys mirrored, {len(missing)} missing, {len(stale)} stale assets, changed={changed}')
@@ -232,6 +252,9 @@ def main():
                 fh.write(f'shards={json.dumps(list(range(n)))}\n')
     elif command == 'reduce':
         reduce_shard(*args)
+    elif command == 'releases':
+        for path in args:
+            print(asset_release(os.path.basename(path)), path)
     elif command == 'index':
         changed, missing = build_index(*args)
         if 'GITHUB_OUTPUT' in os.environ:
