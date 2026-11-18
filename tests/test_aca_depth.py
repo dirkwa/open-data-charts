@@ -212,3 +212,23 @@ def test_a_share_rounding_to_nothing_is_not_the_best():
     from_deep[cells.iy0 - box.iy0, cells.ix0 - box.ix0] = False
     quality, _ = depth_quality([], None, None, None, land, box, unit, from_deep, from_satellite)
     assert quality == {'best': 'model-coarse', 'share': {'model-coarse': 1.0}}
+
+
+def test_a_square_replaced_after_listing_is_listed_again(tmp_path, monkeypatch):
+    import urllib.error
+
+    from odc import sources
+
+    name = square_name(-17, -145)
+    listings = iter([{name: ('old', None)}, {f'next-{name}': ('new', None)}])
+    monkeypatch.setattr(sources, 'release_assets', lambda release: next(listings))
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+
+    def save_url(url, path):
+        if url == 'old':
+            raise urllib.error.HTTPError(url, 404, 'Not Found', None, None)
+        open(path, 'w').write(url)
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_text() == 'new'

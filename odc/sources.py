@@ -487,36 +487,50 @@ def release_assets(url):
         page += 1
 
 
+def aca_depth_assets(release, names):
+    """Download URL and digest of each listed square among names."""
+    listed = release_assets(release)
+    assets = {}
+    for name in names:
+        # While aca-depth.yml replaces a square, it may be listed only as next-<square>.
+        found = listed.get(name) or listed.get(f'next-{name}')
+        if found:
+            assets[name] = found
+    return assets
+
+
 def fetch_aca_depth(region, out):
     """The satellite-derived bathymetry squares under the region's units,
     for regions charting Allen Coral Atlas reefs."""
     target = os.path.join(out, 'aca-depth')
-    names = set()
+    assets = {}
     if 'allen-coral-atlas' in region.get('sources', []):
         repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
-        listed = release_assets(ACA_DEPTH_RELEASE.format(repo=repo))
+        release = ACA_DEPTH_RELEASE.format(repo=repo)
         minlon, minlat, maxlon, maxlat = fetch_bounds(region)
         names = {
             aca_depth.square_name(s, w)
             for s in range(math.floor(minlat), math.ceil(maxlat))
             for w in range(math.floor(minlon), math.ceil(maxlon))
         }
-        # While aca-depth.yml replaces a square, it may be listed only as next-<square>.
-        assets = {}
-        for name in names:
-            found = listed.get(name) or listed.get(f'next-{name}')
-            if found:
-                assets[name] = found
-        names = set(assets)
+        assets = aca_depth_assets(release, names)
     os.makedirs(target, exist_ok=True)
-    for stale in set(os.listdir(target)) - names:
+    for stale in set(os.listdir(target)) - set(assets):
         os.remove(os.path.join(target, stale))
-    for name in sorted(names):
+    for name in sorted(assets):
         url, digest = assets[name]
         path = os.path.join(target, name)
-        if not (digest and os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest):
+        if digest and os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest:
+            continue
+        try:
             save_url(url, path)
-    print('aca-depth:', sorted(names), flush=True)
+        except urllib.error.HTTPError as error:
+            # An import may have replaced the square since it was listed: list it again.
+            if error.code != 404:
+                raise
+            url, _ = aca_depth_assets(release, [name])[name]
+            save_url(url, path)
+    print('aca-depth:', sorted(assets), flush=True)
 
 
 FETCHERS = {
