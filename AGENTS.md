@@ -34,7 +34,11 @@ the index and the docs say so.
   release); the draft release `mirror` holds the index.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
-  structures, the Allen Coral Atlas's reefs, Copernicus DEM, ETOPO 2022 for deep water).
+  structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022
+  for deep water).
+- `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
+  bathymetry, cut into 1-degree squares on the chart grid for the release
+  `aca-depth`.
 - `odc/units.py`: which units a region has (those with land or model data)
   and each unit's version, a hash of the builder and of every input reaching
   the unit's build box.
@@ -57,6 +61,8 @@ the index and the docs say so.
   them in a matrix and, when publishing is on (`ODC_PUBLISH` or a manual
   run with `publish`), uploads them to `units-<region>` and deploys the
   index to Pages.
+- `aca-depth.yml` (manual, with the link of an Allen Coral Atlas download
+  package): adds the package's satellite depths to the `aca-depth` release.
 - `builder-image.yml`: builds the builder image. `ci.yml`: lint and tests.
 
 Scheduled runs are no-ops when nothing changed. A run that stops halfway

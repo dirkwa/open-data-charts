@@ -1,0 +1,50 @@
+name: Satellite depths
+
+# Adds an Allen Coral Atlas download package's satellite-derived bathymetry
+# to the release "aca-depth", one file per 1-degree square (odc.aca_depth).
+# The atlas has no download service: a person requests the package for an
+# area on allencoralatlas.org and passes the link it mails here. Squares the
+# release already has keep their data where the package has none.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_url:
+        description: Download link of the Allen Coral Atlas package (.zip)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  RELEASE: aca-depth
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Make sure the release exists
+        run: |
+          gh release view "$RELEASE" >/dev/null 2>&1 ||
+            gh release create "$RELEASE" --title 'Satellite-derived bathymetry' \
+              --notes 'Allen Coral Atlas satellite-derived bathymetry (CC BY 4.0), cut into 1-degree squares for the unit builds. Not for navigation.'
+      - name: Fetch the squares the release has
+        run: |
+          mkdir -p squares && chmod 777 squares
+          gh release download "$RELEASE" -D squares --pattern 'depth_*.tif' || true
+      - name: Cut the package into squares
+        env:
+          PACKAGE_URL: ${{ inputs.package_url }}
+        run: |
+          # The package is read straight from the link, in large forward ranges.
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e PACKAGE_URL \
+            -e CPL_VSIL_CURL_CHUNK_SIZE=16777216 -e GDAL_HTTP_MAX_RETRY=5 -e GDAL_HTTP_RETRY_DELAY=10 \
+            odc-builder sh -c 'python3 -m odc.aca_depth squares "$PACKAGE_URL"' | tee written.txt
+      - name: Upload the changed squares
+        run: |
+          [ -s written.txt ] || { echo 'the package has no bathymetry'; exit 1; }
+          sed 's|^|squares/|' written.txt | xargs gh release upload "$RELEASE" --clobber

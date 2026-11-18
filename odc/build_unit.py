@@ -82,7 +82,7 @@ LAND_PIECES = 16  # see tiled_parts()
 # (deepest VALDCO the rule applies to, minimum length).
 DEPCNT_MIN_RING = ((10.0, 0.0005), (5000.0, 0.004))  # ~55 m; ~430 m (~140 m across)
 SOUNDING_MINZOOM = 10
-QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'model-coarse', 'none')
+QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'satellite', 'model-coarse', 'none')
 # ETOPO 2022 (15 arc-seconds, ~460 m) fills only deep water nothing finer
 # covers: pixels at least ETOPO_MIN_DEPTH_M deep whose neighbours within
 # ETOPO_CLEAR_PIXELS are too, so a pixel mixing reef or shore with the
@@ -143,6 +143,7 @@ REEF_SRC = (
     'mapped from satellite imagery, position approximate'
 )
 ACA_SRC = 'Allen Coral Atlas (CC BY 4.0), mapped from satellite imagery, position approximate'
+SDB_SRC = 'Allen Coral Atlas satellite-derived bathymetry (CC BY 4.0), unsurveyed, depth band approximate'
 
 WRECK_QUASOU = {
     'brassiage minimal connu': '6',  # least depth known
@@ -650,8 +651,77 @@ def min_ring_length(valdco):
     return DEPCNT_MIN_RING[-1][1]
 
 
-def build_depths(depth_grid, box, water, land_cells):
-    """DEPARE bands, DEPCNT lines, and UNSARE for water without any depth."""
+# Satellite-derived bathymetry reads deep: against Shom soundings in the
+# Tuamotus the true depth's 5th percentile is ~1.5 m at SDB < 4 m, ~3 m at
+# 4-8 m and ~5 m beyond. Each band starts at that depth. Deeper than that the
+# satellite cannot tell 8 m from 20 m.
+SATELLITE_BANDS = ((4, 0.0, 2.0), (8, 2.0, 5.0), (None, 5.0, None))  # SDB m, DRVAL1, DRVAL2
+SATELLITE_MIN_CELLS = 6
+# In the deepest band the satellite's noise draws thousands of specks that
+# tell a skipper nothing: there, only patches of about 100 m across stay.
+SATELLITE_DEEP_BAND = 3
+SATELLITE_DEEP_MIN_CELLS = 50  # ~1200 m2; a lone pixel is noise, a 40 m bommie is not
+
+
+def satellite_bands(sdb_paths, bbox):
+    """Chart-grid cells numbered by their SATELLITE_BANDS index + 1 (0: no
+    satellite depth), or None. The squares (odc.aca_depth) are on the chart
+    grid already, in metres."""
+    if not sdb_paths:
+        return None
+    ncols, nrows, gt = chart_grid(bbox)
+    ds = gdal.Warp(
+        '',
+        sdb_paths,
+        format='MEM',
+        outputBounds=list(bbox),
+        width=ncols,
+        height=nrows,
+        resampleAlg='nearest',
+        srcNodata=0,
+        dstNodata=0,
+        outputType=gdal.GDT_Byte,
+    )
+    sdb = ds.GetRasterBand(1).ReadAsArray()
+    bands = np.zeros(sdb.shape, np.uint8)
+    lower = 0
+    for i, (upper, _, _) in enumerate(SATELLITE_BANDS):
+        cells = sdb > lower if upper is None else (sdb > lower) & (sdb <= upper)
+        bands[cells] = i + 1
+        lower = upper
+    if not bands.any():
+        return None
+    mds = mem_raster(bands, gt, gdal.GDT_Byte, None)
+    band = mds.GetRasterBand(1)
+    gdal.SieveFilter(band, None, band, SATELLITE_MIN_CELLS, 8)
+    deep = mem_raster((band.ReadAsArray() >= SATELLITE_DEEP_BAND).astype(np.uint8), gt, gdal.GDT_Byte, None)
+    gdal.SieveFilter(band, deep.GetRasterBand(1), band, SATELLITE_DEEP_MIN_CELLS, 8)
+    return band.ReadAsArray()
+
+
+def gap_polygons(cells, gt, water):
+    if not cells.any():
+        return ogr.Geometry(ogr.wkbMultiPolygon)
+    mds = mem_raster(cells.astype(np.uint8), gt, gdal.GDT_Byte, None)
+    band = mds.GetRasterBand(1)
+    mem = ogr.GetDriverByName('MEM').CreateDataSource('u')
+    layer = mem.CreateLayer('u', None, ogr.wkbPolygon)
+    layer.CreateField(ogr.FieldDefn('v', ogr.OFTInteger))
+    gdal.Polygonize(band, band, layer, 0)
+    # Band edges run through cell centres, these polygons along cell
+    # edges: grow them by half a cell so no unpainted sliver remains.
+    union = ogr.Geometry(ogr.wkbMultiPolygon)
+    for feat in layer:
+        for part in polygon_parts(feat.GetGeometryRef().Buffer(GRID_STEP / 2, 2)):
+            union.AddGeometry(part)
+    return union.UnaryUnion().Intersection(water)
+
+
+def build_depths(depth_grid, box, water, land_cells, satellite=None):
+    """DEPARE bands, DEPCNT lines, and UNSARE for water without any depth.
+
+    Where satellite bathymetry covers such water, it becomes DEPARE in the
+    coarse SATELLITE_BANDS, with no contours or soundings."""
     depare, depcnt = [], []
     ds = gdal.Open(depth_grid)
     tiles = []
@@ -728,23 +798,24 @@ def build_depths(depth_grid, box, water, land_cells):
     arr = ds.GetRasterBand(1).ReadAsArray()
     gaps = (arr == NODATA) & ~land_cells
     del arr
+    gt = ds.GetGeoTransform()
+    covered = ogr.Geometry(ogr.wkbMultiPolygon)
+    if satellite is not None:
+        for i, (_, drval1, drval2) in enumerate(SATELLITE_BANDS):
+            area = gap_polygons(gaps & (satellite == i + 1), gt, water).Difference(covered)
+            attrs = {'DRVAL1': drval1, 'INFORM': SDB_SRC}
+            if drval2 is not None:
+                attrs['DRVAL2'] = drval2
+            for part in polygon_parts(area):
+                if part.GetArea() >= MIN_AREA_DEG2:
+                    depare.append((part, attrs))
+            covered = covered.Union(area)
     unsare = []
     if gaps.any():
-        mds = mem_raster(gaps.astype(np.uint8), ds.GetGeoTransform(), gdal.GDT_Byte, None)
-        band = mds.GetRasterBand(1)
-        mem = ogr.GetDriverByName('MEM').CreateDataSource('u')
-        layer = mem.CreateLayer('u', None, ogr.wkbPolygon)
-        layer.CreateField(ogr.FieldDefn('v', ogr.OFTInteger))
-        gdal.Polygonize(band, band, layer, 0)
-        # Band edges run through cell centres, these polygons along cell
-        # edges: grow them by half a cell so no unpainted sliver remains.
-        cells = ogr.Geometry(ogr.wkbMultiPolygon)
-        for feat in layer:
-            for part in polygon_parts(feat.GetGeometryRef().Buffer(GRID_STEP / 2, 2)):
-                cells.AddGeometry(part)
-        for part in polygon_parts(cells.UnaryUnion().Intersection(water)):
-            if part.GetArea() >= MIN_UNSARE_DEG2:
-                unsare.append((part, {}))
+        area = gap_polygons(gaps, gt, water)
+        if not covered.IsEmpty():
+            area = area.Difference(covered)
+        unsare = [(p, {}) for p in polygon_parts(area) if p.GetArea() >= MIN_UNSARE_DEG2]
     return depare, depcnt, unsare
 
 
@@ -1224,7 +1295,7 @@ def quality_category(meta):
     return 'survey-recent' if end >= 19900101 else 'survey-old'
 
 
-def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep=None):
+def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep=None, from_satellite=None):
     """Share of the unit's water by where its depths come from (see
     docs/index-format.md), and the ranks of the surveys that reach the unit.
 
@@ -1234,7 +1305,8 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
     sounded it, an interpolated one for the best category within reach. A
     survey reaches the unit when it sounded a cell within INTERP_CELLS of it.
     Water no survey covers is the model's where the bathymetric model has a
-    depth, and 'none' (charted unsurveyed) elsewhere."""
+    depth, then satellite-derived bathymetry's, and 'none' (charted
+    unsurveyed) elsewhere."""
     cells = unit.cells
     rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
     cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
@@ -1255,11 +1327,12 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
             covered = reached & from_survey[rows, cols] & water & ~taken
             taken |= covered
             share[category] = int(covered.sum())
-    model = from_model[rows, cols] & water & ~taken
-    share['model'] = int(model.sum())
-    if from_deep is not None:
-        share['model-coarse'] = int((from_deep[rows, cols] & water & ~taken & ~model).sum())
-    share['none'] = total - int(taken.sum()) - share['model'] - share.get('model-coarse', 0)
+    for category, cells in (('model', from_model), ('model-coarse', from_deep), ('satellite', from_satellite)):
+        if cells is not None:
+            covered = cells[rows, cols] & water & ~taken
+            taken |= covered
+            share[category] = int(covered.sum())
+    share['none'] = total - int(taken.sum())
     share = {k: round(v / total, 3) for k, v in share.items() if v}
     best = next(c for c in QUALITY_ORDER if c in share)
     if rank is None or not entries:
@@ -1322,6 +1395,7 @@ def main():
     ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
     ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
     ap.add_argument('--aca-reefs', help='directory of Allen Coral Atlas reef GeoJSONSeq squares (odc.sources)')
+    ap.add_argument('--satellite-depth', nargs='*', help='satellite-derived bathymetry squares (odc.aca_depth)')
     ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
     ap.add_argument('--work', required=True)
     ap.add_argument('--out', required=True)
@@ -1364,7 +1438,10 @@ def main():
     land_cells = land_mask(land, args.bbox)
     soundings = []
     from_model = gdal.Open(os.path.join(args.work, 'dem_grid.tif')).ReadAsArray() != NODATA
-    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep)
+    satellite = satellite_bands(args.satellite_depth, args.bbox)
+    in_sdb = None if satellite is None else satellite > 0
+    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep, in_sdb)
+    del in_sdb
     del from_model, from_deep
     del from_survey
     if entries:
@@ -1373,7 +1450,8 @@ def main():
     del rank
 
     step('Depth areas + contours')
-    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells)
+    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite)
+    del satellite
 
     step('Shom WFS objects')
     layers = wfs_features(args.wfs, attributes, classes, land, bbox_geom)

@@ -94,9 +94,11 @@ jobs:
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
       - name: Download the region's inputs
         if: steps.ready.outputs.ready == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           mkdir -p inputs && chmod 777 inputs
-          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_TOKEN -e GITHUB_REPOSITORY \
             odc-builder python3 -m odc.sources "regions/$REGION.json" inputs
       - name: Plan
         id: plan

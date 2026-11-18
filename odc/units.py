@@ -17,7 +17,7 @@ import numpy as np
 from osgeo import gdal, ogr
 
 from odc import attribution, build_unit, shom, sources
-from odc.grid import Unit, units_in
+from odc.grid import GRID_STEP, Unit, units_in
 from odc.mirror import MIRROR_TAG
 
 gdal.UseExceptions()
@@ -221,6 +221,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
     etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)
+    aca_depth = sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif')))
+    add_raster_windows(digests, 'aca-depth', aca_depth, GRID_STEP)
     add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
     add_surveys(digests, mirror_index)
     return digests.versions()

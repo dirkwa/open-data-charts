@@ -9,11 +9,14 @@
   etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
   nc/reefs.geojson, nc/structures.geojson   Gouvernement de la Nouvelle-Calédonie (Licence Ouverte)
   aca/reefs_*.geojsonseq          Allen Coral Atlas reef geomorphology (CC BY 4.0), per 1-degree square
+  aca-depth/depth_*.tif           Allen Coral Atlas satellite-derived bathymetry (CC BY 4.0), the
+                                  1-degree squares the aca-depth release has (odc.aca_depth)
 
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 """
 
 import glob
+import hashlib
 import json
 import math
 import os
@@ -27,7 +30,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import build_unit, osm, shom
+from odc import aca_depth, build_unit, osm, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -80,6 +83,14 @@ def save_json(path, value):
     with open(path + '.part', 'w', encoding='utf-8') as fh:
         json.dump(value, fh, ensure_ascii=False, sort_keys=True)
     os.replace(path + '.part', path)
+
+
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(CHUNK), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def save_url(url, path, timeout=600):
@@ -444,6 +455,54 @@ def fetch_aca(region, out):
     print(f'aca: {total} reef features in {len(os.listdir(target))} squares', flush=True)
 
 
+ACA_DEPTH_RELEASE = 'https://api.github.com/repos/{repo}/releases/tags/' + aca_depth.RELEASE
+
+
+def release_assets(url):
+    """Asset name -> (download URL, 'sha256:<hex>'), or {} while the release does not exist."""
+    token = os.environ.get('GITHUB_TOKEN')
+    headers = {'Accept': 'application/vnd.github+json', **({'Authorization': f'Bearer {token}'} if token else {})}
+    assets, page = {}, 1
+    while True:
+        try:
+            with shom.get(f'{url}?per_page=100&page={page}', headers=headers) as response:
+                release = json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return {}
+            raise
+        listed = release.get('assets') or []
+        assets.update({a['name']: (a['browser_download_url'], a.get('digest')) for a in listed})
+        if len(listed) < 100:
+            return assets
+        page += 1
+
+
+def fetch_aca_depth(region, out):
+    """The satellite-derived bathymetry squares under the region's units,
+    for regions charting Allen Coral Atlas reefs."""
+    target = os.path.join(out, 'aca-depth')
+    names = set()
+    if 'allen-coral-atlas' in region.get('sources', []):
+        repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
+        assets = release_assets(ACA_DEPTH_RELEASE.format(repo=repo))
+        minlon, minlat, maxlon, maxlat = fetch_bounds(region)
+        names = {
+            aca_depth.square_name(s, w)
+            for s in range(math.floor(minlat), math.ceil(maxlat))
+            for w in range(math.floor(minlon), math.ceil(maxlon))
+        } & set(assets)
+    os.makedirs(target, exist_ok=True)
+    for stale in set(os.listdir(target)) - names:
+        os.remove(os.path.join(target, stale))
+    for name in sorted(names):
+        url, digest = assets[name]
+        path = os.path.join(target, name)
+        if not (digest and os.path.exists(path) and f'sha256:{sha256_of(path)}' == digest):
+            save_url(url, path)
+    print('aca-depth:', sorted(names), flush=True)
+
+
 FETCHERS = {
     'wfs': fetch_wfs,
     'dem': fetch_dem,
@@ -453,6 +512,7 @@ FETCHERS = {
     'etopo': fetch_etopo,
     'arcgis': fetch_arcgis,
     'aca': fetch_aca,
+    'aca-depth': fetch_aca_depth,
 }
 
 
