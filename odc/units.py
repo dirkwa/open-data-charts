@@ -228,10 +228,11 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     digests.add_all(f'builder {builder}')
     digests.add_all(f'attribution {attribution_text}')
     seamarks_path = os.path.join(inputs, 'seamarks.geojsonseq')
-    # OSM seamarks give way to Shom aids up to a mile beyond the build box.
-    grow = seamarks.aid_window if os.path.exists(seamarks_path) else None
+    # OSM aids give way to Shom aids up to a mile beyond the build box.
+    with_seamarks = os.path.exists(seamarks_path)
     for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
-        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, grow)
+        aids = with_seamarks and build_unit.wfs_layer_class(build_unit.wfs_layer(path)) in seamarks.AID_CLASSES
+        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, seamarks.aid_window if aids else None)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
     add_aca(digests, sorted(glob.glob(os.path.join(inputs, 'aca', '*.geojsonseq'))))

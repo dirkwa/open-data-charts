@@ -168,3 +168,13 @@ def test_the_aid_window_reaches_a_mile_beyond_the_box():
     mile = 1852 / 111320
     assert window[1] == 60.0 - mile and window[3] == 61.0 + mile
     assert abs(window[0] + mile / 0.4848) < 1e-3  # cos 61 degrees
+
+
+def test_with_seamarks_the_shom_aids_are_fetched_a_mile_past_the_region():
+    from odc import sources
+
+    region = {'bbox': [-1.0, 49.0, 0.0, 50.0], 'sources': ['shom-wfs']}
+    plain = sources.wfs_bounds(region)
+    wider = sources.wfs_bounds({**region, 'sources': ['shom-wfs', 'openseamap']})
+    assert plain == sources.fetch_bounds(region)
+    assert wider == seamarks.aid_window(plain)

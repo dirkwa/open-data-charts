@@ -875,6 +875,19 @@ def s57_props(p, attributes):
     return out
 
 
+def wfs_layer_class(layer):
+    """The S-57 class of a WFS layer's objects, None for place names (LNDRGN or SEAARE)."""
+    if layer.startswith('toponymes'):
+        return None
+    if layer in ('wrecks', 'obstrn'):
+        return layer.upper()
+    return layer.split('_')[0].upper()
+
+
+def wfs_layer(path):
+    return os.path.basename(path)[:-5].split('__', 1)[1]
+
+
 def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
     """S-57 features from the WFS downloads, clipped to the chart bbox.
 
@@ -884,7 +897,7 @@ def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
     """
     by_class = {}
     for path in sorted(glob.glob(os.path.join(wfs_dir, '*__*.json'))):
-        layer = os.path.basename(path)[:-5].split('__', 1)[1]
+        layer = wfs_layer(path)
         data = json.load(open(path, encoding='utf-8'))
         for feat in data.get('features', []):
             geom_json = feat.get('geometry')
@@ -903,10 +916,10 @@ def wfs_features(wfs_dir, attributes, classes, land, bbox_geom):
                 objl = 'LNDRGN' if on_land else 'SEAARE'
                 attrs = {'OBJNAM': props['nom']}
             elif layer in ('wrecks', 'obstrn'):
-                objl = layer.upper()
+                objl = wfs_layer_class(layer)
                 attrs = wreck_props(props)
             else:
-                objl = layer.split('_')[0].upper()
+                objl = wfs_layer_class(layer)
                 attrs = s57_props(props, attributes)
             if objl not in classes:
                 print(f'skipping unknown class {objl} ({layer})')

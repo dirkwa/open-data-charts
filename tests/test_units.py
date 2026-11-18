@@ -5,7 +5,7 @@ import pytest
 
 pytest.importorskip('osgeo')
 
-from odc import index, seamarks, units  # noqa: E402
+from odc import index, units  # noqa: E402
 from odc.grid import Unit  # noqa: E402
 
 REGION = {'id': 'test', 'name': 'Test', 'bbox': [165.9, -22.6, 167.3, -21.95]}
@@ -278,13 +278,26 @@ def test_a_square_at_the_antimeridian_reaches_the_unit_beside_it(tmp_path):
     assert digests.parts[unit.id]
 
 
-def test_a_shom_aid_within_a_mile_of_the_build_box_reaches_a_unit_with_seamarks(tmp_path):
+def test_with_seamarks_a_shom_aid_a_mile_past_the_build_box_reaches_the_unit_and_a_wreck_does_not(tmp_path):
+    (tmp_path / 'dem').mkdir()
+    (tmp_path / 'wfs').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    write_grid(tmp_path / 'dem' / 'emodnet_a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    (tmp_path / 'seamarks.geojsonseq').write_text('')
     box = A.build_box.bbox
     lon, lat = box[0] - 0.01, (box[1] + box[3]) / 2  # about 1 km west, at 22 degrees south
-    path = tmp_path / 'boylat.json'
-    path.write_text(json.dumps({'features': [{'geometry': {'type': 'Point', 'coordinates': [lon, lat]}}]}))
-    plain, grown = units.Digests([A]), units.Digests([A])
-    units.add_feature_collection(plain, 'wfs', str(path))
-    units.add_feature_collection(grown, 'wfs', str(path), seamarks.aid_window)
-    assert plain.parts[A.id] == []
-    assert grown.parts[A.id] != []
+
+    def versions(layer, name):
+        feature = {
+            'type': 'Feature',
+            'properties': {'objnam': name},
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+        }
+        path = tmp_path / 'wfs' / f'NS__{layer}.json'
+        path.write_text(json.dumps({'type': 'FeatureCollection', 'features': [feature]}))
+        out = units.unit_versions([A], str(tmp_path), {'surveys': {}}, 'b', 'x')[A.id]
+        path.unlink()
+        return out
+
+    assert versions('boylat', 'one') != versions('boylat', 'two')
+    assert versions('wrecks', 'one') == versions('wrecks', 'two')
