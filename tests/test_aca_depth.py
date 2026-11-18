@@ -115,7 +115,20 @@ def test_a_run_replaces_earlier_depths_even_where_its_second_raster_brings_them(
     assert m[10, 10] == 9  # the run's second raster, over the earlier depth
     assert m[10, 4010] == 5  # the run's first raster
     assert m[120, 120] == 1  # the earlier run alone
-    assert not list((tmp_path / 'squares').glob('*.run'))
+    assert sorted(p.name for p in (tmp_path / 'squares').iterdir()) == [square_name(-17, -145)]
+
+
+def test_a_run_failing_midway_changes_no_square(tmp_path):
+    out = tmp_path / 'squares'
+    cut([package(tmp_path, np.full((200, 200), 100, np.int16), name='earlier.tif')], str(out))
+    before = (out / square_name(-17, -145)).read_bytes()
+    with pytest.raises(RuntimeError):
+        cut(
+            [package(tmp_path, np.full((100, 100), 500, np.int16), name='a.tif'), str(tmp_path / 'missing.tif')],
+            str(out),
+        )
+    assert (out / square_name(-17, -145)).read_bytes() == before
+    assert sorted(p.name for p in out.iterdir()) == [square_name(-17, -145)]
 
 
 def test_a_square_says_it_is_not_for_navigation(tmp_path):
@@ -308,3 +321,19 @@ def test_a_square_replaced_with_new_bytes_after_listing_is_listed_again(tmp_path
     monkeypatch.setattr(sources, 'save_url', lambda url, path: open(path, 'wb').write(b'new'))
     sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
     assert (tmp_path / 'aca-depth' / name).read_bytes() == b'new'
+
+
+def test_a_relisted_square_not_matching_its_new_digest_keeps_the_square(tmp_path, monkeypatch):
+    from odc import sources
+
+    name = square_name(-17, -145)
+    (tmp_path / 'aca-depth').mkdir()
+    (tmp_path / 'aca-depth' / name).write_text('kept')
+    listings = iter([{name: ('url', 'sha256:00')}, {name: ('url', sha(b'new'))}, {name: ('url', sha(b'new'))}])
+    monkeypatch.setattr(sources, 'release_assets', lambda release: next(listings))
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    monkeypatch.setattr(sources, 'save_url', lambda url, path: open(path, 'w').write('trunc'))
+    with pytest.raises(sources.DigestMismatch):
+        sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_text() == 'kept'
+    assert not (tmp_path / 'aca-depth' / f'{name}.new').exists()
