@@ -337,3 +337,43 @@ def test_a_relisted_square_not_matching_its_new_digest_keeps_the_square(tmp_path
         sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
     assert (tmp_path / 'aca-depth' / name).read_text() == 'kept'
     assert not (tmp_path / 'aca-depth' / f'{name}.new').exists()
+
+
+def test_a_square_missing_for_a_moment_is_downloaded_again(tmp_path, monkeypatch):
+    import urllib.error
+
+    from odc import sources
+
+    name = square_name(-17, -145)
+    monkeypatch.setattr(sources, 'release_assets', lambda release: {name: ('url', sha(b'new'))})
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+    calls = []
+
+    def save_url(url, path):
+        calls.append(url)
+        if len(calls) == 1:
+            raise urllib.error.HTTPError(url, 404, 'Not Found', None, None)
+        open(path, 'wb').write(b'new')
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert (tmp_path / 'aca-depth' / name).read_bytes() == b'new'
+
+
+def test_the_last_attempt_fails_without_listing_again(tmp_path, monkeypatch):
+    import urllib.error
+
+    from odc import sources
+
+    name = square_name(-17, -145)
+    listings = []
+    monkeypatch.setattr(sources, 'release_assets', lambda release: listings.append(1) or {name: ('url', sha(b'new'))})
+    monkeypatch.setattr(sources, 'fetch_bounds', lambda region: (-144.5, -16.5, -144.4, -16.4))
+
+    def save_url(url, path):
+        raise urllib.error.HTTPError(url, 404, 'Not Found', None, None)
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    with pytest.raises(urllib.error.HTTPError):
+        sources.fetch_aca_depth({'sources': ['allen-coral-atlas']}, str(tmp_path))
+    assert len(listings) == sources.SQUARE_FETCH_ATTEMPTS

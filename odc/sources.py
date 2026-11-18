@@ -548,10 +548,13 @@ def fetch_aca_depth(region, out):
                 break
             except (urllib.error.HTTPError, DigestMismatch) as error:
                 # An import may have replaced the square since it was listed: list it again.
-                if isinstance(error, urllib.error.HTTPError) and error.code != 404:
+                missing = isinstance(error, urllib.error.HTTPError)
+                if (missing and error.code != 404) or attempt == SQUARE_FETCH_ATTEMPTS - 1:
                     raise
                 relisted = aca_depth_assets(release, [name]).get(name)
-                if relisted in (None, (url, digest)) or attempt == SQUARE_FETCH_ATTEMPTS - 1:
+                # A 404 can come between deleting a square and renaming its replacement
+                # into place, which may list the same URL and digest again.
+                if relisted is None or (relisted == (url, digest) and not missing):
                     raise
                 url, digest = relisted
     print('aca-depth:', sorted(assets), flush=True)
