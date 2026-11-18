@@ -1,8 +1,9 @@
 name: Mirror surveys
 
 # Keeps every Shom survey of the configured regions reduced to the global
-# grid, as assets of the draft release "mirror" (reachable by CI, not listed
-# publicly). Only surveys that are new, or whose source md5 changed, are
+# grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
+# by CI, not listed publicly; odc.mirror says why there are sixteen). The
+# draft release "mirror" holds the index. Only surveys that are new, or whose source md5 changed, are
 # downloaded; a run that stops halfway keeps the assets it uploaded.
 
 on:
@@ -33,11 +34,13 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build the builder image
         run: docker build -f builder/Dockerfile -t odc-builder .
-      - name: Make sure the draft release exists
+      - name: Make sure the draft releases exist
         run: |
-          gh release view "$MIRROR_TAG" >/dev/null 2>&1 ||
-            gh release create "$MIRROR_TAG" --draft --title 'Survey mirror (internal)' \
-              --notes 'Reduced Shom surveys for the unit builds. Not a chart release.'
+          for tag in "$MIRROR_TAG" "$MIRROR_TAG"-{0..9} "$MIRROR_TAG"-{a..f}; do
+            gh release view "$tag" >/dev/null 2>&1 ||
+              gh release create "$tag" --draft --title "Survey mirror (internal, $tag)" \
+                --notes 'Reduced Shom surveys for the unit builds. Not a chart release.'
+          done
       - name: List mirrored assets
         run: bash .github/scripts/mirror-assets.sh > assets.json
       - name: Plan
@@ -80,7 +83,15 @@ jobs:
         run: |
           shopt -s nullglob
           files=(reduced/*.npz)
-          if [ ${#files[@]} -gt 0 ]; then gh release upload "$MIRROR_TAG" "${files[@]}" --clobber; fi
+          if [ ${#files[@]} -eq 0 ]; then exit 0; fi
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.mirror releases "${files[@]}" > releases.txt
+          declare -A batch
+          while read -r tag path; do batch[$tag]+=" $path"; done < releases.txt
+          for tag in "${!batch[@]}"; do
+            # shellcheck disable=SC2086 # asset paths hold no spaces
+            gh release upload "$tag" ${batch[$tag]} --clobber
+          done
 
   index:
     needs: [plan, reduce]
@@ -114,6 +125,6 @@ jobs:
         run: gh release upload "$MIRROR_TAG" out/mirror-index.json out/footprints.geojson --clobber
       - name: Remove superseded surveys
         run: |
-          for name in $(jq -r '.[]' out/stale-assets.json); do
-            gh release delete-asset "$MIRROR_TAG" "$name" --yes
+          jq -r '.[] | "\(.release) \(.name)"' out/stale-assets.json | while read -r tag name; do
+            gh release delete-asset "$tag" "$name" --yes
           done

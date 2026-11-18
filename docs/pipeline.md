@@ -3,9 +3,13 @@
 ## Survey mirror
 
 `mirror-surveys.yml` keeps every Shom survey of the configured regions as a
-reduced `.npz` (the shoalest sounding per grid cell, `odc.reduce_survey`) in
-the draft release `mirror`. Only new surveys, or those whose source md5
-changed, are downloaded and reduced again.
+reduced `.npz` (the shoalest sounding per grid cell, `odc.reduce_survey`).
+GitHub allows 1000 assets per release, so the surveys are spread over the
+draft releases `mirror-0` to `mirror-f` by the first digit of their source
+md5, and the index records each survey's release. The draft release `mirror`
+holds the index, the footprints and the surveys reduced before the split,
+until a new source replaces them. Only new surveys, or those whose source
+md5 changed, are downloaded and reduced again.
 
 ### Measured: New Caledonia, first full mirror (2026-11-16)
 

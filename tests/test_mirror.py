@@ -1,6 +1,6 @@
 import json
 
-from odc.mirror import asset_name, build_index, shard
+from odc.mirror import BUCKET_RELEASES, asset_name, asset_release, build_index, shard
 
 
 def survey(name, size=10, md5='a' * 32):
@@ -30,15 +30,20 @@ def write(tmp_path, name, value):
     return str(path)
 
 
-def asset(name):
-    return {'name': name, 'size': 1, 'digest': 'sha256:00'}
+def asset(name, release=None):
+    return {'release': release or asset_release(name), 'name': name, 'size': 1, 'digest': 'sha256:00'}
+
+
+def test_assets_spread_over_the_bucket_releases_by_md5():
+    assert asset_release(asset_name(survey('S1', md5='3' * 32))) == 'mirror-3'
+    assert {asset_release(f'S1.{d}0.npz') for d in '0123456789abcdef'} == set(BUCKET_RELEASES)
 
 
 def test_a_failed_replacement_keeps_the_last_reduction(tmp_path):
     old_survey, new_survey = survey('S1', md5='a' * 32), survey('S1', md5='b' * 32)
-    old_asset = asset(asset_name(old_survey))
+    old_asset = asset(asset_name(old_survey), 'mirror')
     old_index = {
-        'surveys': {'S1': {'reduced': {'asset': old_asset['name'], 'bytes': 1, 'sha256': '00'}}},
+        'surveys': {'S1': {'reduced': {'release': 'mirror', 'asset': old_asset['name'], 'bytes': 1, 'sha256': '00'}}},
         'regions': {'r': {'surveys': 1, 'mirrored': 1}},
     }
     (tmp_path / 'work').mkdir()
@@ -70,7 +75,9 @@ def test_a_reduced_replacement_supersedes_the_last_one(tmp_path):
     )
     index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
     assert index['surveys']['S1']['reduced']['asset'] == new_asset['name']
-    assert json.loads((tmp_path / 'out' / 'stale-assets.json').read_text()) == [old_asset['name']]
+    assert index['surveys']['S1']['reduced']['release'] == 'mirror-b'
+    stale = json.loads((tmp_path / 'out' / 'stale-assets.json').read_text())
+    assert stale == [{'release': old_asset['release'], 'name': old_asset['name']}]
 
 
 def test_the_index_counts_each_regions_missing_surveys(tmp_path):
@@ -116,3 +123,16 @@ def test_an_index_without_region_counts_is_rewritten(tmp_path):
     changed, index = index_after(tmp_path / 'b', [done], [asset(asset_name(done))], old_index)
     assert changed
     assert index['regions'] == {'r': {'surveys': 1, 'mirrored': 1}}
+
+
+def test_an_entry_from_before_the_split_learns_its_release(tmp_path):
+    done = survey('S1')
+    legacy = asset(asset_name(done), 'mirror')
+    _, first = index_after(tmp_path / 'a', [done], [legacy], {'surveys': {}})
+    old_entry = first['surveys']['S1']
+    old_entry['reduced'].pop('release')
+    changed, index = index_after(
+        tmp_path / 'b', [done], [legacy], {'surveys': {'S1': old_entry}, 'regions': first['regions']}
+    )
+    assert changed
+    assert index['surveys']['S1']['reduced']['release'] == 'mirror'

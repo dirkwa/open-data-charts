@@ -224,3 +224,17 @@ def test_a_reef_seen_from_two_squares_counts_once(tmp_path):
     )
     changed = aca_versions(tmp_path, {'reefs_-23_+166.geojsonseq': [reef(166.2, -22.3, 'Inner Reef Flat')]})
     assert changed[A.id] != before[A.id]
+
+
+def test_surveys_are_fetched_from_their_release():
+    def entry(asset, **release):
+        return {'bbox': [166.0, -22.5, 166.1, -22.4], 'reduced': {'asset': asset, **release}}
+
+    mirror_index = {
+        'surveys': {
+            'S1': entry('S1.b0.npz', release='mirror-b'),
+            'S2': entry('S2.c0.npz'),
+            'S3': {**entry('S3.d0.npz', release='mirror-d'), 'bbox': [10.0, 40.0, 10.1, 40.1]},
+        }
+    }
+    assert units.surveys_for(mirror_index, [A.id]) == ['mirror S2.c0.npz', 'mirror-b S1.b0.npz']

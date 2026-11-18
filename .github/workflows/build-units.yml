@@ -143,11 +143,14 @@ jobs:
           mkdir -p surveys
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
             odc-builder python3 -m odc.units surveys mirror/mirror-index.json $units > survey-assets.txt
-          args=()
-          while read -r name; do
-            if [ -n "$name" ]; then args+=(-p "$name"); fi
+          declare -A patterns
+          while read -r tag name; do
+            if [ -n "$name" ]; then patterns[$tag]+=" -p $name"; fi
           done < survey-assets.txt
-          if [ ${#args[@]} -gt 0 ]; then gh release download "$MIRROR_TAG" "${args[@]}" -D surveys; fi
+          for tag in "${!patterns[@]}"; do
+            # shellcheck disable=SC2086 # asset names hold no spaces
+            gh release download "$tag" ${patterns[$tag]} -D surveys
+          done
       - name: Build and tile
         run: |
           units=$(jq -r ".batches[${{ matrix.batch }}].units[]" plan.json)
