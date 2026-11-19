@@ -107,9 +107,27 @@ def wfs_layers():
     return sorted({n for n in names if n.split(':')[0] in WFS_NAMESPACES})
 
 
+# Shom's WFS pages a layer only in a stated order: its numeric key, named
+# pgid in most layers and gid in some.
+WFS_SORT_KEYS = ('pgid', 'gid')
+
+
+def wfs_sort_key(type_name):
+    query = urllib.parse.urlencode(
+        {'service': 'WFS', 'version': '2.0.0', 'request': 'DescribeFeatureType', 'typeNames': type_name}
+    )
+    schema = shom.get(f'{shom.WFS}?{query}').read().decode('utf-8', 'replace')
+    names = set(re.findall(r'name="([^"]+)"', schema))
+    for key in WFS_SORT_KEYS:
+        if key in names:
+            return key
+    raise RuntimeError(f'{type_name} has none of {WFS_SORT_KEYS} to page by')
+
+
 def wfs_features(type_name, bbox):
     minlon, minlat, maxlon, maxlat = bbox
     features = []
+    sort_key = wfs_sort_key(type_name)
     while True:
         params = {
             'service': 'WFS',
@@ -122,9 +140,14 @@ def wfs_features(type_name, bbox):
             'bbox': f'{minlat},{minlon},{maxlat},{maxlon},urn:ogc:def:crs:EPSG::4326',
             'count': str(WFS_PAGE),
             'startIndex': str(len(features)),
+            'sortBy': sort_key,
         }
         page = shom.get_json(f'{shom.WFS}?{urllib.parse.urlencode(params)}')
         batch = page.get('features') or []
+        for feature in batch:
+            # The service makes up a new feature id on every request; the key
+            # keeps the saved layer, and so the unit versions, unchanged.
+            feature['id'] = f'{type_name.split(":")[-1]}.{feature["properties"][sort_key]}'
         features.extend(batch)
         matched = page.get('numberMatched')
         if len(batch) < WFS_PAGE or (isinstance(matched, int) and len(features) >= matched):
