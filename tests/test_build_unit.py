@@ -301,3 +301,20 @@ def test_read_water_keeps_the_areas_meeting_the_box(tmp_path):
     path.write_text(''.join(json.dumps(f) + '\n' for f in (area(0.0), area(0.002, 'MultiPolygon'), area(0.5), line)))
     water = osm.read_water(str(path), (0.0, 0.0, 0.01, 0.01))
     assert water.GetArea() == pytest.approx(2e-6)
+
+
+def test_a_canal_narrower_than_a_cell_reaches_the_inland_mask_but_not_the_sea():
+    from odc import build_unit
+
+    step = GRID_STEP
+    bbox = (0.0, 0.0, 40 * step, 40 * step)
+    land = bbox_polygon(20 * step, 0.0, 40 * step, 40 * step)  # the sea is the west half
+    # Half a cell wide, between two columns of cell centres, from the sea into the land.
+    canal = bbox_polygon(10 * step, 19.1 * step, 30 * step, 19.4 * step)
+    inland = canal.Intersection(land)
+    mask = build_unit.inland_mask(land.Difference(canal), inland, bbox)
+    row = 40 - 20  # rows run from the top
+    assert mask[row, 21:30].all()
+    assert not mask[row, :20].any()
+    assert build_unit.land_mask(inland, bbox).sum() == 0
+    assert build_unit.inland_mask(land, ogr.Geometry(ogr.wkbMultiPolygon), bbox) is None
