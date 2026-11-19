@@ -3,6 +3,7 @@
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
+  dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.ddm), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
   water.geojsonseq                OSM water areas: harbours, canals, rivers, lakes (ODbL)
@@ -32,7 +33,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import aca_depth, build_unit, osm, seamarks, shom
+from odc import aca_depth, build_unit, ddm, osm, seamarks, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -71,6 +72,9 @@ EMODNET_CHUNK_DEG = 2
 # 115 m land cell spilling past the OSM coastline charts as a drying bank.
 EMODNET_MAX_HEIGHT_M = 5.0
 EMODNET_NODATA = -9999.0
+# Denmark's Depth Model, 50 m, mean depth (Dataforsyningen dataset 4817); a
+# free Dataforsyningen account's token downloads it.
+DDM_URL = 'https://api.dataforsyningen.dk/rest/fildownload/v1.0/{path}?token={{token}}'
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -191,7 +195,11 @@ def dem_grids(inputs):
     """The region's bathymetric model grids, in the order the mosaic
     stacks them: a later grid wins where they overlap."""
     dem = os.path.join(inputs, 'dem')
-    return sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif'))) + sorted(glob.glob(os.path.join(dem, '*.asc')))
+    return (
+        sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, '*.asc')))
+    )
 
 
 def fetch_emodnet(bounds, target):
@@ -216,6 +224,24 @@ def fetch_emodnet(bounds, target):
             os.remove(raw)
 
 
+def fetch_ddm(bounds, target, tmp):
+    model = os.path.join(tmp, 'ddm_50m.dybde.tif')
+    save_url(DDM_URL.format(token=os.environ['DATAFORSYNINGEN_TOKEN']), model, timeout=1800)
+    surfaces = []
+    for url in (ddm.DKMSL, ddm.DKLAT):
+        surfaces.append(os.path.join(tmp, os.path.basename(url)))
+        save_url(url, surfaces[-1])
+    separation = os.path.join(tmp, 'separation.tif')
+    ddm.separation(*surfaces, separation)
+    emodnet = os.path.join(tmp, 'emodnet')
+    os.makedirs(emodnet)
+    fetch_emodnet(bounds, emodnet)
+    fill = os.path.join(tmp, 'emodnet.vrt')
+    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
+    for s, w in ddm.chunks(bounds):
+        ddm.write_chunk(model, separation, fill, s, w, os.path.join(target, f'ddm_{s:+03d}_{w:+04d}.tif'))
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
@@ -223,6 +249,9 @@ def fetch_dem(region, out):
         for dem in region.get('dem', []):
             if dem.get('source') == 'emodnet':
                 fetch_emodnet(fetch_bounds(region), target)
+                continue
+            if dem.get('source') == 'ddm':
+                fetch_ddm(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
