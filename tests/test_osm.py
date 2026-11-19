@@ -117,3 +117,27 @@ def test_an_osm_fetch_fetches_land_first_when_it_is_missing(tmp_path, monkeypatc
     monkeypatch.setattr('sys.argv', ['sources', str(region), str(tmp_path / 'out'), 'osm', 'land'])
     sources.main()
     assert calls == ['land', 'osm']
+
+
+def osm_xml(path, *objects):
+    path.write_text(f'<?xml version="1.0"?><osm version="0.6">{"".join(objects)}</osm>')
+    return str(path)
+
+
+def node(i, version, lat, lon=1.0):
+    return f'<node id="{i}" version="{version}" timestamp="2026-0{version}-01T00:00:00Z" lat="{lat}" lon="{lon}"/>'
+
+
+def test_extracts_holding_different_versions_of_a_node_merge_into_its_newest(tmp_path):
+    lake = (
+        '<way id="10" version="1" timestamp="2026-01-01T00:00:00Z">'
+        '<nd ref="1"/><nd ref="2"/><nd ref="3"/><nd ref="1"/><tag k="natural" v="water"/></way>'
+    )
+    older = osm_xml(tmp_path / 'a.osm', node(1, 1, 50.0), node(2, 1, 50.0, 1.1), node(3, 1, 50.1, 1.1), lake)
+    newer = osm_xml(tmp_path / 'b.osm', node(1, 2, 50.001), node(2, 1, 50.0, 1.1), node(3, 1, 50.1, 1.1))
+    extract = str(tmp_path / 'extract.osm.pbf')
+    sources.merge_extracts([older, newer], extract, str(tmp_path))
+    target = str(tmp_path / 'water.geojsonseq')
+    sources.export_filtered(extract, osm.WATER_FILTER, target, str(tmp_path), areas_only=True)
+    [lake] = [json.loads(line) for line in open(target)]
+    assert lake['geometry']['coordinates'][0][0][0] == [1.0, 50.001]
