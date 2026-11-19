@@ -21,7 +21,8 @@ the index and the docs say so.
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
-  from Shom data, plus each region's.
+  from Shom data, plus each region's, with the dates some licences ask for
+  (`{name}` in a region's attribution, from the inputs' `dataset-dates.json`).
 - `odc/grid.py`: the global 0.000125° chart grid, the z9 units and
   `MAX_ZOOM` (17 for every unit). Every grid computation happens on this
   grid, so neighbouring units agree on their shared edge.

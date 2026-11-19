@@ -23,9 +23,26 @@ def compose(regional, shom=True):
     return '; '.join([*(SHOM if shom else ()), *regional, *SHARED_LAST])
 
 
-def of_region(region):
+DATES_FILE = 'dataset-dates.json'
+
+
+def of_region(region, dates=None):
+    """A region's attribution; a `{name}` in it becomes the date dataset
+    `name` was obtained, which some licences ask for. Unit versions hash the
+    text without dates, so fetching the same data again rebuilds nothing."""
     shom = any(source.startswith('shom') for source in region.get('sources', []))
-    return compose(region.get('attribution', []), shom)
+    regional = region.get('attribution', [])
+    for name, date in (dates or {}).items():
+        regional = [part.replace(f'{{{name}}}', date) for part in regional]
+    return compose(regional, shom)
+
+
+def dataset_dates(inputs):
+    path = os.path.join(inputs, DATES_FILE)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding='utf-8') as fh:
+        return json.load(fh)
 
 
 def merge(texts):

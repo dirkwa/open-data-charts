@@ -26,7 +26,7 @@
     ]
   ],
   "attribution": [
-    "Contains data from the Danish Geodata Agency, Denmark's Depth Model, 50 m resolution (2024); model and data are not suitable for navigation; terms: https://eng.gst.dk/danish-hydrographic-office/denmark-depth-model",
+    "Contains data from the Danish Geodata Agency, Denmark's Depth Model, 50 m resolution, obtained {ddm}; model and data are not suitable for navigation; terms: https://eng.gst.dk/danish-hydrographic-office/denmark-depth-model",
     "Agency for Data Supply and Infrastructure, DKMSL(2022) and DKLAT(2023), CC BY 4.0",
     "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
   ]

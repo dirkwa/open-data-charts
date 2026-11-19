@@ -102,14 +102,14 @@ def unit_entry(region, unit_id, version, built_dir, today):
     return entry
 
 
-def region_entry(region):
+def region_entry(region, text):
     return {
         'id': region['id'],
         'name': region['name'],
         'bbox': region['bbox'],
         'overview': None,
         'sources': region.get('sources', []),
-        'attribution': attribution.of_region(region),
+        'attribution': text,
     }
 
 
@@ -120,7 +120,8 @@ def build_index(region, plan, built_dir, old, today):
     for unit_id, version in plan['versions'].items():
         units.append(kept.get(unit_id) or unit_entry(region, unit_id, version, built_dir, today))
     units.sort(key=lambda u: (u['region'], u['id']))
-    regions = [r for r in old['regions'] if r['id'] != region['id']] + [region_entry(region)]
+    text = plan.get('attribution') or attribution.of_region(region)
+    regions = [r for r in old['regions'] if r['id'] != region['id']] + [region_entry(region, text)]
     regions.sort(key=lambda r: r['id'])
     index = {
         'schemaVersion': SCHEMA_VERSION,
