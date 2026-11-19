@@ -36,7 +36,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from odc import osm, seamarks
-from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, mercator_pixel
+from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, cell_x, cell_y, mercator_pixel
 
 gdal.UseExceptions()
 ogr.UseExceptions()
@@ -76,6 +76,12 @@ DEM_SHOAL_TOL_REL = 0.15
 # and tiles from z10 on inside units, so a unit thins alone and its
 # neighbours agree on its edge.
 SOUNDING_SQUARES_PER_TILE = 6
+MODEL_INFORM = 'Depth from the bathymetric model, not a surveyed sounding'
+# A model's numbers stop thinning out at this zoom (squares of ~230 m at
+# 55 degrees, a few pixels of a 50-115 m model): denser ones would only
+# repeat its interpolation, and number every pixel of a harbour basin.
+MODEL_SOUNDING_MAXZOOM = 14
+MODEL_MIN_DEPTH_M = 0.1
 CONTOUR_WINDOW_CELLS = 512  # see grid_tiles()
 LAND_PIECES = 16  # see tiled_parts()
 # Closed DEPCNT rings shorter than this (degrees of perimeter) are dropped:
@@ -528,23 +534,130 @@ def shoalest(key, *cols):
     return [c[order][first] for c in cols]
 
 
-def thin_soundings(lon, lat, z, maxzoom):
-    """minzoom per sounding, -1 for the ones no zoom shows."""
+def thin_soundings(lon, lat, z, maxzoom, model=None):
+    """minzoom per sounding, -1 for the ones no zoom shows. Model soundings
+    take a square only where no survey sounding is left for it."""
     minzoom = np.full(len(z), -1, np.int8)
-    order = np.argsort(z, kind='stable')  # shoalest first
+    model = np.zeros(len(z), bool) if model is None else model
+    order = np.lexsort((z, model))  # surveys first, each shoalest first
     for zoom in range(SOUNDING_MINZOOM, maxzoom + 1):
         k = sounding_squares(lon, lat, zoom)
         taken = np.unique(k[minzoom >= 0])
         cand = order[minzoom[order] < 0]
+        if zoom > MODEL_SOUNDING_MAXZOOM:
+            cand = cand[~model[cand]]
         cand = cand[~np.isin(k[cand], taken)]
         _, first = np.unique(k[cand], return_index=True)
         minzoom[cand[first]] = zoom
     return minzoom
 
 
-def build_soundings(entries, rank, land_cells, box, unit, maxzoom):
+def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom):
+    """Candidate soundings from the bathymetric model's own pixels (never
+    the near-shore fill or the chart-grid resampling): water depths of at
+    least a decimetre at pixel centres inside the unit, off land, inland
+    water and surveyed cells, where the depth areas chart water too (not a
+    drying bank the grid's smoothing or fill drew there); the shoalest per
+    square of the finest zoom model numbers thin to."""
+    ds = gdal.Open(dem_path)
+    band = ds.GetRasterBand(1)
+    values = band.ReadAsArray()
+    x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+    rows, cols = np.nonzero((values != band.GetNoDataValue()) & (values <= -MODEL_MIN_DEPTH_M))
+    ds = None
+    lon = x0 + (cols + 0.5) * dx
+    lat = y0 + (rows + 0.5) * dy
+    z = -values[rows, cols].astype(np.float32)
+    del values
+    px, py = mercator_pixel(lon, lat, UNIT_ZOOM)
+    mine = ((px // 256).astype(np.int64) == unit.x) & ((py // 256).astype(np.int64) == unit.y)
+    lon, lat, z = lon[mine], lat[mine], z[mine]
+    ix, iy = cell_x(lon), cell_y(lat)
+    inside = box.contains(ix, iy)
+    lon, lat, z, ix, iy = lon[inside], lat[inside], z[inside], ix[inside], iy[inside]
+    blocked = land_cells
+    for mask in (inland_cells, surveyed):
+        if mask is not None:
+            blocked = blocked | mask
+    cell = box.flat_index(ix, iy)
+    keep = ~blocked.ravel()[cell] & charted_water(depth_grid).ravel()[cell]
+    lon, lat, z = lon[keep], lat[keep], z[keep]
+    return shoalest(sounding_squares(lon, lat, min(maxzoom, MODEL_SOUNDING_MAXZOOM)), lon, lat, z)
+
+
+def charted_water(depth_grid):
+    """Cells the depth areas chart as water all around: the contours run
+    between cell centres, so next to a drying cell even a water cell can
+    lie partly in the drying band."""
+    grid = gdal.Open(depth_grid).ReadAsArray()
+    water = (grid != NODATA) & (grid < 0)
+    del grid
+    inner = water.copy()
+    inner[1:, :] &= water[:-1, :]
+    inner[:-1, :] &= water[1:, :]
+    inner[:, 1:] &= water[:, :-1]
+    inner[:, :-1] &= water[:, 1:]
+    inner[[0, -1], :] = False
+    inner[:, [0, -1]] = False
+    return inner
+
+
+def build_soundings(entries, rank, land_cells, box, unit, maxzoom, model=None):
     """SOUNDG points inside the unit: shoal-biased selection from the
-    surveys that won each cell."""
+    surveys that won each cell, then from the model's (lon, lat, z) where
+    no survey sounding is near."""
+    parts = []
+    if entries:
+        parts = survey_soundings(entries, rank, land_cells, box, unit, maxzoom)
+    if not parts and model is None:
+        return []
+    if parts:
+        lon, lat, z, src = (np.concatenate([p[i] for p in parts]) for i in range(4))
+        lon, lat, z, src = shoalest(sounding_squares(lon, lat, maxzoom), lon, lat, z, src)
+    else:
+        lon, lat, z, src = (np.zeros(0), np.zeros(0), np.zeros(0, np.float32), np.zeros(0, np.int16))
+    if model is not None:
+        mlon, mlat, mz = model
+        zoom = min(maxzoom, MODEL_SOUNDING_MAXZOOM)
+        free = ~np.isin(sounding_squares(mlon, mlat, zoom), sounding_squares(lon, lat, zoom))
+        lon = np.concatenate([lon, mlon[free]])
+        lat = np.concatenate([lat, mlat[free]])
+        z = np.concatenate([z, mz[free]]).astype(np.float32)
+        src = np.concatenate([src, np.full(int(free.sum()), -1, np.int16)])
+    minzoom = thin_soundings(lon, lat, z, maxzoom, src < 0)
+
+    feats = []
+    for i in np.flatnonzero(minzoom >= 0):
+        if src[i] < 0:
+            # Model depths are not soundings anyone measured; INFORM says so.
+            attrs = {'DEPTH': math.floor(float(z[i]) * 10) / 10, 'INFORM': MODEL_INFORM, '_minzoom': int(minzoom[i])}
+        else:
+            attrs = survey_attributes(entries[src[i]], z[i], minzoom[i])
+        pt = ogr.Geometry(ogr.wkbPoint)
+        pt.AddPoint_2D(float(lon[i]), float(lat[i]))
+        feats.append((pt, attrs, None))
+    counts = np.bincount(minzoom[minzoom >= 0] - SOUNDING_MINZOOM)
+    print('  soundings by minzoom:', {SOUNDING_MINZOOM + i: int(n) for i, n in enumerate(counts)})
+    print(f'  {int(((src < 0) & (minzoom >= 0)).sum())} from the model')
+    return feats
+
+
+def survey_attributes(entry, z, minzoom):
+    meta, name = entry[4], entry[2]
+    # Round towards the shallow side (S-4: soundings are truncated).
+    attrs = {
+        'DEPTH': math.floor(float(z) * 10) / 10,
+        'SORDAT': str(meta['end']),
+        'INFORM': f'Shom survey {name} ({str(meta["end"])[:4]}), doi:10.17183/{name}',
+        '_minzoom': int(minzoom),
+    }
+    tech = tecsou(meta.get('tecsou'))
+    if tech:
+        attrs['TECSOU'] = tech
+    return attrs
+
+
+def survey_soundings(entries, rank, land_cells, box, unit, maxzoom):
     rank_flat = rank.ravel()
     on_land = land_cells.ravel()
     parts = []
@@ -561,32 +674,7 @@ def build_soundings(entries, rank, land_cells, box, unit, maxzoom):
         lon, lat, z = lon[mine], lat[mine], z[mine]
         src = np.full(len(z), r, np.int16)
         parts.append(shoalest(sounding_squares(lon, lat, maxzoom), lon, lat, z, src))
-    if not parts:
-        return []
-    lon, lat, z, src = (np.concatenate([p[i] for p in parts]) for i in range(4))
-    lon, lat, z, src = shoalest(sounding_squares(lon, lat, maxzoom), lon, lat, z, src)
-    minzoom = thin_soundings(lon, lat, z, maxzoom)
-
-    feats = []
-    for i in np.flatnonzero(minzoom >= 0):
-        meta = entries[src[i]][4]
-        name = entries[src[i]][2]
-        # Round towards the shallow side (S-4: soundings are truncated).
-        attrs = {
-            'DEPTH': math.floor(float(z[i]) * 10) / 10,
-            'SORDAT': str(meta['end']),
-            'INFORM': f'Shom survey {name} ({str(meta["end"])[:4]}), doi:10.17183/{name}',
-            '_minzoom': int(minzoom[i]),
-        }
-        tech = tecsou(meta.get('tecsou'))
-        if tech:
-            attrs['TECSOU'] = tech
-        pt = ogr.Geometry(ogr.wkbPoint)
-        pt.AddPoint_2D(float(lon[i]), float(lat[i]))
-        feats.append((pt, attrs, None))
-    counts = np.bincount(minzoom[minzoom >= 0] - SOUNDING_MINZOOM)
-    print('  soundings by minzoom:', {SOUNDING_MINZOOM + i: int(n) for i, n in enumerate(counts)})
-    return feats
+    return parts
 
 
 def contour_layer(src, polygonize):
@@ -1494,7 +1582,7 @@ def main():
     step(f'Unit {unit.id}, build box {args.bbox}')
 
     step('DEM: clip + fill near-shore gaps')
-    _, filled = prepare_dem(args.dem, args.bbox, args.work)
+    clipped, filled = prepare_dem(args.dem, args.bbox, args.work)
 
     step('Land from OSM land polygons and water areas')
     water_areas = osm.read_water(args.water, args.bbox) if args.water else None
@@ -1525,18 +1613,17 @@ def main():
     del deep
     del survey_depth
     land_cells = land_mask(land, args.bbox)
-    soundings = []
     from_model = gdal.Open(os.path.join(args.work, 'dem_grid.tif')).ReadAsArray() != NODATA
     satellite = satellite_bands(args.satellite_depth, args.bbox)
     in_sdb = None if satellite is None else satellite > 0
     quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep, in_sdb)
     del in_sdb
     del from_model, from_deep
+    step('Soundings')
+    model = model_soundings(clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom)
     del from_survey
-    if entries:
-        step('Soundings')
-        soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom)
-    del rank
+    soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom, model)
+    del rank, model
 
     step('Depth areas + contours')
     depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite, inland_cells, inland)

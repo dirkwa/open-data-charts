@@ -45,11 +45,17 @@ The United Kingdom (the Isles of Scilly and Land's End, England and Wales
 with the Irish Sea, and Scotland with Northern Ireland and North East
 England) and the Dutch Wadden Sea are built for coasts without Shom data:
 their depths come from the EMODnet Bathymetry DTM alone (a model at about
-115 m, no soundings). England's south coast lies in the Channel region and
+115 m). England's south coast lies in the Channel region and
 takes its depths from Shom's model there. Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
 lag behind changes at sea. Each region is a file in `regions/`.
+
+Where no survey sounding is near, depth numbers come from the bathymetric
+model's own pixels, the shoalest of each area thinned per zoom like the
+surveys' soundings but at most one per zoom-14 square (about 230 m wide at
+55 degrees); each says in its INFORM that it is a model depth, not a
+surveyed sounding. Satellite bands and ETOPO's deep water carry none.
 
 Everywhere, deep water (200 m and more) that no survey or finer model
 covers takes its depths from NOAA's ETOPO 2022 global model (about 460 m),
