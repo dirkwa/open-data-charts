@@ -580,10 +580,26 @@ def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, bo
         if mask is not None:
             blocked = blocked | mask
     cell = box.flat_index(ix, iy)
-    charted = gdal.Open(depth_grid).ReadAsArray().ravel()[cell]
-    keep = ~blocked.ravel()[cell] & (charted != NODATA) & (charted < 0)
+    keep = ~blocked.ravel()[cell] & charted_water(depth_grid).ravel()[cell]
     lon, lat, z = lon[keep], lat[keep], z[keep]
     return shoalest(sounding_squares(lon, lat, min(maxzoom, MODEL_SOUNDING_MAXZOOM)), lon, lat, z)
+
+
+def charted_water(depth_grid):
+    """Cells the depth areas chart as water all around: the contours run
+    between cell centres, so next to a drying cell even a water cell can
+    lie partly in the drying band."""
+    grid = gdal.Open(depth_grid).ReadAsArray()
+    water = (grid != NODATA) & (grid < 0)
+    del grid
+    inner = water.copy()
+    inner[1:, :] &= water[:-1, :]
+    inner[:-1, :] &= water[1:, :]
+    inner[:, 1:] &= water[:, :-1]
+    inner[:, :-1] &= water[:, 1:]
+    inner[[0, -1], :] = False
+    inner[:, [0, -1]] = False
+    return inner
 
 
 def build_soundings(entries, rank, land_cells, box, unit, maxzoom, model=None):

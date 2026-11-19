@@ -53,7 +53,8 @@ lag behind changes at sea. Each region is a file in `regions/`.
 
 Where no survey sounding is near, depth numbers come from the bathymetric
 model's own pixels, the shoalest of each area thinned per zoom like the
-surveys' soundings but never closer than about 230 m; each says in its INFORM that it is a model depth, not a
+surveys' soundings but at most one per zoom-14 square (about 230 m wide at
+55 degrees); each says in its INFORM that it is a model depth, not a
 surveyed sounding. Satellite bands and ETOPO's deep water carry none.
 
 Everywhere, deep water (200 m and more) that no survey or finer model

@@ -410,15 +410,37 @@ def test_model_soundings_come_from_the_models_own_water_pixels(tmp_path):
     assert unit.owns(lon, lat).all()
 
 
-def test_a_model_sounding_gives_way_to_a_survey_sounding():
+def test_a_model_sounding_gives_way_to_a_survey_sounding(tmp_path):
+    from odc.grid import cell_x, cell_y
+
     unit = Unit(492, 288)
+    box = unit.build_box
     lon0, lat0 = unit.bounds[0] + 0.01, unit.bounds[3] - 0.01
-    model = (np.array([lon0, lon0 + 0.05]), np.array([lat0, lat0]), np.array([1.0, 4.0], np.float32))
-    thin = thin_soundings(model[0], model[1], model[2], 17, np.array([True, False]))
-    assert thin[1] == SOUNDING_MINZOOM  # a survey sounding first, though deeper
-    feats = build_soundings([], None, None, unit.build_box, unit, 17, model)
-    assert {f[1]['INFORM'] for f in feats} == {MODEL_INFORM}
-    assert sorted(f[1]['DEPTH'] for f in feats) == [1.0, 4.0]
+    # Same square up to z14: the survey takes it although the model is shallower.
+    lon, lat = np.array([lon0, lon0 + 0.0002]), np.array([lat0, lat0])
+    thin = thin_soundings(lon, lat, np.array([5.0, 1.0], np.float32), 17, np.array([False, True]))
+    assert thin[0] == SOUNDING_MINZOOM and thin[1] == -1
+
+    ix, iy = cell_x(lon[:1]), cell_y(lat[:1])
+    survey = tmp_path / 'survey.npz'
+    np.savez(
+        survey,
+        ix=ix,
+        iy=iy,
+        lon=(lon[:1] * 1e7).astype(np.int64),
+        lat=(lat[:1] * 1e7).astype(np.int64),
+        z=np.array([5.0]),
+    )
+    rank = np.full((box.nrows, box.ncols), -1, np.int16)
+    rank.ravel()[box.flat_index(ix, iy)] = 0
+    entries = [(None, None, 'S1', str(survey), {'end': 20200101})]
+    land = np.zeros((box.nrows, box.ncols), bool)
+    far = (np.array([lon0 + 0.05]), np.array([lat0]), np.array([4.0], np.float32))
+    model = tuple(
+        np.concatenate([a, b]) for a, b in zip((lon[1:], lat[1:], np.array([1.0], np.float32)), far, strict=True)
+    )
+    feats = build_soundings(entries, rank, land, box, unit, 17, model)
+    assert sorted((f[1]['DEPTH'], f[1]['INFORM'] == MODEL_INFORM) for f in feats) == [(4.0, True), (5.0, False)]
 
 
 def test_model_numbers_stop_thinning_out_past_their_zoom():
