@@ -17,7 +17,7 @@ the index and the docs say so.
 - `regions/<id>.json`: a region's bbox, its sources, its bathymetric
   models (`dem`, none or several: Shom prepackages, or
   `{"source": "emodnet"}` for the EMODnet DTM over the region), its OpenStreetMap extracts (`osm`, each a
-  list of alternative URLs; with `openseamap` in its sources their seamarks too) and the attribution of its own sources. Adding a
+  list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
   from Shom data, plus each region's.

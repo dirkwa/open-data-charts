@@ -241,6 +241,9 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         add_geojsonseq(digests, 'osm', osm_path)
     if os.path.exists(seamarks_path):
         add_geojsonseq(digests, 'seamarks', seamarks_path)
+    water_path = os.path.join(inputs, 'water.geojsonseq')
+    if os.path.exists(water_path):
+        add_geojsonseq(digests, 'water', water_path)
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
     dem = sources.dem_grids(inputs)
     # The mosaic's origin, pixel size and nodata depend on every grid, so they reach every unit.

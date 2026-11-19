@@ -213,9 +213,10 @@ def linestring(coords):
 # --------------------------------------------------------------- coastline
 
 
-def build_land(land_path, bbox_geom):
+def build_land(land_path, bbox_geom, water=None):
     """Land and coastline from OpenStreetMap's land polygons (osmdata.openstreetmap.de),
-    which are assembled from the coastline and validated every day."""
+    which are assembled from the coastline and validated every day, less the
+    water areas behind the coastline. Returns those too, as the inland water."""
     ds = ogr.Open(land_path)
     layer = ds.GetLayer(0)
     layer.SetSpatialFilter(bbox_geom)
@@ -224,10 +225,14 @@ def build_land(land_path, bbox_geom):
         for part in polygon_parts(feat.GetGeometryRef().Intersection(bbox_geom)):
             pieces.AddGeometry(part)
     land = pieces.UnaryUnion() if pieces.GetGeometryCount() else ogr.Geometry(ogr.wkbMultiPolygon)
+    inland = ogr.Geometry(ogr.wkbMultiPolygon)
+    if water is not None and not water.IsEmpty() and not land.IsEmpty():
+        inland = water.Intersection(land)
+        land = land.Difference(water).MakeValid()
     # The box's own edges are not coastline.
     inside = bbox_polygon(*shrunk(bbox_geom.GetEnvelope(), COAST_EDGE_DEG))
     coast = list(line_parts(land.GetBoundary().Intersection(inside))) if not land.IsEmpty() else []
-    return land, coast
+    return land, coast, inland
 
 
 def shrunk(envelope, d):
@@ -380,12 +385,14 @@ def deep_water(etopo_paths, bbox):
     return np.where(grid == NODATA, np.nan, -grid).astype(np.float32)
 
 
-def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None):
+def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None, inland=None):
     """Merge surveys, DEM and deep water into one z-negative grid for contouring.
 
     Returns the grid's path, the cells whose depth came from a survey,
     measured or interpolated (None without surveys), and the cells whose
-    depth came from deep water alone (None without it)."""
+    depth came from deep water alone (None without it). In inland water
+    (cells of the inland mask) the model is kept only below chart datum: its
+    heights there are the land it sees around a narrow canal or basin."""
     ncols, nrows, gt = chart_grid(bbox)
     dem_path = os.path.join(work, 'dem_grid.tif')
     gdal.Warp(
@@ -399,6 +406,13 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None):
         outputType=gdal.GDT_Float32,
     )
     dem = gdal.Open(dem_path).ReadAsArray()
+    if inland is not None:
+        dry = inland & (dem != NODATA) & (dem >= 0)
+        if dry.any():
+            dem[dry] = NODATA
+            ds = gdal.Open(dem_path, gdal.GA_Update)
+            ds.GetRasterBand(1).WriteArray(dem)
+            ds = None
     final = np.where(dem == NODATA, np.nan, -dem).astype(np.float32)  # depth, down positive
     del dem
     from_deep = None
@@ -468,7 +482,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None):
     return out, from_survey, from_deep
 
 
-def land_mask(land, bbox):
+def land_mask(land, bbox, all_touched=False):
     ncols, nrows, gt = chart_grid(bbox)
     ds = mem_raster(np.zeros((nrows, ncols), np.uint8), gt, gdal.GDT_Byte, None)
     if land is not None and not land.IsEmpty():
@@ -480,8 +494,17 @@ def land_mask(land, bbox):
         feat = ogr.Feature(layer.GetLayerDefn())
         feat.SetGeometry(land)
         layer.CreateFeature(feat)
-        gdal.RasterizeLayer(ds, [1], layer, burn_values=[1])
+        gdal.RasterizeLayer(ds, [1], layer, burn_values=[1], options=['ALL_TOUCHED=TRUE'] if all_touched else [])
     return ds.ReadAsArray().astype(bool)
+
+
+def inland_mask(land, inland, bbox):
+    """The cells inland water reaches, a canal narrower than a cell included,
+    but no cell whose centre is in the sea: the sea keeps its drying banks."""
+    if inland.IsEmpty():
+        return None
+    behind_coast = land_mask(land, bbox) | land_mask(inland, bbox)
+    return land_mask(inland, bbox, all_touched=True) & behind_coast
 
 
 def tecsou(text):
@@ -739,7 +762,24 @@ def gap_polygons(cells, gt, water):
     return union.UnaryUnion().Intersection(water)
 
 
-def build_depths(depth_grid, box, water, land_cells, satellite=None):
+def unsurveyed(gaps, narrow, gt, water, inland, covered):
+    """Water without a depth: the gap cells clipped to the water, and inland
+    water without a cell centre (narrow) clipped to the inland water alone,
+    since a gap cell's footprint can reach across the coast."""
+    area = gap_polygons(gaps, gt, water)
+    if narrow is not None and narrow.any():
+        # inland still holds the solid structures (piers, moles) charted as land
+        area = area.Union(gap_polygons(narrow, gt, inland.Intersection(water)))
+    if not covered.IsEmpty():
+        area = area.Difference(covered)
+    out = ogr.Geometry(ogr.wkbMultiPolygon)
+    for part in polygon_parts(area):
+        if part.GetArea() >= MIN_UNSARE_DEG2:
+            out.AddGeometry(part)
+    return out
+
+
+def build_depths(depth_grid, box, water, land_cells, satellite=None, inland_cells=None, inland=None):
     """DEPARE bands, DEPCNT lines, and UNSARE for water without any depth.
 
     Where satellite bathymetry covers such water, it becomes DEPARE in the
@@ -819,6 +859,7 @@ def build_depths(depth_grid, box, water, land_cells, satellite=None):
     step('  UNSARE')
     arr = ds.GetRasterBand(1).ReadAsArray()
     gaps = (arr == NODATA) & ~land_cells
+    narrow = None if inland_cells is None else (arr == NODATA) & inland_cells & land_cells
     del arr
     gt = ds.GetGeoTransform()
     covered = ogr.Geometry(ogr.wkbMultiPolygon)
@@ -835,12 +876,7 @@ def build_depths(depth_grid, box, water, land_cells, satellite=None):
                     depare.append((part, attrs))
                     drawn.AddGeometry(part)
             covered = covered.Union(drawn)
-    unsare = []
-    if gaps.any():
-        area = gap_polygons(gaps, gt, water)
-        if not covered.IsEmpty():
-            area = area.Difference(covered)
-        unsare = [(p, {}) for p in polygon_parts(area) if p.GetArea() >= MIN_UNSARE_DEG2]
+    unsare = [(p, {}) for p in polygon_parts(unsurveyed(gaps, narrow, gt, water, inland, covered))]
     return depare, depcnt, unsare
 
 
@@ -1438,6 +1474,7 @@ def main():
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
     ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
     ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
+    ap.add_argument('--water', help='GeoJSONSeq of OSM water areas (odc.sources), cut out of the land')
     ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
     ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
     ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
@@ -1459,8 +1496,10 @@ def main():
     step('DEM: clip + fill near-shore gaps')
     _, filled = prepare_dem(args.dem, args.bbox, args.work)
 
-    step('Land from OSM land polygons')
-    land, coast = build_land(args.land, bbox_geom)
+    step('Land from OSM land polygons and water areas')
+    water_areas = osm.read_water(args.water, args.bbox) if args.water else None
+    land, coast, inland = build_land(args.land, bbox_geom, water_areas)
+    del water_areas
     osm_items = list(osm.read_features(args.osm, args.bbox)) if args.osm else []
     marine_layers, osm_reefs = {}, []
     if osm_items:
@@ -1479,7 +1518,10 @@ def main():
         step('Deep water from ETOPO')
         deep = deep_water(args.deep_dem, args.bbox)
     step('Depth grid: surveys + DEM')
-    depth_grid, from_survey, from_deep = build_depth_grid(filled, args.bbox, args.work, survey_depth, deep)
+    inland_cells = inland_mask(land, inland, args.bbox)
+    depth_grid, from_survey, from_deep = build_depth_grid(
+        filled, args.bbox, args.work, survey_depth, deep, inland_cells
+    )
     del deep
     del survey_depth
     land_cells = land_mask(land, args.bbox)
@@ -1497,7 +1539,8 @@ def main():
     del rank
 
     step('Depth areas + contours')
-    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite)
+    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite, inland_cells, inland)
+    del inland_cells
     del satellite
 
     step('Shom WFS objects')
