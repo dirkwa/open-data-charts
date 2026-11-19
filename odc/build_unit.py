@@ -82,6 +82,11 @@ MODEL_INFORM = 'Depth from the bathymetric model, not a surveyed sounding'
 # repeat its interpolation, and number every pixel of a harbour basin.
 MODEL_SOUNDING_MAXZOOM = 14
 MODEL_MIN_DEPTH_M = 0.1
+# A model square whose shoalest pixel is shallower than this shows no number:
+# over flats and near drying edges such numbers are mostly 0 and clutter the
+# chart, and the depth areas already tell the same. The shallow pixel still
+# claims its square, so no deeper neighbour stands in for it.
+MODEL_MIN_NUMBER_M = 0.5
 CONTOUR_WINDOW_CELLS = 512  # see grid_tiles()
 LAND_PIECES = 16  # see tiled_parts()
 # Closed DEPCNT rings shorter than this (degrees of perimeter) are dropped:
@@ -558,7 +563,8 @@ def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, bo
     least a decimetre at pixel centres inside the unit, off land, inland
     water and surveyed cells, where the depth areas chart water too (not a
     drying bank the grid's smoothing or fill drew there); the shoalest per
-    square of the finest zoom model numbers thin to."""
+    square of the finest zoom model numbers thin to, where it is at least
+    MODEL_MIN_NUMBER_M deep."""
     ds = gdal.Open(dem_path)
     band = ds.GetRasterBand(1)
     values = band.ReadAsArray()
@@ -582,7 +588,9 @@ def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, bo
     cell = box.flat_index(ix, iy)
     keep = ~blocked.ravel()[cell] & charted_water(depth_grid).ravel()[cell]
     lon, lat, z = lon[keep], lat[keep], z[keep]
-    return shoalest(sounding_squares(lon, lat, min(maxzoom, MODEL_SOUNDING_MAXZOOM)), lon, lat, z)
+    lon, lat, z = shoalest(sounding_squares(lon, lat, min(maxzoom, MODEL_SOUNDING_MAXZOOM)), lon, lat, z)
+    deep = z >= MODEL_MIN_NUMBER_M
+    return lon[deep], lat[deep], z[deep]
 
 
 def charted_water(depth_grid):
