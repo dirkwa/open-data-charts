@@ -25,3 +25,11 @@ def test_wfs_layers_are_paged_by_their_key_and_keep_stable_ids(monkeypatch):
     assert [f['id'] for f in features] == [f'toponymes.{10 + i}' for i in range(5)]
     assert {q['sortBy'] for q in asked} == {'gid'}
     assert [q['startIndex'] for q in asked] == ['0', '2', '4']
+
+
+def test_the_newest_release_of_the_danish_model_is_taken(monkeypatch):
+    listing = ''.join(
+        f"<a href='/main.html?download&weblink=x&subfolder={year}'>{year}</a>" for year in ('2022', '2024', '2023')
+    )
+    monkeypatch.setattr(shom, 'get', lambda url, **kw: io.BytesIO(listing.encode()))
+    assert sources.ddm_release() == '2024'
