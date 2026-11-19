@@ -118,7 +118,7 @@ def warp(path, grid, s, w, resample):
 def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True):
     """Heights above LAT (negative under water) over one chunk, the model
     where it has data and the fill (heights) elsewhere; False if neither
-    reaches the chunk. The model holds depths, or heights if not `depths`."""
+    reaches the chunk, and then no chunk stays at `path`. The model holds depths, or heights if not `depths`."""
     value = warp(model_path, grid, s, w, 'bilinear')
     heights = np.full(value.shape, NODATA, dtype='float32')
     if fill_path:
@@ -130,6 +130,9 @@ def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths
         heights[model] = (-value[model] if depths else value[model]) + sep[model]
         heights[model & (heights > MAX_HEIGHT_M)] = NODATA
     if not (heights != NODATA).any():
+        # A chunk from an earlier run would still reach the builder.
+        if os.path.exists(path):
+            os.remove(path)
         return False
     out = gdal.GetDriverByName('GTiff').Create(
         path + '.part', heights.shape[1], heights.shape[0], 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3']

@@ -67,7 +67,10 @@ def test_a_chunk_neither_source_reaches_is_not_written(tmp_path):
     separation = str(tmp_path / 'sep.tif')
     lat_model.separation(*surfaces, separation)
     model = model_near(tmp_path, 11.0, 57.0, 10.0)
-    assert not lat_model.write_chunk(model, separation, None, GRID, 52, 0, str(tmp_path / 'chunk.tif'))
+    out = tmp_path / 'chunk.tif'
+    out.write_bytes(b'an earlier run')
+    assert not lat_model.write_chunk(model, separation, None, GRID, 52, 0, str(out))
+    assert not out.exists()
 
 
 def test_the_model_gives_way_to_the_fill_where_no_separation_reaches(tmp_path):
