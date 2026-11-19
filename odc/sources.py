@@ -5,6 +5,7 @@
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
+  water.geojsonseq                OSM water areas: harbours, canals, rivers, lakes (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
   relief/*.tif                    Copernicus DEM GLO-30 land tiles
   etopo/*.tif                     NOAA NCEI ETOPO 2022 15 arc-second tiles, for deep water
@@ -221,7 +222,7 @@ def download_extract(alternatives, path):
     raise RuntimeError(f'no OSM extract could be downloaded from {alternatives}')
 
 
-def export_filtered(extract, rules, target, tmp):
+def export_filtered(extract, rules, target, tmp, areas_only=False):
     filtered = os.path.join(tmp, 'filtered.osm.pbf')
     subprocess.run(['osmium', 'tags-filter', '-O', '-o', filtered, extract, *rules], check=True)
     subprocess.run(
@@ -234,6 +235,7 @@ def export_filtered(extract, rules, target, tmp):
             '--add-unique-id=type_id',
             '-x',
             'print_record_separator=false',
+            *(['--geometry-types=polygon'] if areas_only else []),
             '-o',
             target,
             filtered,
@@ -257,6 +259,9 @@ def fetch_osm(region, out):
             subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
         exported = os.path.join(tmp, 'exported.geojsonseq')
         export_filtered(extract, osm.OSMIUM_FILTER, exported, tmp)
+        target = os.path.join(out, 'water.geojsonseq')
+        export_filtered(extract, osm.WATER_FILTER, target + '.part', tmp, areas_only=True)
+        os.replace(target + '.part', target)
         target = os.path.join(out, 'seamarks.geojsonseq')
         if 'openseamap' in region.get('sources', []):
             export_filtered(extract, (osm.SEAMARK_FILTER,), target + '.part', tmp)

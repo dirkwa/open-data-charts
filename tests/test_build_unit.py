@@ -239,3 +239,65 @@ def test_an_osm_reef_line_keeps_only_what_the_maps_leave_out(tmp_path):
     items = build_reefs(None, aca, osm, [], box)
     kept = [(a['OBJNAM'], round(g.Length(), 6)) for g, a, _ in items if 'OBJNAM' in a]
     assert kept == [('long', 0.01 - 0.0025)]
+
+
+def test_water_areas_behind_the_coastline_are_cut_out_of_the_land(tmp_path):
+    from odc import build_unit
+
+    ds = ogr.GetDriverByName('GPKG').CreateDataSource(str(tmp_path / 'land.gpkg'))
+    layer = ds.CreateLayer('land', geom_type=ogr.wkbPolygon)
+    feature = ogr.Feature(layer.GetLayerDefn())
+    feature.SetGeometry(ogr.CreateGeometryFromWkt('POLYGON((0 0,0.01 0,0.01 0.01,0 0.01,0 0))'))
+    layer.CreateFeature(feature)
+    ds = layer = None
+    basin = ogr.CreateGeometryFromWkt('POLYGON((0.004 0.004,0.006 0.004,0.006 0.006,0.004 0.006,0.004 0.004))')
+    box = bbox_polygon(-0.001, -0.001, 0.011, 0.011)
+    land, coast, inland = build_unit.build_land(str(tmp_path / 'land.gpkg'), box, basin)
+    assert land.GetArea() == pytest.approx(0.01**2 - 0.002**2)
+    assert inland.GetArea() == pytest.approx(0.002**2)
+    assert sum(line.Length() for line in coast) == pytest.approx(0.04 + 0.008)
+    _, _, none = build_unit.build_land(str(tmp_path / 'land.gpkg'), box)
+    assert none.IsEmpty()
+
+
+def test_in_inland_water_the_model_keeps_only_depths(tmp_path):
+    from osgeo import gdal
+
+    from odc import build_unit
+
+    bbox = (0.0, 0.0, 0.01, 0.01)
+    ncols, nrows, gt = build_unit.chart_grid(bbox)
+    heights = np.full((nrows, ncols), -3.0, np.float32)  # elevation, depth below datum negative
+    heights[:, : ncols // 2] = 1.0
+    dem = str(tmp_path / 'dem.tif')
+    gdal.GetDriverByName('GTiff').CreateCopy(dem, build_unit.mem_raster(heights, gt))
+    inland = np.zeros((nrows, ncols), bool)
+    inland[: nrows // 2] = True
+    path, _, _ = build_unit.build_depth_grid(dem, bbox, str(tmp_path), None, None, inland)
+    z = gdal.Open(path).ReadAsArray()
+    model = gdal.Open(str(tmp_path / 'dem_grid.tif')).ReadAsArray()
+    top, bottom = slice(2, nrows // 2 - 2), slice(nrows // 2 + 2, nrows - 2)
+    west, east = slice(2, ncols // 2 - 2), slice(ncols // 2 + 2, ncols - 2)
+    assert (z[top, west] == build_unit.NODATA).all() and (model[top, west] == build_unit.NODATA).all()
+    assert (z[top, east] == -3.0).all()
+    assert (z[bottom, west] == 1.0).all()
+
+
+def test_read_water_keeps_the_areas_meeting_the_box(tmp_path):
+    from odc import osm
+
+    def area(x, kind='Polygon'):
+        ring = [[x, 0], [x + 0.001, 0], [x + 0.001, 0.001], [x, 0.001], [x, 0]]
+        coordinates = [ring] if kind == 'Polygon' else [[ring]]
+        return {'type': 'Feature', 'id': 'a2', 'properties': {}, 'geometry': {'type': kind, 'coordinates': coordinates}}
+
+    line = {
+        'type': 'Feature',
+        'id': 'w1',
+        'properties': {},
+        'geometry': {'type': 'LineString', 'coordinates': [[0, 0], [1, 1]]},
+    }
+    path = tmp_path / 'water.geojsonseq'
+    path.write_text(''.join(json.dumps(f) + '\n' for f in (area(0.0), area(0.002, 'MultiPolygon'), area(0.5), line)))
+    water = osm.read_water(str(path), (0.0, 0.0, 0.01, 0.01))
+    assert water.GetArea() == pytest.approx(2e-6)

@@ -45,6 +45,18 @@ Polynesia with a sounding every few miles. Where neither a survey nor a model gi
 charts the satellite-derived depth bands where they cover the water (see
 *Satellite depths*), and marks the rest as unsurveyed.
 
+## Land and inland water
+
+The land comes from OpenStreetMap's land polygons, which follow the
+coastline only: a harbour behind a lock, a canal, a river past its mouth
+or a lake is land in them. Every OSM water area (`natural=water`,
+`waterway=riverbank` or `dock`, `landuse=basin` or `reservoir`) is cut out
+of that land, so harbours, canals, rivers, lakes and even ditches chart as
+water with a shoreline. No survey reaches them, and the bathymetric
+model's cells there mostly see the land around a narrow canal: inside them
+the model is kept only below chart datum, so a canal never charts as a
+drying bank. The rest is unsurveyed.
+
 ## Seamarks
 
 Regions without Shom's WFS take their aids to navigation from

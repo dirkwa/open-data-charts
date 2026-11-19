@@ -23,6 +23,9 @@ OSMIUM_FILTER = (
 # Kept apart from the filter above: only regions without Shom's aids to
 # navigation chart them (odc.seamarks).
 SEAMARK_FILTER = 'nwr/seamark:type'
+# Harbour basins, docks, canals, rivers and lakes behind the coastline: the
+# land polygons follow the coastline only, so these are cut out of the land.
+WATER_FILTER = ('nwr/natural=water', 'nwr/waterway=riverbank,dock', 'nwr/landuse=basin,reservoir')
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
 # The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
 OTHER_ROLES = {
@@ -68,6 +71,30 @@ def drop_inland_buildings(src, dst, near, bounds, step):
             kept += 1
     os.replace(dst + '.part', dst)
     return kept, dropped
+
+
+def polygons(geometry):
+    if ogr.GT_Flatten(geometry.GetGeometryType()) == ogr.wkbPolygon:
+        yield geometry
+    else:
+        for i in range(geometry.GetGeometryCount()):
+            yield from polygons(geometry.GetGeometryRef(i))
+
+
+def read_water(path, bbox):
+    """The water areas of a WATER_FILTER export meeting bbox, as one geometry."""
+    parts = ogr.Geometry(ogr.wkbMultiPolygon)
+    with open(path, encoding='utf-8') as fh:
+        for line in fh:
+            feature = json.loads(line.lstrip('\x1e'))
+            if feature['geometry']['type'] not in ('Polygon', 'MultiPolygon'):
+                continue
+            if not intersects(bbox_of(feature['geometry']), bbox):
+                continue
+            geometry = ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])).MakeValid()
+            for part in polygons(geometry):
+                parts.AddGeometry(part)
+    return parts.UnaryUnion() if parts.GetGeometryCount() else parts
 
 
 def read_features(path, bbox=None):
