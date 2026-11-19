@@ -17,12 +17,15 @@ def test_every_region_names_its_extracts_and_dems():
         region = load(path)
         assert os.path.basename(path) == f'{region["id"]}.json'
         assert region['osm'] and all(isinstance(alternatives, list) and alternatives for alternatives in region['osm'])
-        shom_dems = [dem for dem in region.get('dem', []) if dem.get('source') != 'emodnet']
+        shom_dems = [dem for dem in region.get('dem', []) if 'source' not in dem]
         for dem in shom_dems:
             assert dem['group'] and dem['prepackage']
         assert ('shom-dem' in region['sources'] or 'shom-ird-dem' in region['sources']) == bool(shom_dems)
-        emodnet = any(dem.get('source') == 'emodnet' for dem in region.get('dem', []))
+        # The Danish model brings EMODnet along for the waters beyond it.
+        emodnet = any(dem.get('source') in ('emodnet', 'ddm') for dem in region.get('dem', []))
         assert ('emodnet-dtm' in region['sources']) == emodnet
+        ddm = any(dem.get('source') == 'ddm' for dem in region.get('dem', []))
+        assert ('ddm' in region['sources']) == ddm
 
 
 def test_no_unit_belongs_to_two_regions():

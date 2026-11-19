@@ -3,6 +3,8 @@
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
+  dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.ddm), if asked for
+  dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
   water.geojsonseq                OSM water areas: harbours, canals, rivers, lakes (ODbL)
@@ -17,6 +19,7 @@
 Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 """
 
+import datetime
 import glob
 import hashlib
 import json
@@ -32,7 +35,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import aca_depth, build_unit, osm, seamarks, shom
+from odc import aca_depth, attribution, build_unit, ddm, osm, seamarks, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -71,6 +74,10 @@ EMODNET_CHUNK_DEG = 2
 # 115 m land cell spilling past the OSM coastline charts as a drying bank.
 EMODNET_MAX_HEIGHT_M = 5.0
 EMODNET_NODATA = -9999.0
+# Denmark's Depth Model, 50 m, mean depth: the public share Dataforsyningen's
+# dataset 4817 links to, one folder per release (the year).
+DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
+DDM_FILE = 'ddm_50m.dybde.tiff'
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -191,7 +198,11 @@ def dem_grids(inputs):
     """The region's bathymetric model grids, in the order the mosaic
     stacks them: a later grid wins where they overlap."""
     dem = os.path.join(inputs, 'dem')
-    return sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif'))) + sorted(glob.glob(os.path.join(dem, '*.asc')))
+    return (
+        sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, '*.asc')))
+    )
 
 
 def fetch_emodnet(bounds, target):
@@ -216,13 +227,49 @@ def fetch_emodnet(bounds, target):
             os.remove(raw)
 
 
+def ddm_release():
+    listing = shom.get(DDM_SHARE).read().decode('utf-8', 'replace')
+    releases = re.findall(r"&subfolder=(\d{4})'", listing)
+    if not releases:
+        raise RuntimeError(f'no release folder in {DDM_SHARE}')
+    return max(releases)
+
+
+def fetch_ddm(bounds, target, tmp):
+    """Writes the chunks and returns the date the model was obtained."""
+    release = ddm_release()
+    print(f'ddm: release {release}', flush=True)
+    model = os.path.join(tmp, DDM_FILE)
+    query = urllib.parse.urlencode({'subfolder': release, 'realfilename': DDM_FILE})
+    save_url(f'{DDM_SHARE}&{query}', model, timeout=1800)
+    obtained = datetime.date.today().isoformat()
+    surfaces = []
+    for url in (ddm.DKMSL, ddm.DKLAT):
+        surfaces.append(os.path.join(tmp, os.path.basename(url)))
+        save_url(url, surfaces[-1])
+    separation = os.path.join(tmp, 'separation.tif')
+    ddm.separation(*surfaces, separation)
+    emodnet = os.path.join(tmp, 'emodnet')
+    os.makedirs(emodnet)
+    fetch_emodnet(bounds, emodnet)
+    fill = os.path.join(tmp, 'emodnet.vrt')
+    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
+    for s, w in ddm.chunks(bounds):
+        ddm.write_chunk(model, separation, fill, s, w, os.path.join(target, f'ddm_{s:+03d}_{w:+04d}.tif'))
+    return obtained
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
+    dates = {}
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         for dem in region.get('dem', []):
             if dem.get('source') == 'emodnet':
                 fetch_emodnet(fetch_bounds(region), target)
+                continue
+            if dem.get('source') == 'ddm':
+                dates['ddm'] = fetch_ddm(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
@@ -232,6 +279,9 @@ def fetch_dem(region, out):
                     ['7z', 'e', '-y', f'-o{target}', archive, '*.asc', '-r'], check=True, stdout=subprocess.DEVNULL
                 )
                 os.remove(archive)
+    if dates:
+        with open(os.path.join(out, attribution.DATES_FILE), 'w', encoding='utf-8') as fh:
+            json.dump(dates, fh)
     print('dem:', sorted(os.listdir(target)), flush=True)
 
 

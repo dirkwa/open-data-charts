@@ -257,7 +257,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     return digests.versions()
 
 
-def plan(region, units, versions, old_index, batch=BATCH):
+def plan(region, units, versions, old_index, batch=BATCH, attribution_text=None):
     """The units whose version is not the one the published index has."""
     published = {u['id']: u['version'] for u in (old_index or {}).get('units', []) if u.get('region') == region['id']}
     build = [u.id for u in units if published.get(u.id) != versions[u.id]]
@@ -266,13 +266,18 @@ def plan(region, units, versions, old_index, batch=BATCH):
     batches = [build[i : i + batch] for i in range(0, len(build), batch)]
     return {
         'region': region['id'],
-        'attribution': attribution.of_region(region),
+        'attribution': attribution_text or attribution.of_region(region),
         'versions': {u.id: versions[u.id] for u in units},
         'build': build,
         'kept': kept,
         'removed': removed,
         'batches': [{'index': i, 'units': b} for i, b in enumerate(batches)],
     }
+
+
+def attribution_texts(region, inputs):
+    """The text unit versions hash, without dates, and the dated one units carry."""
+    return attribution.of_region(region), attribution.of_region(region, attribution.dataset_dates(inputs))
 
 
 def builder_id(root=ROOT):
@@ -307,8 +312,9 @@ def main():
     mirror_index = json.load(open(mirror_path, encoding='utf-8'))
     old_index = None if old_path == '-' else json.load(open(old_path, encoding='utf-8'))
     units = discover(region, inputs)
-    versions = unit_versions(units, inputs, mirror_index, builder_id(), attribution.of_region(region))
-    result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH)
+    hashed, dated = attribution_texts(region, inputs)
+    versions = unit_versions(units, inputs, mirror_index, builder_id(), hashed)
+    result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH, dated)
     with open(out, 'w', encoding='utf-8') as fh:
         json.dump(result, fh, indent=1)
     print(f'{len(units)} units, {len(result["build"])} to build, {len(result["removed"])} removed')
