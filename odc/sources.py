@@ -3,7 +3,9 @@
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
-  dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.ddm), if asked for
+  dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
+  dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
+                                  (odc.lat_model), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
@@ -35,7 +37,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr
 
-from odc import aca_depth, attribution, build_unit, ddm, osm, seamarks, shom
+from odc import aca_depth, attribution, build_unit, lat_model, osm, seamarks, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -78,6 +80,20 @@ EMODNET_NODATA = -9999.0
 # dataset 4817 links to, one folder per release (the year).
 DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
 DDM_FILE = 'ddm_50m.dybde.tiff'
+# Mean sea level and LAT above the ellipsoid, the Danish Geodata Agency (CC BY 4.0).
+DKMSL = 'https://cdn.proj.org/dk_sdfi_dkmsl_2022.tif'
+DKLAT = 'https://cdn.proj.org/dk_sdfi_dklat_2023.tif'
+# 1/32 arc-minute, half the EMODnet DTM's step: the model is 50 m.
+DDM_GRID = lat_model.Grid(1 / 1920, 2)
+# Rijkswaterstaat's coastal and Wadden surveys (vaklodingen), the latest
+# measured bed height up to the release year, 20 m, metres above NAP (CC0).
+VAKLODINGEN = 'https://downloads.rijkswaterstaatdata.nl/bodemhoogte_20mtr/bodemhoogte_20mtr.tif'
+# NAP and LAT above the ellipsoid, NSGI (CC BY 4.0).
+NLGEO = 'https://cdn.proj.org/nl_nsgi_nlgeo2018.tif'
+NLLAT = 'https://cdn.proj.org/nl_nsgi_nllat2018.tif'
+# 1/64 arc-minute (about 29 m by 17 m at 53 degrees) keeps most of the 20 m
+# grid; 1-degree chunks keep each in memory small.
+VAKLODINGEN_GRID = lat_model.Grid(1 / 3840, 1)
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -201,6 +217,7 @@ def dem_grids(inputs):
     return (
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, '*.asc')))
     )
 
@@ -235,6 +252,24 @@ def ddm_release():
     return max(releases)
 
 
+def on_lat(model, datum_url, lat_url, grid, name, bounds, target, tmp, depths):
+    """Writes the model on LAT in chunks `<name>_*.tif`, EMODnet beyond it."""
+    surfaces = []
+    for url in (datum_url, lat_url):
+        surfaces.append(os.path.join(tmp, os.path.basename(url)))
+        save_url(url, surfaces[-1])
+    separation = os.path.join(tmp, f'{name}-separation.tif')
+    lat_model.separation(*surfaces, separation)
+    emodnet = os.path.join(tmp, f'{name}-emodnet')
+    os.makedirs(emodnet)
+    fetch_emodnet(bounds, emodnet)
+    fill = os.path.join(tmp, f'{name}-emodnet.vrt')
+    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
+    for s, w in grid.chunks(bounds):
+        path = os.path.join(target, f'{name}_{s:+03d}_{w:+04d}.tif')
+        lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths)
+
+
 def fetch_ddm(bounds, target, tmp):
     """Writes the chunks and returns the date the model was obtained."""
     release = ddm_release()
@@ -243,20 +278,14 @@ def fetch_ddm(bounds, target, tmp):
     query = urllib.parse.urlencode({'subfolder': release, 'realfilename': DDM_FILE})
     save_url(f'{DDM_SHARE}&{query}', model, timeout=1800)
     obtained = datetime.date.today().isoformat()
-    surfaces = []
-    for url in (ddm.DKMSL, ddm.DKLAT):
-        surfaces.append(os.path.join(tmp, os.path.basename(url)))
-        save_url(url, surfaces[-1])
-    separation = os.path.join(tmp, 'separation.tif')
-    ddm.separation(*surfaces, separation)
-    emodnet = os.path.join(tmp, 'emodnet')
-    os.makedirs(emodnet)
-    fetch_emodnet(bounds, emodnet)
-    fill = os.path.join(tmp, 'emodnet.vrt')
-    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
-    for s, w in ddm.chunks(bounds):
-        ddm.write_chunk(model, separation, fill, s, w, os.path.join(target, f'ddm_{s:+03d}_{w:+04d}.tif'))
+    on_lat(model, DKMSL, DKLAT, DDM_GRID, 'ddm', bounds, target, tmp, depths=True)
     return obtained
+
+
+def fetch_vaklodingen(bounds, target, tmp):
+    model = os.path.join(tmp, os.path.basename(VAKLODINGEN))
+    save_url(VAKLODINGEN, model, timeout=1800)
+    on_lat(model, NLGEO, NLLAT, VAKLODINGEN_GRID, 'vaklodingen', bounds, target, tmp, depths=False)
 
 
 def fetch_dem(region, out):
@@ -270,6 +299,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'ddm':
                 dates['ddm'] = fetch_ddm(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'vaklodingen':
+                fetch_vaklodingen(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
