@@ -410,6 +410,30 @@ def test_model_soundings_come_from_the_models_own_water_pixels(tmp_path):
     assert unit.owns(lon, lat).all()
 
 
+def test_a_square_shallower_than_half_a_metre_shows_no_model_number(tmp_path):
+    unit = Unit(492, 288)
+    box = unit.build_box
+    minlon, minlat, maxlon, maxlat = unit.bounds
+    step = 0.001
+    shape = (int((maxlat - minlat) / step), int((maxlon - minlon) / step))
+    land = np.zeros((box.nrows, box.ncols), bool)
+    grid = model_dem(
+        tmp_path / 'grid.tif', *box.bbox[::3], GRID_STEP, np.full((box.nrows, box.ncols), -12.0, np.float32)
+    )
+
+    def numbers(values, name):
+        dem = model_dem(tmp_path / name, minlon, maxlat, step, values)
+        return model_soundings(dem, grid, np.zeros_like(land), land, None, box, unit, 17)
+
+    deep = np.full(shape, -12.34, np.float32)
+    shallow = deep.copy()
+    shallow[0, 0] = -0.3
+    _, _, all_deep = numbers(deep, 'deep.tif')
+    _, _, z = numbers(shallow, 'shallow.tif')
+    assert len(z) == len(all_deep) - 1
+    assert np.allclose(z, 12.34)
+
+
 def test_a_model_sounding_gives_way_to_a_survey_sounding(tmp_path):
     from odc.grid import cell_x, cell_y
 
