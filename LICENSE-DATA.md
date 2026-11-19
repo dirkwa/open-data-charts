@@ -90,7 +90,8 @@ more, away from anything shallower) that no survey or finer model covers.
 - **NLGEO2018 and NLLAT2018**: Nederlandse Samenwerking Geodetische
   Infrastructuur (NSGI), the NAP and LAT surfaces above the ellipsoid, from
   the PROJ data CDN, Creative Commons Attribution 4.0 International (CC BY
-  4.0). Attribution: "NSGI, NLGEO2018 and NLLAT2018 (CC BY 4.0)".
+  4.0). Attribution: "NSGI, NLGEO2018 and NLLAT2018, CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/)".
 
 ## OpenStreetMap
 
