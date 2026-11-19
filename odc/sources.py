@@ -72,9 +72,10 @@ EMODNET_CHUNK_DEG = 2
 # 115 m land cell spilling past the OSM coastline charts as a drying bank.
 EMODNET_MAX_HEIGHT_M = 5.0
 EMODNET_NODATA = -9999.0
-# Denmark's Depth Model, 50 m, mean depth (Dataforsyningen dataset 4817); a
-# free Dataforsyningen account's token downloads it.
-DDM_URL = 'https://api.dataforsyningen.dk/rest/fildownload/v1.0/{path}?token={{token}}'
+# Denmark's Depth Model, 50 m, mean depth: the public share Dataforsyningen's
+# dataset 4817 links to, one folder per release (the year).
+DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
+DDM_FILE = 'ddm_50m.dybde.tiff'
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -224,9 +225,20 @@ def fetch_emodnet(bounds, target):
             os.remove(raw)
 
 
+def ddm_release():
+    listing = shom.get(DDM_SHARE).read().decode('utf-8', 'replace')
+    releases = re.findall(r"&subfolder=(\d{4})'", listing)
+    if not releases:
+        raise RuntimeError(f'no release folder in {DDM_SHARE}')
+    return max(releases)
+
+
 def fetch_ddm(bounds, target, tmp):
-    model = os.path.join(tmp, 'ddm_50m.dybde.tif')
-    save_url(DDM_URL.format(token=os.environ['DATAFORSYNINGEN_TOKEN']), model, timeout=1800)
+    release = ddm_release()
+    print(f'ddm: release {release}', flush=True)
+    model = os.path.join(tmp, DDM_FILE)
+    query = urllib.parse.urlencode({'subfolder': release, 'realfilename': DDM_FILE})
+    save_url(f'{DDM_SHARE}&{query}', model, timeout=1800)
     surfaces = []
     for url in (ddm.DKMSL, ddm.DKLAT):
         surfaces.append(os.path.join(tmp, os.path.basename(url)))

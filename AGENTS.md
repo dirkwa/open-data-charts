@@ -41,8 +41,7 @@ the index and the docs say so.
   structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022
   for deep water).
 - `odc/ddm.py`: Denmark's Depth Model moved from mean sea level to LAT
-  with the Danish DKMSL and DKLAT surfaces. Its download needs a free
-  Dataforsyningen token, the repository secret `DATAFORSYNINGEN_TOKEN`.
+  with the Danish DKMSL and DKLAT surfaces.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.
