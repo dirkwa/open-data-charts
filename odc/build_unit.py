@@ -766,13 +766,12 @@ def unsurveyed(gaps, narrow, gt, water, inland, covered):
     """Water without a depth: the gap cells clipped to the water, and inland
     water without a cell centre (narrow) clipped to the inland water alone,
     since a gap cell's footprint can reach across the coast."""
-    area = ogr.Geometry(ogr.wkbMultiPolygon)
-    if gaps.any():
-        area = gap_polygons(gaps, gt, water)
-        if not covered.IsEmpty():
-            area = area.Difference(covered)
+    area = gap_polygons(gaps, gt, water)
     if narrow is not None and narrow.any():
-        area = area.Union(gap_polygons(narrow, gt, inland))
+        # inland still holds the solid structures (piers, moles) charted as land
+        area = area.Union(gap_polygons(narrow, gt, inland.Intersection(water)))
+    if not covered.IsEmpty():
+        area = area.Difference(covered)
     out = ogr.Geometry(ogr.wkbMultiPolygon)
     for part in polygon_parts(area):
         if part.GetArea() >= MIN_UNSARE_DEG2:

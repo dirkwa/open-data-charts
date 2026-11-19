@@ -336,3 +336,23 @@ def test_a_ditch_along_the_coast_is_unsurveyed_without_reaching_the_drying_sea()
     area = build_unit.unsurveyed(gaps, narrow, gt, water, ditch, empty)
     assert area.GetArea() == pytest.approx(ditch.GetArea())
     assert area.Intersection(bbox_polygon(0.0, 0.0, 20 * step, 40 * step)).GetArea() == pytest.approx(0.0, abs=1e-15)
+
+
+def test_a_narrow_canal_leaves_out_piers_and_satellite_cover():
+    from odc import build_unit
+
+    step = GRID_STEP
+    bbox = (0.0, 0.0, 40 * step, 40 * step)
+    land = bbox_polygon(20 * step, 0.0, 40 * step, 40 * step)
+    ditch = bbox_polygon(20.1 * step, 5 * step, 20.4 * step, 35 * step)
+    pier = bbox_polygon(20.0 * step, 10 * step, 21 * step, 11 * step)
+    charted = land.Difference(ditch).Union(pier)
+    land_cells = build_unit.land_mask(charted, bbox)
+    narrow = build_unit.inland_mask(charted, ditch, bbox) & land_cells
+    water = bbox_polygon(*bbox).Difference(charted)
+    _, _, gt = build_unit.chart_grid(bbox)
+    satellite = bbox_polygon(20 * step, 30 * step, 21 * step, 35 * step)
+    area = build_unit.unsurveyed(np.zeros_like(narrow), narrow, gt, water, ditch, satellite)
+    assert area.Intersection(pier).GetArea() == pytest.approx(0.0, abs=1e-15)
+    assert area.Intersection(satellite).GetArea() == pytest.approx(0.0, abs=1e-15)
+    assert area.GetArea() == pytest.approx(ditch.Difference(pier).Difference(satellite).GetArea())
