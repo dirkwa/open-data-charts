@@ -244,6 +244,19 @@ def export_filtered(extract, rules, target, tmp, areas_only=False):
     )
 
 
+def merge_extracts(parts, extract, tmp):
+    if len(parts) == 1:
+        os.replace(parts[0], extract)
+        return
+    merged = os.path.join(tmp, 'merged.osm.pbf')
+    subprocess.run(['osmium', 'merge', '-O', '-o', merged, *parts], check=True)
+    # Extracts cut at different times can hold different versions of an
+    # object on their shared border, and merge keeps both; osmium export
+    # refuses such a file. time-filter keeps each object's newest version.
+    subprocess.run(['osmium', 'time-filter', '-O', '-o', extract, merged], check=True)
+    os.remove(merged)
+
+
 def fetch_osm(region, out):
     """region['osm']: the extracts covering the region, each a list of
     alternative URLs for the same extract."""
@@ -253,10 +266,7 @@ def fetch_osm(region, out):
             parts.append(os.path.join(tmp, f'part{i}.osm.pbf'))
             download_extract(alternatives, parts[-1])
         extract = os.path.join(tmp, 'extract.osm.pbf')
-        if len(parts) == 1:
-            os.replace(parts[0], extract)
-        else:
-            subprocess.run(['osmium', 'merge', '-O', '-o', extract, *parts], check=True)
+        merge_extracts(parts, extract, tmp)
         exported = os.path.join(tmp, 'exported.geojsonseq')
         export_filtered(extract, osm.OSMIUM_FILTER, exported, tmp)
         target = os.path.join(out, 'water.geojsonseq')
