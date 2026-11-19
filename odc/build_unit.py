@@ -762,7 +762,25 @@ def gap_polygons(cells, gt, water):
     return union.UnaryUnion().Intersection(water)
 
 
-def build_depths(depth_grid, box, water, land_cells, satellite=None, inland=None):
+def unsurveyed(gaps, narrow, gt, water, inland, covered):
+    """Water without a depth: the gap cells clipped to the water, and inland
+    water without a cell centre (narrow) clipped to the inland water alone,
+    since a gap cell's footprint can reach across the coast."""
+    area = ogr.Geometry(ogr.wkbMultiPolygon)
+    if gaps.any():
+        area = gap_polygons(gaps, gt, water)
+        if not covered.IsEmpty():
+            area = area.Difference(covered)
+    if narrow is not None and narrow.any():
+        area = area.Union(gap_polygons(narrow, gt, inland))
+    out = ogr.Geometry(ogr.wkbMultiPolygon)
+    for part in polygon_parts(area):
+        if part.GetArea() >= MIN_UNSARE_DEG2:
+            out.AddGeometry(part)
+    return out
+
+
+def build_depths(depth_grid, box, water, land_cells, satellite=None, inland_cells=None, inland=None):
     """DEPARE bands, DEPCNT lines, and UNSARE for water without any depth.
 
     Where satellite bathymetry covers such water, it becomes DEPARE in the
@@ -842,8 +860,7 @@ def build_depths(depth_grid, box, water, land_cells, satellite=None, inland=None
     step('  UNSARE')
     arr = ds.GetRasterBand(1).ReadAsArray()
     gaps = (arr == NODATA) & ~land_cells
-    if inland is not None:
-        gaps |= (arr == NODATA) & inland  # a canal without a cell centre; water clips it to the canal
+    narrow = None if inland_cells is None else (arr == NODATA) & inland_cells & land_cells
     del arr
     gt = ds.GetGeoTransform()
     covered = ogr.Geometry(ogr.wkbMultiPolygon)
@@ -860,12 +877,7 @@ def build_depths(depth_grid, box, water, land_cells, satellite=None, inland=None
                     depare.append((part, attrs))
                     drawn.AddGeometry(part)
             covered = covered.Union(drawn)
-    unsare = []
-    if gaps.any():
-        area = gap_polygons(gaps, gt, water)
-        if not covered.IsEmpty():
-            area = area.Difference(covered)
-        unsare = [(p, {}) for p in polygon_parts(area) if p.GetArea() >= MIN_UNSARE_DEG2]
+    unsare = [(p, {}) for p in polygon_parts(unsurveyed(gaps, narrow, gt, water, inland, covered))]
     return depare, depcnt, unsare
 
 
@@ -1528,7 +1540,7 @@ def main():
     del rank
 
     step('Depth areas + contours')
-    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite, inland_cells)
+    depare, depcnt, unsare = build_depths(depth_grid, box, water, land_cells, satellite, inland_cells, inland)
     del inland_cells
     del satellite
 

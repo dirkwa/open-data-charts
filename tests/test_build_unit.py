@@ -318,3 +318,21 @@ def test_a_canal_narrower_than_a_cell_reaches_the_inland_mask_but_not_the_sea():
     assert not mask[row, :20].any()
     assert build_unit.land_mask(inland, bbox).sum() == 0
     assert build_unit.inland_mask(land, ogr.Geometry(ogr.wkbMultiPolygon), bbox) is None
+
+
+def test_a_ditch_along_the_coast_is_unsurveyed_without_reaching_the_drying_sea():
+    from odc import build_unit
+
+    step = GRID_STEP
+    bbox = (0.0, 0.0, 40 * step, 40 * step)
+    land = bbox_polygon(20 * step, 0.0, 40 * step, 40 * step)
+    ditch = bbox_polygon(20.1 * step, 5 * step, 20.4 * step, 35 * step)  # in the first land column, no cell centre
+    land_cells = build_unit.land_mask(land.Difference(ditch), bbox)
+    narrow = build_unit.inland_mask(land.Difference(ditch), ditch, bbox) & land_cells
+    gaps = np.zeros_like(narrow)  # the sea has its drying heights
+    water = bbox_polygon(*bbox).Difference(land.Difference(ditch))
+    _, _, gt = build_unit.chart_grid(bbox)
+    empty = ogr.Geometry(ogr.wkbMultiPolygon)
+    area = build_unit.unsurveyed(gaps, narrow, gt, water, ditch, empty)
+    assert area.GetArea() == pytest.approx(ditch.GetArea())
+    assert area.Intersection(bbox_polygon(0.0, 0.0, 20 * step, 40 * step)).GetArea() == pytest.approx(0.0, abs=1e-15)
