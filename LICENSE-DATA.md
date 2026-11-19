@@ -78,6 +78,21 @@ distributes it without use restrictions and asks for this citation. Its
 ocean depths come largely from GEBCO. Used only for deep water (200 m and
 more, away from anything shallower) that no survey or finer model covers.
 
+## Rijkswaterstaat and NSGI (Netherlands)
+
+- **Bathymetrie Nederland - kust en vaklodingen 20 m**: Rijkswaterstaat,
+  `https://downloads.rijkswaterstaatdata.nl/bodemhoogte_20mtr/`, Creative
+  Commons Zero 1.0 (<https://creativecommons.org/publicdomain/zero/1.0/>).
+  Attribution (not required, given anyway): "Rijkswaterstaat, Bathymetrie
+  Nederland - kust en vaklodingen 20 m (CC0 1.0)". Heights above NAP, moved
+  to LAT with the surfaces below. Used as the bathymetric model of the
+  regions whose file asks for it (`"dem": [{"source": "vaklodingen"}]`).
+- **NLGEO2018 and NLLAT2018**: Nederlandse Samenwerking Geodetische
+  Infrastructuur (NSGI), the NAP and LAT surfaces above the ellipsoid, from
+  the PROJ data CDN, Creative Commons Attribution 4.0 International (CC BY
+  4.0). Attribution: "NSGI, NLGEO2018 and NLLAT2018, CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/)".
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0

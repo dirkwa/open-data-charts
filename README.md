@@ -43,9 +43,11 @@ the water as satellite-derived.
 
 The United Kingdom (the Isles of Scilly and Land's End, England and Wales
 with the Irish Sea, and Scotland with Northern Ireland and North East
-England) and the Dutch Wadden Sea are built for coasts without Shom data:
-their depths come from the EMODnet Bathymetry DTM alone (a model at about
-115 m). England's south coast lies in the Channel region and
+England) is built for coasts without Shom data: its depths come from the
+EMODnet Bathymetry DTM alone (a model at about 115 m). The Dutch Wadden
+Sea takes its depths from Rijkswaterstaat's coastal and Wadden surveys
+(the latest measured bed, gridded at 20 m), moved from NAP to LAT with
+NSGI's NLGEO2018 and NLLAT2018 surfaces, and from EMODnet beyond them. England's south coast lies in the Channel region and
 takes its depths from Shom's model there. Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can

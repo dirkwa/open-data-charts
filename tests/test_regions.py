@@ -21,11 +21,13 @@ def test_every_region_names_its_extracts_and_dems():
         for dem in shom_dems:
             assert dem['group'] and dem['prepackage']
         assert ('shom-dem' in region['sources'] or 'shom-ird-dem' in region['sources']) == bool(shom_dems)
-        # The Danish model brings EMODnet along for the waters beyond it.
-        emodnet = any(dem.get('source') in ('emodnet', 'ddm') for dem in region.get('dem', []))
+        # National models bring EMODnet along for the waters beyond them.
+        emodnet = any(dem.get('source') in ('emodnet', 'ddm', 'vaklodingen') for dem in region.get('dem', []))
         assert ('emodnet-dtm' in region['sources']) == emodnet
         ddm = any(dem.get('source') == 'ddm' for dem in region.get('dem', []))
         assert ('ddm' in region['sources']) == ddm
+        vaklodingen = any(dem.get('source') == 'vaklodingen' for dem in region.get('dem', []))
+        assert ('vaklodingen' in region['sources']) == vaklodingen
 
 
 def test_no_unit_belongs_to_two_regions():
