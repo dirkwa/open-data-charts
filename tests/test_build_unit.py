@@ -10,13 +10,17 @@ from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     ETOPO_PIXEL_DEG,
     GRID_STEP,
+    MODEL_INFORM,
+    MODEL_SOUNDING_MAXZOOM,
     SOUNDING_MINZOOM,
     bbox_polygon,
     build_reefs,
+    build_soundings,
     deep_water,
     depth_quality,
     dilate_disk,
     linestring,
+    model_soundings,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -356,3 +360,73 @@ def test_a_narrow_canal_leaves_out_piers_and_satellite_cover():
     assert area.Intersection(pier).GetArea() == pytest.approx(0.0, abs=1e-15)
     assert area.Intersection(satellite).GetArea() == pytest.approx(0.0, abs=1e-15)
     assert area.GetArea() == pytest.approx(ditch.Difference(pier).Difference(satellite).GetArea())
+
+
+def model_dem(path, minlon, maxlat, step, values):
+    from osgeo import gdal, osr
+
+    ds = gdal.GetDriverByName('GTiff').Create(str(path), values.shape[1], values.shape[0], 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((minlon, step, 0.0, maxlat, 0.0, -step))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetProjection(srs.ExportToWkt())
+    band = ds.GetRasterBand(1)
+    band.SetNoDataValue(-9999.0)
+    band.WriteArray(values)
+    ds = None
+    return str(path)
+
+
+def test_model_soundings_come_from_the_models_own_water_pixels(tmp_path):
+    unit = Unit(492, 288)
+    box = unit.build_box
+    minlon, minlat, maxlon, maxlat = unit.bounds
+    step = 0.001
+    values = np.full((int((maxlat - minlat) / step), int((maxlon - minlon) / step)), -12.34, np.float32)
+    # Each pixel left out is shallower than the rest, so a kept one would win its square.
+    values[0, 0] = -9999.0  # no data
+    values[0, 1] = 1.5  # dries
+    values[0, 2] = -3.0  # on land in the chart
+    values[0, 3] = -2.0  # surveyed
+    values[0, 4] = -0.05  # shallower than a decimetre
+    values[0, 5] = -1.0  # on a bank the depth areas chart as drying
+    land = np.zeros((box.nrows, box.ncols), bool)
+    surveyed = np.zeros_like(land)
+    charted = np.full((box.nrows, box.ncols), -12.0, np.float32)
+    from odc.grid import cell_x, cell_y
+
+    def cell(col):
+        return cell_y(maxlat - step / 2) - box.iy0, cell_x(minlon + (col + 0.5) * step) - box.ix0
+
+    land[cell(2)] = True
+    surveyed[cell(3)] = True
+    charted[cell(5)] = 0.5
+    grid = model_dem(tmp_path / 'grid.tif', *box.bbox[::3], GRID_STEP, charted)
+    dem = model_dem(tmp_path / 'dem.tif', minlon, maxlat, step, values)
+    lon, lat, z = model_soundings(dem, grid, surveyed, land, None, box, unit, 17)
+    assert len(z) and np.allclose(z, 12.34)
+    centres = (lon - minlon) / step - 0.5
+    assert np.allclose(centres, np.round(centres))
+    assert unit.owns(lon, lat).all()
+
+
+def test_a_model_sounding_gives_way_to_a_survey_sounding():
+    unit = Unit(492, 288)
+    lon0, lat0 = unit.bounds[0] + 0.01, unit.bounds[3] - 0.01
+    model = (np.array([lon0, lon0 + 0.05]), np.array([lat0, lat0]), np.array([1.0, 4.0], np.float32))
+    thin = thin_soundings(model[0], model[1], model[2], 17, np.array([True, False]))
+    assert thin[1] == SOUNDING_MINZOOM  # a survey sounding first, though deeper
+    feats = build_soundings([], None, None, unit.build_box, unit, 17, model)
+    assert {f[1]['INFORM'] for f in feats} == {MODEL_INFORM}
+    assert sorted(f[1]['DEPTH'] for f in feats) == [1.0, 4.0]
+
+
+def test_model_numbers_stop_thinning_out_past_their_zoom():
+    rng = np.random.default_rng(3)
+    unit = Unit(492, 288)
+    lon = rng.uniform(unit.bounds[0], unit.bounds[2], 20000)
+    lat = rng.uniform(unit.bounds[1], unit.bounds[3], 20000)
+    z = rng.uniform(0, 50, 20000).astype(np.float32)
+    minzoom = thin_soundings(lon, lat, z, 17, np.ones(len(z), bool))
+    assert minzoom.max() == MODEL_SOUNDING_MAXZOOM
+    assert thin_soundings(lon, lat, z, 17).max() == 17
