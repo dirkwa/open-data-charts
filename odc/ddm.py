@@ -90,13 +90,14 @@ def write_chunk(ddm_path, separation_path, fill_path, s, w, path):
     where it has data and the fill (heights) elsewhere; False if neither
     reaches the chunk."""
     depth = warp(ddm_path, s, w, 'bilinear')
-    model = depth != NODATA
     heights = np.full(depth.shape, NODATA, dtype='float32')
     if fill_path:
         heights = warp(fill_path, s, w, 'near')
-    if model.any():
+    if (depth != NODATA).any():
         sep = warp(separation_path, s, w, 'bilinear')
-        heights[model] = -depth[model] + np.where(sep[model] == NODATA, 0.0, sep[model])
+        # Without a separation the model's depth is on another datum: the fill stands.
+        model = (depth != NODATA) & (sep != NODATA)
+        heights[model] = -depth[model] + sep[model]
     if not (heights != NODATA).any():
         return False
     out = gdal.GetDriverByName('GTiff').Create(

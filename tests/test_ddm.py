@@ -66,3 +66,21 @@ def test_a_chunk_neither_source_reaches_is_not_written(tmp_path):
     ddm.separation(*surfaces, separation)
     model = model_near(tmp_path, 11.0, 57.0, 10.0)
     assert not ddm.write_chunk(model, separation, None, 52, 0, str(tmp_path / 'chunk.tif'))
+
+
+def test_the_model_gives_way_to_the_fill_where_no_separation_reaches(tmp_path):
+    msl = np.full((10, 10), 40.5, dtype='float32')
+    surfaces = [
+        raster(tmp_path / 'msl.tif', 4326, (8.0, 58.0), 0.01, msl, -32768.0),
+        raster(tmp_path / 'lat.tif', 4326, (8.0, 58.0), 0.01, msl - 0.1, -32768.0),
+    ]
+    separation = str(tmp_path / 'sep.tif')
+    ddm.separation(*surfaces, separation)
+    emodnet = np.full((1920, 1920), -20.0, 'float32')
+    fill = raster(tmp_path / 'emodnet.tif', 4326, (10.0, 58.0), 1 / 960, emodnet, -9999.0)
+    model = model_near(tmp_path, 11.0, 57.0, 10.0)
+    out = str(tmp_path / 'chunk.tif')
+    assert ddm.write_chunk(model, separation, fill, 56, 10, out)
+    heights = gdal.Open(out).ReadAsArray()
+    row, col = int((58.0 - 57.0) / ddm.STEP), int((11.0 - 10.0) / ddm.STEP)
+    assert heights[row, col] == -20.0
