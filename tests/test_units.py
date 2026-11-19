@@ -317,3 +317,25 @@ def test_a_dated_attribution_names_the_date_without_changing_versions(tmp_path):
     assert result['attribution'] == text
     built, _ = index.build_index(REGION, {**result, 'versions': {}}, '/nonexistent', None, '2026-11-19')
     assert 'Model, obtained 2026-11-19' in built['attribution']
+
+
+def test_a_later_acquisition_date_keeps_versions_and_updates_the_attribution(tmp_path):
+    import json
+
+    from odc import attribution
+
+    (tmp_path / 'dem').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    region = {'id': 'r', 'sources': ['osm'], 'attribution': ['Model, obtained {model}']}
+    texts = []
+    for date in ('2026-11-19', '2026-12-01'):
+        (tmp_path / attribution.DATES_FILE).write_text(json.dumps({'model': date}))
+        hashed, dated = units.attribution_texts(region, str(tmp_path))
+        texts.append(dated)
+        versions = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', hashed)
+        if date == '2026-11-19':
+            first = versions
+    assert versions == first
+    published = {'units': [{'id': u, 'region': REGION['id'], 'version': v} for u, v in first.items()]}
+    assert units.plan(REGION, [A, B], versions, published, attribution_text=texts[1])['build'] == []
+    assert 'obtained 2026-11-19' in texts[0] and 'obtained 2026-12-01' in texts[1]

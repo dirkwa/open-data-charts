@@ -17,7 +17,7 @@ the index and the docs say so.
 - `regions/<id>.json`: a region's bbox, its sources, its bathymetric
   models (`dem`, none or several: Shom prepackages, or
   `{"source": "emodnet"}` for the EMODnet DTM over the region, or
-  `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it), its OpenStreetMap extracts (`osm`, each a
+  `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it and where no LAT separation reaches it), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
@@ -42,7 +42,8 @@ the index and the docs say so.
   structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022
   for deep water).
 - `odc/ddm.py`: Denmark's Depth Model moved from mean sea level to LAT
-  with the Danish DKMSL and DKLAT surfaces.
+  with the Danish DKMSL and DKLAT surfaces; where they give no separation,
+  the EMODnet fill stands instead of a mean-sea-level depth.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.

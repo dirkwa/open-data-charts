@@ -275,6 +275,11 @@ def plan(region, units, versions, old_index, batch=BATCH, attribution_text=None)
     }
 
 
+def attribution_texts(region, inputs):
+    """The text unit versions hash, without dates, and the dated one units carry."""
+    return attribution.of_region(region), attribution.of_region(region, attribution.dataset_dates(inputs))
+
+
 def builder_id(root=ROOT):
     digest = hashlib.sha256()
     for name in BUILDER_FILES:
@@ -307,9 +312,9 @@ def main():
     mirror_index = json.load(open(mirror_path, encoding='utf-8'))
     old_index = None if old_path == '-' else json.load(open(old_path, encoding='utf-8'))
     units = discover(region, inputs)
-    versions = unit_versions(units, inputs, mirror_index, builder_id(), attribution.of_region(region))
-    text = attribution.of_region(region, attribution.dataset_dates(inputs))
-    result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH, text)
+    hashed, dated = attribution_texts(region, inputs)
+    versions = unit_versions(units, inputs, mirror_index, builder_id(), hashed)
+    result = plan(region, units, versions, old_index, int(rest[0]) if rest else BATCH, dated)
     with open(out, 'w', encoding='utf-8') as fh:
         json.dump(result, fh, indent=1)
     print(f'{len(units)} units, {len(result["build"])} to build, {len(result["removed"])} removed')
