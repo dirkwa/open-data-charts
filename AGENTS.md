@@ -6,7 +6,7 @@ the shorter walk-through for people.
 ## What this is
 
 A data pipeline: GitHub Actions build vector nautical charts from open data
-(Shom, EMODnet, Gouvernement de la Nouvelle-Calédonie, OpenStreetMap,
+(Shom, EMODnet, LINZ, Gouvernement de la Nouvelle-Calédonie, OpenStreetMap,
 Copernicus) as one MBTiles per *unit*, a z9 Web-Mercator tile, and publish
 them as release assets with an index on GitHub Pages. The consumer is the "Open Data Charts"
 tab of signalk-charts-provider-simple. **Not for navigation**: every chart,
@@ -49,6 +49,11 @@ the index and the docs say so.
   where they give no separation, the EMODnet fill stands instead of a depth
   on another datum. A model already on its chart datum (Kartverket's) is written the
   same way without a separation.
+- `odc/chart.py`: chart objects as published vector layers (LINZ's New
+  Zealand Hydro layers, listed in `odc/linz_hydro_layers.json`, for regions
+  with `linz-hydro`), each chart scale from its zoom and giving way to a
+  larger scale where that one has coverage. Such a unit takes its depths
+  from the chart, not from a model.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.

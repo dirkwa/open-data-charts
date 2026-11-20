@@ -8,6 +8,8 @@
                                   (odc.lat_model), if asked for
   dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull, EMODnet
                                   beyond it (odc.lat_model), if asked for
+  chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
+                                  per LDS layer, band 0 the smallest scale (odc.chart), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
@@ -39,7 +41,7 @@ import urllib.parse
 
 from osgeo import gdal, ogr, osr
 
-from odc import aca_depth, attribution, build_unit, lat_model, osm, seamarks, shom
+from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom
 from odc.grid import units_in
 
 gdal.UseExceptions()
@@ -53,6 +55,10 @@ WFS_NAMESPACES = (
     'TOPONYMIE_BDD_WFS',
 )
 WFS_PAGE = 5000
+# LINZ Data Service: the WFS takes the account's key as a header, which keeps
+# it out of URLs and logs.
+LINZ_WFS = 'https://data.linz.govt.nz/services/wfs'
+LINZ_KEY_ENV = 'LINZ_API_KEY'
 LAND_POLYGONS = 'https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip'
 LAND_POLYGONS_SHP = 'land-polygons-split-4326/land_polygons.shp'
 COPERNICUS = 'https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif'
@@ -231,6 +237,65 @@ def fetch_wfs(region, out):
             {'type': 'FeatureCollection', 'features': features},
         )
         print(f'{len(features):6d}  {name}', flush=True)
+
+
+def east_of_greenwich(coords):
+    """New Zealand's charts reach past the antimeridian, and the WFS wraps
+    their longitudes into [-180, 180]: a depth area across it would then span
+    the globe and cover the land. All of LINZ's chart data lies east of
+    Greenwich, so a negative longitude moves 360 degrees east."""
+    if isinstance(coords[0], (int, float)):
+        if coords[0] < 0:
+            coords[0] += 360
+        return
+    for part in coords:
+        east_of_greenwich(part)
+
+
+def linz_layer(layer_id, bbox, key):
+    minlon, minlat, maxlon, maxlat = bbox
+    params = {
+        'service': 'WFS',
+        'version': '2.0.0',
+        'request': 'GetFeature',
+        'typeNames': f'layer-{layer_id}',
+        'outputFormat': 'application/json',
+        'srsName': 'urn:ogc:def:crs:EPSG::4326',
+        # WFS 2.0 with an EPSG URN: axis order lat,lon.
+        'bbox': f'{minlat},{minlon},{maxlat},{maxlon},urn:ogc:def:crs:EPSG::4326',
+    }
+    url = f'{LINZ_WFS}?{urllib.parse.urlencode(params)}'
+    with shom.get(url, timeout=600, headers={'Authorization': f'key {key}'}) as r:
+        page = json.load(r)
+    features = page.get('features') or []
+    matched = page.get('numberMatched')
+    if isinstance(matched, int) and matched > len(features):
+        raise RuntimeError(f'LINZ layer {layer_id}: {len(features)} of {matched} features returned')
+    for feature in features:
+        if feature.get('geometry'):
+            east_of_greenwich(feature['geometry']['coordinates'])
+        # fidn, LINZ's feature id, keeps the saved layer and so the unit versions stable.
+        feature['id'] = f'linz-{layer_id}.{(feature.get("properties") or {}).get("fidn", feature.get("id"))}'
+    return sorted(features, key=lambda f: str(f['id']))
+
+
+def fetch_chart(region, out):
+    target = os.path.join(out, 'chart')
+    for stale in glob.glob(os.path.join(target, '*.json')):
+        os.remove(stale)
+    if 'linz-hydro' not in region.get('sources', []):
+        return
+    key = os.environ.get(LINZ_KEY_ENV)
+    if not key:
+        raise RuntimeError(f'{LINZ_KEY_ENV} is not set: LINZ chart data needs the account key')
+    bounds = wfs_bounds(region)
+    for layer_id, objl, band in chart.linz_layers():
+        features = linz_layer(layer_id, bounds, key)
+        save_json(
+            os.path.join(target, chart.file_name(band, objl, layer_id)),
+            {'type': 'FeatureCollection', 'features': features},
+        )
+        print(f'{len(features):6d}  {objl} band {band} (layer {layer_id})', flush=True)
 
 
 def dem_grids(inputs):
@@ -548,12 +613,14 @@ def etopo_name(top, left):
 
 def fetch_etopo(region, out):
     """The ETOPO tiles under the region's units, each named after its
-    north-west corner."""
+    north-west corner; none where charts give the depths."""
     minlon, minlat, maxlon, maxlat = fetch_bounds(region)
     m, step = build_unit.ETOPO_MARGIN_DEG, ETOPO_TILE_DEG
     tops = range(math.ceil((maxlat + m) / step) * step, math.floor((minlat - m) / step) * step, -step)
     lefts = range(math.floor((minlon - m) / step) * step, math.ceil((maxlon + m) / step) * step, step)
     names = {etopo_name(top, left) + '.tif' for top in tops for left in lefts}
+    if 'linz-hydro' in region.get('sources', []):
+        names = set()
     target = os.path.join(out, 'etopo')
     os.makedirs(target, exist_ok=True)
     for stale in set(os.listdir(target)) - names:
@@ -769,6 +836,7 @@ def fetch_aca_depth(region, out):
 
 FETCHERS = {
     'wfs': fetch_wfs,
+    'chart': fetch_chart,
     'dem': fetch_dem,
     'land': fetch_land,
     'osm': fetch_osm,

@@ -16,13 +16,14 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import attribution, build_unit, seamarks, shom, sources
+from odc import attribution, build_unit, chart, seamarks, shom, sources
 from odc.grid import Unit, units_in
 from odc.mirror import MIRROR_TAG
 
 gdal.UseExceptions()
 VERSION_HEX = 16
 SEARCH_MARGIN_DEG = 0.05
+ANTIMERIDIAN_LOOKUP = 180.0 - 1e-9
 BATCH = 8
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Everything that turns a unit's inputs into its file; the reduction is
@@ -30,7 +31,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILDER_FILES = (
     'builder/Dockerfile',
     'odc/build_unit.py',
+    'odc/chart.py',
     'odc/hillshade.py',
+    'odc/linz_hydro_layers.json',
     'odc/grid.py',
     'odc/osm.py',
     'odc/tile.py',
@@ -63,12 +66,13 @@ def dem_has_data(paths, bounds):
 
 def discover(region, inputs):
     """The region's units that have water and something to chart near it:
-    land, or the region's bathymetric model. Survey footprints do not count:
+    land, the region's bathymetric model, or a coastal or larger chart. Survey footprints do not count:
     old ocean crossings cover hundreds of units of open ocean in French
     Polynesia with a sounding every few miles."""
     land = ogr.Open(os.path.join(inputs, 'land.gpkg'))
     layer = land.GetLayer(0)
     dems = sources.dem_grids(inputs)
+    charts = os.path.join(inputs, 'chart')
     units = []
     for unit in units_in(*region['bbox']):
         area = bounds_polygon(*unit.bounds)
@@ -86,7 +90,7 @@ def discover(region, inputs):
         layer.ResetReading()
         if water.IsEmpty():
             continue
-        if has_land or dem_has_data(dems, unit.bounds):
+        if has_land or dem_has_data(dems, unit.bounds) or chart.charted(charts, unit.bounds):
             units.append(unit)
     return units
 
@@ -101,7 +105,11 @@ class Digests:
     def units_meeting(self, bbox):
         minlon, minlat, maxlon, maxlat = bbox
         m = SEARCH_MARGIN_DEG
-        for unit in units_in(minlon - m, minlat - m, maxlon + m, maxlat + m):
+        # Chart features east of the antimeridian keep longitudes past 180,
+        # as the builder clips them; unit_at would wrap such an edge to the
+        # far west and find no unit, so the lookup stops at the last column.
+        west, east = (min(max(lon, -180.0), ANTIMERIDIAN_LOOKUP) for lon in (minlon - m, maxlon + m))
+        for unit in units_in(west, minlat - m, east, maxlat + m):
             box = self.boxes.get(unit.id)
             if box is not None and shom.intersects(box, bbox):
                 yield unit.id
@@ -236,6 +244,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, seamarks.aid_window if aids else None)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
+    for path in chart.chart_files(os.path.join(inputs, 'chart')):
+        add_feature_collection(digests, 'chart ' + os.path.basename(path), path)
     add_aca(digests, sorted(glob.glob(os.path.join(inputs, 'aca', '*.geojsonseq'))))
     osm_path = os.path.join(inputs, 'osm.geojsonseq')
     if os.path.exists(osm_path):

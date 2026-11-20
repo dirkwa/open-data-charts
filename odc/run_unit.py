@@ -16,7 +16,7 @@ import tempfile
 
 from osgeo import gdal
 
-from odc import hillshade
+from odc import chart, hillshade
 from odc.grid import MAX_ZOOM, Unit
 from odc.sources import dem_grids
 from odc.tile import set_metadata
@@ -67,6 +67,9 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
         '--aca-reefs': os.path.join(inputs, 'aca'),
     }
     args += [item for flag, path in optional.items() if os.path.exists(path) for item in (flag, path)]
+    charts = os.path.join(inputs, 'chart')
+    if chart.chart_files(charts):
+        return args + ['--chart', charts] + relief_args(inputs)
     dem = dem_mosaic(inputs, work)
     if dem:
         args += ['--dem', dem]
@@ -76,10 +79,12 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
     satellite = sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif')))
     if satellite:
         args += ['--satellite-depth', *satellite]
+    return args + relief_args(inputs)
+
+
+def relief_args(inputs):
     relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
-    if relief:
-        args += ['--relief-dem', *relief]
-    return args
+    return ['--relief-dem', *relief] if relief else []
 
 
 def run_unit(inputs, surveys_dir, mirror_index, unit_id, version, attribution, out):

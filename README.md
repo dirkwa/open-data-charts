@@ -57,7 +57,11 @@ the Canary Islands, Madeira and the Azores.
 Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
-lag behind changes at sea. Each region is a file in `regions/`.
+lag behind changes at sea. New Zealand is charted from LINZ's chart data
+(the New Zealand Hydrographic Authority's Hydro layers, as of April 2023):
+its depth areas, contours, soundings, aids, hazards and areas come from the
+charts themselves, each chart scale from its own zoom, with land and
+buildings from OpenStreetMap. Each region is a file in `regions/`.
 
 Where no survey sounding is near, depth numbers come from the bathymetric
 model's own pixels, the shoalest of each area thinned per zoom like the

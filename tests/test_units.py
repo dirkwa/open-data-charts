@@ -350,3 +350,22 @@ def test_a_later_acquisition_date_keeps_versions_and_updates_the_attribution(tmp
     published = {'units': [{'id': u, 'region': REGION['id'], 'version': v} for u, v in first.items()]}
     assert units.plan(REGION, [A, B], versions, published, attribution_text=texts[1])['build'] == []
     assert 'obtained 2026-11-19' in texts[0] and 'obtained 2026-12-01' in texts[1]
+
+
+def test_a_chart_feature_past_the_antimeridian_reaches_the_easternmost_unit(tmp_path):
+    from odc.grid import unit_at
+
+    unit = unit_at(179.5, -36.5)
+    area = {
+        'type': 'Feature',
+        'properties': {'DRVAL1': 3000},
+        'geometry': {
+            'type': 'Polygon',
+            'coordinates': [[[179.9, -37], [181, -37], [181, -36], [179.9, -36], [179.9, -37]]],
+        },
+    }
+    path = tmp_path / 'chart.json'
+    path.write_text(json.dumps({'type': 'FeatureCollection', 'features': [area]}))
+    digests = units.Digests([unit])
+    units.add_feature_collection(digests, 'chart', str(path))
+    assert digests.parts[unit.id]

@@ -96,9 +96,10 @@ jobs:
         if: steps.ready.outputs.ready == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: |
           mkdir -p inputs && chmod 777 inputs
-          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_TOKEN -e GITHUB_REPOSITORY \
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src -e GITHUB_TOKEN -e GITHUB_REPOSITORY -e LINZ_API_KEY \
             odc-builder python3 -m odc.sources "regions/$REGION.json" inputs
       - name: Plan
         id: plan
