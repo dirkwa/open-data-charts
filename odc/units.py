@@ -23,6 +23,7 @@ from odc.mirror import MIRROR_TAG
 gdal.UseExceptions()
 VERSION_HEX = 16
 SEARCH_MARGIN_DEG = 0.05
+ANTIMERIDIAN_LOOKUP = 180.0 - 1e-9
 BATCH = 8
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Everything that turns a unit's inputs into its file; the reduction is
@@ -104,7 +105,11 @@ class Digests:
     def units_meeting(self, bbox):
         minlon, minlat, maxlon, maxlat = bbox
         m = SEARCH_MARGIN_DEG
-        for unit in units_in(minlon - m, minlat - m, maxlon + m, maxlat + m):
+        # Chart features east of the antimeridian keep longitudes past 180,
+        # as the builder clips them; unit_at would wrap such an edge to the
+        # far west and find no unit, so the lookup stops at the last column.
+        west, east = (min(max(lon, -180.0), ANTIMERIDIAN_LOOKUP) for lon in (minlon - m, maxlon + m))
+        for unit in units_in(west, minlat - m, east, maxlat + m):
             box = self.boxes.get(unit.id)
             if box is not None and shom.intersects(box, bbox):
                 yield unit.id
