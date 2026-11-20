@@ -1,5 +1,6 @@
 import io
 import json
+import shutil
 import urllib.parse
 
 import numpy as np
@@ -227,14 +228,38 @@ def test_the_catalan_model_keeps_the_shoalest_metre_of_each_cell_and_only_its_ow
     ds.GetRasterBand(1).SetNoDataValue(-9999.0)
     ds.GetRasterBand(1).WriteArray(heights)
     ds = None
-    monkeypatch.setattr(sources, 'ICGC_MODEL', model)
+    monkeypatch.setattr(sources, 'icgc_model', lambda tmp: str(tmp_path / 'copy.tif'))
+    shutil.copy(model, tmp_path / 'copy.tif')
     monkeypatch.setattr(sources, 'ICGC_GRID', lat_model.Grid(1 / 4000, 1))
     target = tmp_path / 'dem'
     target.mkdir()
-    sources.fetch_icgc((-1.0, 39.0, 3.5, 43.0), str(target))
+    sources.fetch_icgc((-1.0, 39.0, 3.5, 43.0), str(target), str(tmp_path))
     assert sorted(p.name for p in target.iterdir()) == ['icgc_+41_+002.tif']
     out = gdal.Open(str(target / 'icgc_+41_+002.tif')).ReadAsArray()
     water = out[(out != lat_model.NODATA) & (out < 0)]
     # Only a cell that a chunk edge cuts to a sliver can miss its rocks.
     assert water.size and (water == -1.0).mean() > 0.95
     assert not ((out > lat_model.MAX_HEIGHT_M) & (out != lat_model.NODATA)).any()
+
+
+def test_the_mirrored_catalan_model_is_joined_from_its_checked_parts(monkeypatch, tmp_path):
+    parts = {f'{sources.ICGC_FILE}.part-0{i}': bytes([i]) * 3 for i in range(2)}
+    assets = {name: (f'https://example.org/{name}', f'sha256:{name}') for name in parts}
+    assets['other.tif'] = ('https://example.org/other.tif', 'sha256:x')
+    monkeypatch.setattr(sources, 'release_assets', lambda url: assets)
+    checked = []
+
+    def save_square(url, digest, path):
+        name = url.rsplit('/', 1)[1]
+        checked.append(digest)
+        (tmp_path / name).write_bytes(parts[name])
+
+    monkeypatch.setattr(sources, 'save_square', save_square)
+    model = sources.icgc_model(str(tmp_path))
+    assert open(model, 'rb').read() == bytes([0, 0, 0, 1, 1, 1])
+    assert checked == [f'sha256:{name}' for name in sorted(parts)]
+
+
+def test_a_region_away_from_catalonia_fetches_no_catalan_model(monkeypatch, tmp_path):
+    monkeypatch.setattr(sources, 'icgc_model', lambda tmp: pytest.fail('fetched'))
+    sources.fetch_icgc((10.0, 40.0, 12.0, 42.0), str(tmp_path), str(tmp_path))

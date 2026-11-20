@@ -148,8 +148,9 @@ the bathymetric models of the regions whose file lists them
 
 Batimetria de la costa de Catalunya v2.1: the Institut Cartogràfic i
 Geològic de Catalunya's topobathymetric elevation model of the Catalan coast
-(1 m, heights above mean sea level at Alicante), read from
-`https://datacloud.icgc.cat/datacloud/batimetria/`, Creative Commons
+(1 m, heights above mean sea level at Alicante), published at
+`https://datacloud.icgc.cat/datacloud/batimetria/` and mirrored unchanged,
+in parts, in this repository's release `icgc`, Creative Commons
 Attribution 4.0 International (CC BY 4.0). ICGC states that it may not be
 used for navigation. Attribution: "Institut Cartogràfic i Geològic de
 Catalunya (ICGC), Batimetria de la costa de Catalunya v2.1, CC BY 4.0
