@@ -35,7 +35,7 @@ import time
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import osm, seamarks
+from odc import chart, osm, seamarks
 from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, cell_x, cell_y, mercator_pixel
 
 gdal.UseExceptions()
@@ -96,7 +96,7 @@ LAND_PIECES = 16  # see tiled_parts()
 # (deepest VALDCO the rule applies to, minimum length).
 DEPCNT_MIN_RING = ((10.0, 0.0005), (5000.0, 0.004))  # ~55 m; ~430 m (~140 m across)
 SOUNDING_MINZOOM = 10
-QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'model', 'satellite', 'model-coarse', 'none')
+QUALITY_ORDER = ('multibeam', 'survey-recent', 'survey-old', 'chart', 'model', 'satellite', 'model-coarse', 'none')
 # ETOPO 2022 (15 arc-seconds, ~460 m) fills only deep water nothing finer
 # covers: pixels at least ETOPO_MIN_DEPTH_M deep whose neighbours within
 # ETOPO_CLEAR_PIXELS are too, so a pixel mixing reef or shore with the
@@ -1448,6 +1448,7 @@ def write_layers(out_dir, layers, classes, unit):
         for geom, attrs, lnam in items:
             attrs = dict(attrs)
             minzoom = attrs.pop('_minzoom', None)
+            maxzoom = attrs.pop('_maxzoom', None)
             for part in explode(geom):
                 if ogr.GT_Flatten(part.GetGeometryType()) == ogr.wkbPoint and not unit.owns(part.GetX(), part.GetY()):
                     continue  # the neighbour unit has it
@@ -1464,8 +1465,9 @@ def write_layers(out_dir, layers, classes, unit):
                     'properties': props,
                     'geometry': json.loads(part.ExportToJson(['COORDINATE_PRECISION=7'])),
                 }
-                if minzoom is not None:
-                    feat['tippecanoe'] = {'minzoom': minzoom}  # stands in for SCAMIN
+                zooms = {k: v for k, v in (('minzoom', minzoom), ('maxzoom', maxzoom)) if v is not None}
+                if zooms:
+                    feat['tippecanoe'] = zooms  # minzoom stands in for SCAMIN
                 feats.append(feat)
         with open(os.path.join(out_dir, f'{objl}.geojson'), 'w', encoding='utf-8') as fh:
             json.dump({'type': 'FeatureCollection', 'features': feats}, fh, ensure_ascii=False)
@@ -1567,51 +1569,11 @@ def survey_inputs(leves_dir, surveys_json, box):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--unit', required=True, help='unit id, e.g. z9-492-288')
-    ap.add_argument('--wfs', required=True)
-    ap.add_argument('--land', required=True, help='OSM land polygons (osmdata.openstreetmap.de), any OGR format')
-    ap.add_argument('--dem', help='bathymetric DEM; without it, depths come from the surveys alone')
-    ap.add_argument('--leves', help='directory of <survey>.npz files from odc.reduce_survey')
-    ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
-    ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
-    ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
-    ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
-    ap.add_argument('--water', help='GeoJSONSeq of OSM water areas (odc.sources), cut out of the land')
-    ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
-    ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
-    ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
-    ap.add_argument('--aca-reefs', help='directory of Allen Coral Atlas reef GeoJSONSeq squares (odc.sources)')
-    ap.add_argument('--satellite-depth', nargs='*', help='satellite-derived bathymetry squares (odc.aca_depth)')
-    ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
-    ap.add_argument('--work', required=True)
-    ap.add_argument('--out', required=True)
-    args = ap.parse_args()
-    os.makedirs(args.work, exist_ok=True)
-
-    classes, attributes = load_s57_tables()
-    unit = Unit.parse(args.unit)
-    box = unit.build_box
-    args.bbox = box.bbox
-    bbox_geom = bbox_polygon(*args.bbox)
-    step(f'Unit {unit.id}, build box {args.bbox}')
-
+def computed_depths(args, box, unit, land, inland, water):
+    """Depth areas, contours and soundings computed from the surveys and the
+    bathymetric models, with the unit's depth quality."""
     step('DEM: clip + fill near-shore gaps')
     clipped, filled = prepare_dem(args.dem, args.bbox, args.work)
-
-    step('Land from OSM land polygons and water areas')
-    water_areas = osm.read_water(args.water, args.bbox) if args.water else None
-    land, coast, inland = build_land(args.land, bbox_geom, water_areas)
-    del water_areas
-    osm_items = list(osm.read_features(args.osm, args.bbox)) if args.osm else []
-    marine_layers, osm_reefs = {}, []
-    if osm_items:
-        step('OSM harbour structures and reefs')
-        solid, marine_layers, osm_reefs = osm_marine(osm_items, bbox_geom)
-        if solid:  # moles, breakwaters, fixed piers are land on a chart
-            land = land.Union(multipolygon(solid).UnaryUnion()).MakeValid()
-    water = bbox_geom.Difference(land) if not land.IsEmpty() else bbox_geom
 
     entries, survey_depth, rank = [], None, None
     if args.leves:
@@ -1646,16 +1608,95 @@ def main():
     del inland_cells
     del satellite
 
+    depth_layers = {
+        'DEPARE': [(g, a, None) for g, a in depare],
+        'DEPCNT': [(g, a, None) for g, a in depcnt],
+    }
+    if unsare:
+        depth_layers['UNSARE'] = [(g, a, None) for g, a in unsare]
+    if soundings:
+        depth_layers['SOUNDG'] = soundings
+    return quality, entries, used, depth_layers, land_cells
+
+
+def chart_quality(areas, land_cells, box, unit):
+    """Share of the unit's water a chart covers: 'chart' there, 'none' elsewhere."""
+    cells = unit.cells
+    rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
+    cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
+    water = ~land_cells[rows, cols]
+    total = int(water.sum())
+    if not total:
+        return None
+    covered = None
+    for area in areas:
+        if area is not None:
+            covered = area if covered is None else covered.Union(area)
+    charted = int((land_mask(covered, box.bbox)[rows, cols] & water).sum()) if covered is not None else 0
+    share = {k: v for k, v in (('chart', round(charted / total, 3)), ('none', round(1 - charted / total, 3))) if v}
+    return {'best': next(c for c in QUALITY_ORDER if c in share), 'share': share}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--unit', required=True, help='unit id, e.g. z9-492-288')
+    ap.add_argument('--wfs', required=True)
+    ap.add_argument('--land', required=True, help='OSM land polygons (osmdata.openstreetmap.de), any OGR format')
+    ap.add_argument('--dem', help='bathymetric DEM; without it, depths come from the surveys alone')
+    ap.add_argument('--leves', help='directory of <survey>.npz files from odc.reduce_survey')
+    ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
+    ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
+    ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
+    ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
+    ap.add_argument('--water', help='GeoJSONSeq of OSM water areas (odc.sources), cut out of the land')
+    ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
+    ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
+    ap.add_argument('--nc-reefs', help='reef geomorphology GeoJSON (odc.sources)')
+    ap.add_argument('--aca-reefs', help='directory of Allen Coral Atlas reef GeoJSONSeq squares (odc.sources)')
+    ap.add_argument('--satellite-depth', nargs='*', help='satellite-derived bathymetry squares (odc.aca_depth)')
+    ap.add_argument('--nc-structures', help='OBLIC coastal structures GeoJSON (odc.sources)')
+    ap.add_argument('--chart', help='directory of chart object layers (odc.chart); they replace the computed depths')
+    ap.add_argument('--work', required=True)
+    ap.add_argument('--out', required=True)
+    args = ap.parse_args()
+    os.makedirs(args.work, exist_ok=True)
+
+    classes, attributes = load_s57_tables()
+    unit = Unit.parse(args.unit)
+    box = unit.build_box
+    args.bbox = box.bbox
+    bbox_geom = bbox_polygon(*args.bbox)
+    step(f'Unit {unit.id}, build box {args.bbox}')
+
+    step('Land from OSM land polygons and water areas')
+    water_areas = osm.read_water(args.water, args.bbox) if args.water else None
+    land, coast, inland = build_land(args.land, bbox_geom, water_areas)
+    del water_areas
+    osm_items = list(osm.read_features(args.osm, args.bbox)) if args.osm else []
+    marine_layers, osm_reefs = {}, []
+    if osm_items:
+        step('OSM harbour structures and reefs')
+        solid, marine_layers, osm_reefs = osm_marine(osm_items, bbox_geom)
+        if solid:  # moles, breakwaters, fixed piers are land on a chart
+            land = land.Union(multipolygon(solid).UnaryUnion()).MakeValid()
+    water = bbox_geom.Difference(land) if not land.IsEmpty() else bbox_geom
+
+    if args.chart:
+        land_cells = land_mask(land, args.bbox)
+        step('Chart objects')
+        areas = chart.coverage(args.chart, bbox_geom)
+        depth_layers = chart.chart_layers(args.chart, lambda p: s57_props(p, attributes), classes, bbox_geom, areas)
+        quality = chart_quality(areas, land_cells, box, unit)
+        entries, used = [], []
+    else:
+        quality, entries, used, depth_layers, land_cells = computed_depths(args, box, unit, land, inland, water)
+
     step('Shom WFS objects')
     layers = wfs_features(args.wfs, attributes, classes, land, bbox_geom)
     layers['LNDARE'] = [(p, {}, None) for p in polygon_parts(land)]
     layers['COALNE'] = [(line, {}, None) for line in coast]
-    layers['DEPARE'] = [(g, a, None) for g, a in depare]
-    layers['DEPCNT'] = [(g, a, None) for g, a in depcnt]
-    if unsare:
-        layers['UNSARE'] = [(g, a, None) for g, a in unsare]
-    if soundings:
-        layers['SOUNDG'] = soundings
+    for objl, items in depth_layers.items():
+        layers.setdefault(objl, []).extend(items)
     for objl, items in marine_layers.items():
         layers.setdefault(objl, []).extend(items)
     if args.seamarks:

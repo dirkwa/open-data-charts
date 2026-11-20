@@ -1,5 +1,8 @@
 import io
+import json
 import urllib.parse
+
+import pytest
 
 from odc import shom, sources
 
@@ -74,3 +77,35 @@ def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch
         sources.fetch_emodnet((2.1, 39.1, 2.2, 39.2), str(target), microtidal)
         out = gdal.Open(str(target / 'emodnet_+39_+002.tif')).ReadAsArray()[0]
         assert np.allclose(out, expected)
+
+
+def test_a_linz_layer_is_asked_for_with_the_key_in_a_header_and_never_truncated(monkeypatch):
+    asked = []
+
+    def get(url, headers=None, **_):
+        asked.append((url, headers))
+        rows = [{'type': 'Feature', 'id': f'layer-7.{i}', 'properties': {'fidn': 100 - i}} for i in range(3)]
+        return io.BytesIO(json.dumps({'features': rows, 'numberMatched': matched}).encode())
+
+    monkeypatch.setattr(shom, 'get', get)
+    matched = 3
+    features = sources.linz_layer('7', (174.0, -37.0, 175.0, -36.0), 'secret')
+    assert [f['id'] for f in features] == ['linz-7.100', 'linz-7.98', 'linz-7.99']
+    url, headers = asked[0]
+    assert headers == {'Authorization': 'key secret'} and 'secret' not in url
+    query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))
+    assert query['typeNames'] == 'layer-7' and query['bbox'].startswith('-37.0,174.0,-36.0,175.0')
+    matched = 4
+    with pytest.raises(RuntimeError, match='3 of 4'):
+        sources.linz_layer('7', (174.0, -37.0, 175.0, -36.0), 'secret')
+
+
+def test_chart_layers_need_the_key_and_go_when_the_region_drops_them(tmp_path, monkeypatch):
+    stale = tmp_path / 'chart' / '1__DEPARE__4.json'
+    stale.parent.mkdir()
+    stale.write_text('{}')
+    sources.fetch_chart({'sources': ['osm']}, str(tmp_path))
+    assert not stale.exists()
+    monkeypatch.delenv(sources.LINZ_KEY_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=sources.LINZ_KEY_ENV):
+        sources.fetch_chart({'sources': ['linz-hydro'], 'bbox': [174.0, -37.0, 175.0, -36.0]}, str(tmp_path))
