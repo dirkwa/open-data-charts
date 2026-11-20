@@ -112,3 +112,19 @@ def test_chart_layers_need_the_key_and_go_when_the_region_drops_them(tmp_path, m
     monkeypatch.delenv(sources.LINZ_KEY_ENV, raising=False)
     with pytest.raises(RuntimeError, match=sources.LINZ_KEY_ENV):
         sources.fetch_chart({'sources': ['linz-hydro'], 'bbox': [174.0, -37.0, 175.0, -36.0]}, str(tmp_path))
+
+
+def test_an_osm_extract_is_tried_again_after_a_dropped_connection(monkeypatch, tmp_path):
+    calls = []
+
+    def save_url(url, path, timeout=600):
+        calls.append(url)
+        if len(calls) < 3:
+            raise OSError(101, 'Network is unreachable')
+        open(path, 'wb').close()
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    target = str(tmp_path / 'malta.osm.pbf')
+    sources.download_extract(['https://example.org/malta.osm.pbf'], target, wait=0)
+    assert calls == ['https://example.org/malta.osm.pbf'] * 3
+    assert (tmp_path / 'malta.osm.pbf').exists()

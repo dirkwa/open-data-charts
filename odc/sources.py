@@ -36,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 
@@ -59,6 +60,10 @@ WFS_PAGE = 5000
 # it out of URLs and logs.
 LINZ_WFS = 'https://data.linz.govt.nz/services/wfs'
 LINZ_KEY_ENV = 'LINZ_API_KEY'
+# A Geofabrik extract with no other mirror fails a whole region's run on one
+# dropped connection, so each alternative is tried a few times.
+OSM_ATTEMPTS = 3
+OSM_RETRY_WAIT_S = 60
 LAND_POLYGONS = 'https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip'
 LAND_POLYGONS_SHP = 'land-polygons-split-4326/land_polygons.shp'
 COPERNICUS = 'https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif'
@@ -451,13 +456,16 @@ def fetch_dem(region, out):
     print('dem:', sorted(os.listdir(target)), flush=True)
 
 
-def download_extract(alternatives, path):
-    for url in alternatives:
-        try:
-            save_url(url, path)
-            return
-        except (OSError, urllib.error.URLError) as exc:
-            print(f'osm: {url} failed ({exc})', flush=True)
+def download_extract(alternatives, path, wait=OSM_RETRY_WAIT_S):
+    for attempt in range(OSM_ATTEMPTS):
+        if attempt:
+            time.sleep(wait * attempt)
+        for url in alternatives:
+            try:
+                save_url(url, path)
+                return
+            except (OSError, urllib.error.URLError) as exc:
+                print(f'osm: {url} failed ({exc})', flush=True)
     raise RuntimeError(f'no OSM extract could be downloaded from {alternatives}')
 
 
