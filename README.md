@@ -49,7 +49,9 @@ Sea takes its depths from Rijkswaterstaat's coastal and Wadden surveys
 (the latest measured bed, gridded at 20 m), moved from NAP to LAT with
 NSGI's NLGEO2018 and NLLAT2018 surfaces, and from EMODnet beyond them. Southern Norway, from the Oslofjord to Stad, takes its depths from Kartverket's seabed terrain model (50 m) on sjøkartnull, the datum of Norway's own charts: LAT, except 0.2 m below LAT from the Swedish border to Utsira and 0.3 m below it in the inner Oslofjord, where depths read that much shallower than on LAT; EMODnet fills beyond it. England's south coast lies in the Channel region and
 takes its depths from Shom's model there. The rest of the Mediterranean, from Gibraltar to the Levant, is built the
-same way from the EMODnet DTM alone, in nine regions by sea area.
+same way from the EMODnet DTM alone, in nine regions by sea area, and so
+are Atlantic Iberia (Galicia, Portugal and the Gulf of Cadiz to Huelva),
+the Canary Islands, Madeira and the Azores.
 Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
