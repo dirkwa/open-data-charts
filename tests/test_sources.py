@@ -128,3 +128,46 @@ def test_an_osm_extract_is_tried_again_after_a_dropped_connection(monkeypatch, t
     sources.download_extract(['https://example.org/malta.osm.pbf'], target, wait=0)
     assert calls == ['https://example.org/malta.osm.pbf'] * 3
     assert (tmp_path / 'malta.osm.pbf').exists()
+
+
+def test_an_emodnet_hr_grid_keeps_the_shoalest_depth_on_its_own_cells():
+    import numpy as np
+
+    lines = [
+        '-9.10136719;38.73092448;8.79;8.54;8.62;0.10;4;;;;x;;',
+        '-9.10149740;38.73079427;;;3.24;;1;0;;;x;;',
+        '-9.10136719;38.73079427;-0.20;-0.90;-0.50;0.07;9;;;;x;;',
+        '-9.10136719;38.73079427;6.00;5.00;5.50;0.07;9;;;;x;;',
+        '-9.10149740;38.73092448;-20.0;-30.0;-25.0;;1;;;;x;;',
+    ]
+    heights, west, north = sources.emodnet_hr_grid(lines, 7680)
+    assert heights.shape == (2, 2)
+    assert west == np.floor(-9.10149740 * 7680) / 7680 and north == (np.floor(38.73092448 * 7680) + 1) / 7680
+    # Row 0 is north: the land cell there is dropped, the drying bank wins its repeated cell.
+    assert np.allclose(heights, [[sources.EMODNET_NODATA, -8.54], [-3.24, 0.9]])
+
+
+def test_a_smoothed_emodnet_hr_grid_never_reads_deeper_than_a_cell_it_lies_in():
+    import numpy as np
+
+    from odc.grid import GRID_STEP
+
+    cpd = 3840
+    heights = np.full((6, 6), -10.0, dtype='float32')
+    heights[2, 3] = -1.0
+    heights[0, 0] = sources.EMODNET_NODATA
+    west, north = -9.0, 38.75
+    smooth, sw, sn = sources.smooth_on_chart_grid(heights, west, north, cpd)
+    assert (sw / GRID_STEP).is_integer() and (sn / GRID_STEP).is_integer()
+    rows, cols = np.indices(smooth.shape)
+    lon = sw + (cols + 0.5) * GRID_STEP
+    lat = sn - (rows + 0.5) * GRID_STEP
+    r, c = np.floor((north - lat) * cpd).astype(int), np.floor((lon - west) * cpd).astype(int)
+    inside = (r >= 0) & (r < 6) & (c >= 0) & (c < 6)
+    cell = np.full(smooth.shape, np.nan)
+    cell[inside] = heights[r[inside], c[inside]]
+    data = inside & (cell != sources.EMODNET_NODATA) & (smooth != sources.EMODNET_NODATA)
+    assert data.sum() > 0.8 * inside.sum()
+    assert (smooth[data] >= cell[data] - 1e-4).all()
+    # Between the shoal and deep water the depth changes gradually, not in one step.
+    assert len(np.unique(np.round(smooth[data], 2))) > 3

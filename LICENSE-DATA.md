@@ -117,6 +117,20 @@ Hydrographic Authority chart data (Hydro layers, as of April 2023)". Used
 for the depths, aids, hazards and areas of the regions that list
 `linz-hydro`; the layers taken are in `odc/linz_hydro_layers.json`.
 
+## EMODnet high-resolution DTMs (Portugal)
+
+The Instituto Hidrográfico's (IHPT) high-resolution DTMs of Portuguese
+ports, estuaries and coasts, Madeira and the Azores, on LAT, downloaded
+from EMODnet Bathymetry (`https://downloads.emodnet-bathymetry.eu/high_resolution/`),
+whose records give Creative Commons Attribution 4.0 International (CC BY
+4.0) and "do not use for navigation". The coastal lidar models are by the
+Agência Portuguesa do Ambiente (APA) and the Instituto Geográfico Português
+(IGeo), distributed by IHPT. Attribution: "Instituto Hidrográfico (IHPT),
+high-resolution DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu),
+CC BY 4.0", naming APA and IGeo where the lidar models are used. Used as
+the bathymetric models of the regions whose file lists them
+(`"dem": [..., {"source": "emodnet-hr", "dtms": [...]}]`).
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0

@@ -18,7 +18,7 @@ from osgeo import gdal
 
 from odc import chart, hillshade
 from odc.grid import MAX_ZOOM, Unit
-from odc.sources import dem_grids
+from odc.sources import DEM_MOSAIC_OPTIONS, dem_grids
 from odc.tile import set_metadata
 
 gdal.UseExceptions()
@@ -32,7 +32,7 @@ def dem_mosaic(inputs, work):
         return None
     os.makedirs(work, exist_ok=True)
     path = os.path.join(work, 'dem.vrt')
-    gdal.BuildVRT(path, grids)
+    gdal.BuildVRT(path, grids, **DEM_MOSAIC_OPTIONS)
     return path
 
 

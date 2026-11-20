@@ -9,6 +9,7 @@
   ],
   "sources": [
     "emodnet-dtm",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -16,6 +17,67 @@
   "dem": [
     {
       "source": "emodnet"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "590_HR_Azores_Faial",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_Graciosa",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_Pico",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_SJorge",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_SMaria",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_SMiguel",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Azores_Terceira",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201706_Pdelgada",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_BaixaEspelho",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_Caloura",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_IlheuVilaFranca",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_Mosteiros",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_PraiaVitoria",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_201707_VFCampo",
+          "cells_per_degree": 3840
+        }
+      ]
     }
   ],
   "osm": [
@@ -24,6 +86,7 @@
     ]
   ],
   "attribution": [
-    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "Instituto Hidrográfico (IHPT), high-resolution DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu), CC BY 4.0"
   ]
 }

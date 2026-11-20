@@ -9,6 +9,7 @@
   ],
   "sources": [
     "emodnet-dtm",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -16,6 +17,19 @@
   "dem": [
     {
       "source": "emodnet"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "590_HR_Madeira_IlhaMadeira",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Madeira_PSanto",
+          "cells_per_degree": 3840
+        }
+      ]
     }
   ],
   "osm": [
@@ -24,6 +38,7 @@
     ]
   ],
   "attribution": [
-    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "Instituto Hidrográfico (IHPT), high-resolution DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu), CC BY 4.0"
   ]
 }

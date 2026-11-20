@@ -3,6 +3,8 @@
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
+  dem/emodnethr_*.tif             EMODnet Bathymetry high-resolution DTMs the region lists, on top
+                                  of the DTM, the later in the list on top, if asked for
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
@@ -28,6 +30,7 @@ Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 import datetime
 import glob
 import hashlib
+import io
 import json
 import math
 import os
@@ -39,11 +42,13 @@ import tempfile
 import time
 import urllib.error
 import urllib.parse
+import zipfile
 
+import numpy as np
 from osgeo import gdal, ogr, osr
 
 from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom
-from odc.grid import units_in
+from odc.grid import GRID_STEP, units_in
 
 gdal.UseExceptions()
 
@@ -94,6 +99,10 @@ EMODNET_NODATA = -9999.0
 # marinas at 0 to 2 m. Such a cell is charted as depth unknown
 # (build_unit.MODEL_HOLE), neither a drying bank nor a source of fill.
 EMODNET_MICROTIDAL_SHORE_M = -0.5
+# A high-resolution DTM's EMO file, one line per grid cell centre:
+# lon;lat;deepest;shoalest;mean;... in metres below its datum (LAT for the
+# Instituto Hidrográfico's), negative above it.
+EMODNET_HR = 'https://downloads.emodnet-bathymetry.eu/high_resolution/{id}.emo.zip'
 # Denmark's Depth Model, 50 m, mean depth: the public share Dataforsyningen's
 # dataset 4817 links to, one folder per release (the year).
 DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
@@ -303,12 +312,20 @@ def fetch_chart(region, out):
         print(f'{len(features):6d}  {objl} band {band} (layer {layer_id})', flush=True)
 
 
+# A fine model on top of the region's EMODnet keeps its own cells, and the
+# coarser grids are smoothed onto them as the builder smooths a DEM onto the
+# chart grid, not blown up into blocks. odc.units hashes the mosaic built
+# with the same options.
+DEM_MOSAIC_OPTIONS = {'resolution': 'highest', 'resampleAlg': 'cubicspline'}
+
+
 def dem_grids(inputs):
     """The region's bathymetric model grids, in the order the mosaic
     stacks them: a later grid wins where they overlap."""
     dem = os.path.join(inputs, 'dem')
     return (
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
@@ -338,6 +355,91 @@ def fetch_emodnet(bounds, target, microtidal=False):
             grid = source = None
             os.replace(part, path)
             os.remove(raw)
+
+
+def emodnet_hr_grid(lines, cells_per_degree):
+    """Heights on the DTM's own grid, the shoalest where cells repeat, and
+    the grid's west and north edges."""
+    cols, rows, heights = [], [], []
+    for line in lines:
+        fields = line.split(';')
+        depth = fields[3] or fields[4]
+        if not depth:
+            continue
+        height = -float(depth)
+        if height > EMODNET_MAX_HEIGHT_M:
+            continue
+        cols.append(math.floor(float(fields[0]) * cells_per_degree))
+        rows.append(math.floor(float(fields[1]) * cells_per_degree))
+        heights.append(height)
+    if not heights:
+        return None
+    cols, rows, heights = np.array(cols), np.array(rows), np.array(heights, dtype='float32')
+    west, north = cols.min(), rows.max()
+    grid = np.full((north - rows.min() + 1, cols.max() - west + 1), EMODNET_NODATA, dtype='float32')
+    np.maximum.at(grid, (north - rows, cols - west), heights)
+    return grid, west / cells_per_degree, (north + 1) / cells_per_degree
+
+
+def smooth_on_chart_grid(heights, west, north, cells_per_degree):
+    """The DTM bilinear on the chart grid, through its cell corners, each the
+    shoalest of the cells it touches: smooth contours, and every point of a
+    cell at least as shoal as the cell."""
+    rows, cols = heights.shape
+    padded = np.full((rows + 2, cols + 2), -np.inf, dtype='float32')
+    padded[1:-1, 1:-1] = np.where(heights == EMODNET_NODATA, -np.inf, heights)
+    corners = np.maximum.reduce([padded[:-1, :-1], padded[:-1, 1:], padded[1:, :-1], padded[1:, 1:]])
+    corners[np.isneginf(corners)] = EMODNET_NODATA
+    step = 1 / cells_per_degree
+    # Pixels are areas to GDAL: a corner is the centre of a pixel half a cell out.
+    src = gdal.GetDriverByName('MEM').Create('', cols + 1, rows + 1, 1, gdal.GDT_Float32)
+    src.SetGeoTransform((west - step / 2, step, 0.0, north + step / 2, 0.0, -step))
+    src.SetProjection(lat_model.wgs84())
+    src.GetRasterBand(1).SetNoDataValue(EMODNET_NODATA)
+    src.GetRasterBand(1).WriteArray(corners)
+    east, south = west + cols * step, north - rows * step
+    bounds = (
+        math.floor(west / GRID_STEP) * GRID_STEP,
+        math.floor(south / GRID_STEP) * GRID_STEP,
+        math.ceil(east / GRID_STEP) * GRID_STEP,
+        math.ceil(north / GRID_STEP) * GRID_STEP,
+    )
+    out = gdal.Warp(
+        '',
+        src,
+        format='MEM',
+        outputBounds=bounds,
+        xRes=GRID_STEP,
+        yRes=GRID_STEP,
+        resampleAlg='bilinear',
+        srcNodata=EMODNET_NODATA,
+        dstNodata=EMODNET_NODATA,
+    )
+    return out.GetRasterBand(1).ReadAsArray(), bounds[0], bounds[3]
+
+
+def fetch_emodnet_hr(dtms, target, tmp):
+    for i, dtm in enumerate(dtms):
+        archive = os.path.join(tmp, f'{dtm["id"]}.zip')
+        save_url(EMODNET_HR.format(id=dtm['id']), archive, timeout=1800)
+        with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
+            result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), dtm['cells_per_degree'])
+        os.remove(archive)
+        if result is None:
+            raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
+        heights, west, north = smooth_on_chart_grid(*result, dtm['cells_per_degree'])
+        path = os.path.join(target, f'emodnethr_{i:02d}_{dtm["id"]}.tif')
+        out = gdal.GetDriverByName('GTiff').Create(
+            path + '.part', heights.shape[1], heights.shape[0], 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3']
+        )
+        out.SetGeoTransform((west, GRID_STEP, 0.0, north, 0.0, -GRID_STEP))
+        out.SetProjection(lat_model.wgs84())
+        band = out.GetRasterBand(1)
+        band.SetNoDataValue(EMODNET_NODATA)
+        band.WriteArray(heights)
+        out = None
+        os.replace(path + '.part', path)
+        print(f'emodnet-hr: {dtm["id"]} {heights.shape[1]}x{heights.shape[0]}', flush=True)
 
 
 def ddm_release():
@@ -432,6 +534,9 @@ def fetch_dem(region, out):
         for dem in region.get('dem', []):
             if dem.get('source') == 'emodnet':
                 fetch_emodnet(fetch_bounds(region), target, dem.get('microtidal', False))
+                continue
+            if dem.get('source') == 'emodnet-hr':
+                fetch_emodnet_hr(dem['dtms'], target, tmp)
                 continue
             if dem.get('source') == 'ddm':
                 dates['ddm'] = fetch_ddm(fetch_bounds(region), target, tmp)

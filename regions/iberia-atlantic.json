@@ -9,6 +9,7 @@
   ],
   "sources": [
     "emodnet-dtm",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -16,6 +17,83 @@
   "dem": [
     {
       "source": "emodnet"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "590_HR_Lidar_Norte",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "590_HR_Lidar_Centro",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "590_HR_Lidar_Sul",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "590_HR_Lidar_Algarve",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "590_HR_CaminhaViana",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_PovoaVConde",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Aveiro",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_FigFoz",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Nazare",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Peniche",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Cascais",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_LisboaTejo",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_RioTejo",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "590_HR_Sesimbra",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Setubal",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Sines",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HI21LH02_PNSACV",
+          "cells_per_degree": 3840
+        },
+        {
+          "id": "590_HR_Algarve",
+          "cells_per_degree": 3840
+        }
+      ]
     }
   ],
   "osm": [
@@ -34,6 +112,7 @@
     ]
   ],
   "attribution": [
-    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "Instituto Hidrográfico (IHPT), high-resolution DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu), with Agência Portuguesa do Ambiente (APA) and Instituto Geográfico Português (IGeo) for the coastal lidar, CC BY 4.0"
   ]
 }
