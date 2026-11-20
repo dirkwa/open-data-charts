@@ -10,6 +10,8 @@
                                   (odc.lat_model), if asked for
   dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull, EMODnet
                                   beyond it (odc.lat_model), if asked for
+  dem/infomar_*.tif               INFOMAR's Irish bathymetry on LAT (CC BY 4.0), on the chart grid
+                                  or a coarser one, if asked for
   chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
                                   per LDS layer, band 0 the smallest scale (odc.chart), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
@@ -329,6 +331,8 @@ def dem_grids(inputs):
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'infomar_25m_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'infomar_10m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, '*.asc')))
     )
 
@@ -526,6 +530,89 @@ def fetch_kartverket(bounds, target, tmp):
         lat_model.write_chunk(model, None, fill, grid, s, w, path, depths=False)
 
 
+INFOMAR = (
+    'https://gsi.geodata.gov.ie/imagehost/rest/services/Marine/IE_GSI_MI_Bathymetry_{layer}_WGS84_LAT_GRID/ImageServer'
+)
+# Each layer is fetched on the grid nearest its own cells, the 25 m grid
+# first so the 10 m one lies on top of it in the mosaic. On a grid as fine as
+# the layer's own cells, nearest neighbour keeps every measured height.
+INFOMAR_LAYERS = (('25m_IE_Waters', GRID_STEP * 2.5, 0.5), ('10m_Inshore_IE', GRID_STEP, 0.25))
+INFOMAR_PROBE_STEP = 0.005
+# The service answers 0 where it has no data.
+INFOMAR_NODATA = 0.0
+
+
+def infomar_export(layer, bounds, width, height, path):
+    query = urllib.parse.urlencode(
+        {
+            'bbox': ','.join(f'{v:.6f}' for v in bounds),
+            'bboxSR': 4326,
+            'imageSR': 4326,
+            'size': f'{width},{height}',
+            'format': 'tiff',
+            'compression': 'LZ77',
+            'pixelType': 'F32',
+            'interpolation': 'RSP_NearestNeighbor',
+            'f': 'image',
+        }
+    )
+    save_url(f'{INFOMAR.format(layer=layer)}/exportImage?{query}', path, timeout=900)
+    return gdal.Open(path).ReadAsArray()
+
+
+def infomar_tiles(layer, bounds, tile_deg, tmp):
+    """The tiles of `tile_deg` degrees on a global grid that the layer has data in."""
+    minlon, minlat, maxlon, maxlat = (
+        math.floor(bounds[0] / tile_deg) * tile_deg,
+        math.floor(bounds[1] / tile_deg) * tile_deg,
+        math.ceil(bounds[2] / tile_deg) * tile_deg,
+        math.ceil(bounds[3] / tile_deg) * tile_deg,
+    )
+    per_tile = round(tile_deg / INFOMAR_PROBE_STEP)
+    cols, rows = round((maxlon - minlon) / tile_deg), round((maxlat - minlat) / tile_deg)
+    probe = infomar_export(
+        layer, (minlon, minlat, maxlon, maxlat), cols * per_tile, rows * per_tile, os.path.join(tmp, 'probe.tif')
+    )
+    data = (probe != INFOMAR_NODATA) & np.isfinite(probe)
+    present = data.reshape(rows, per_tile, cols, per_tile).any(axis=(1, 3))
+    for row, col in zip(*np.nonzero(present), strict=True):
+        north = maxlat - row * tile_deg
+        west = minlon + col * tile_deg
+        yield round(north - tile_deg, 6), round(west, 6)
+
+
+def fetch_infomar(bounds, target, tmp):
+    written = set()
+    for layer, step, tile_deg in INFOMAR_LAYERS:
+        cells = round(tile_deg / step)
+        for s, w in infomar_tiles(layer, bounds, tile_deg, tmp):
+            heights = infomar_export(
+                layer, (w, s, w + tile_deg, s + tile_deg), cells, cells, os.path.join(tmp, 'infomar.tif')
+            )
+            heights[(heights == INFOMAR_NODATA) | ~np.isfinite(heights) | (heights > EMODNET_MAX_HEIGHT_M)] = (
+                EMODNET_NODATA
+            )
+            if not (heights != EMODNET_NODATA).any():
+                continue
+            path = os.path.join(target, f'infomar_{layer.split("_")[0]}_{s:+08.3f}_{w:+08.3f}.tif')
+            out = gdal.GetDriverByName('GTiff').Create(
+                path + '.part', cells, cells, 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES']
+            )
+            out.SetGeoTransform((w, step, 0.0, s + tile_deg, 0.0, -step))
+            out.SetProjection(lat_model.wgs84())
+            band = out.GetRasterBand(1)
+            band.SetNoDataValue(EMODNET_NODATA)
+            band.WriteArray(heights.astype(np.float32))
+            out = None
+            os.replace(path + '.part', path)
+            written.add(path)
+    # A tile from an earlier run that this one no longer has would still
+    # reach the mosaic.
+    for path in glob.glob(os.path.join(target, 'infomar_*.tif')):
+        if path not in written:
+            os.remove(path)
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
@@ -546,6 +633,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'kartverket':
                 fetch_kartverket(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'infomar':
+                fetch_infomar(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):

@@ -1,0 +1,35 @@
+{
+  "id": "ireland-west",
+  "name": "Ireland: Atlantic coast from Kerry to Mayo",
+  "bbox": [
+    -11.25,
+    51.18,
+    -9.141,
+    54.5
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "infomar",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    },
+    {
+      "source": "infomar"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/ireland-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/ireland-and-northern-ireland-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry"
+  ]
+}

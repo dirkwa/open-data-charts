@@ -2,6 +2,7 @@ import io
 import json
 import urllib.parse
 
+import numpy as np
 import pytest
 
 from odc import shom, sources
@@ -171,3 +172,36 @@ def test_a_smoothed_emodnet_hr_grid_never_reads_deeper_than_a_cell_it_lies_in():
     assert (smooth[data] >= cell[data] - 1e-4).all()
     # Between the shoal and deep water the depth changes gradually, not in one step.
     assert len(np.unique(np.round(smooth[data], 2))) > 3
+
+
+def test_infomar_writes_only_tiles_with_data_on_their_grid(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    from odc.grid import GRID_STEP
+
+    def export(layer, bounds, width, height, path):
+        heights = np.zeros((height, width), np.float32)
+        west, south, east, north = bounds
+        if east - west > 0.25:
+            # The probe: data only in the tile 53.0-53.25 N, 9.5-9.25 W.
+            heights[
+                round((north - 53.2) / sources.INFOMAR_PROBE_STEP), round((-9.4 - west) / sources.INFOMAR_PROBE_STEP)
+            ] = -12.0
+        elif (west, south) == (-9.5, 53.0):
+            heights[:] = -12.0
+            heights[0, 0] = 0.0  # no data
+            heights[0, 1] = 40.0  # land
+        return heights
+
+    monkeypatch.setattr(sources, 'infomar_export', export)
+    monkeypatch.setattr(sources, 'INFOMAR_LAYERS', (('10m_Inshore_IE', GRID_STEP, 0.25),))
+    (tmp_path / 'infomar_10m_+052.750_-009.500.tif').write_text('')  # an earlier run's tile
+    sources.fetch_infomar((-9.7, 52.9, -9.1, 53.4), str(tmp_path), str(tmp_path))
+    written = sorted(p.name for p in tmp_path.glob('infomar_*.tif'))
+    assert written == ['infomar_10m_+053.000_-009.500.tif']
+    ds = gdal.Open(str(tmp_path / written[0]))
+    assert ds.GetGeoTransform() == pytest.approx((-9.5, GRID_STEP, 0.0, 53.25, 0.0, -GRID_STEP))
+    band = ds.GetRasterBand(1)
+    heights = band.ReadAsArray()
+    assert heights[0, 0] == band.GetNoDataValue() and heights[0, 1] == band.GetNoDataValue()
+    assert heights[1, 1] == -12.0
