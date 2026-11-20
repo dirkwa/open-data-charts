@@ -65,12 +65,10 @@ INTERP_CELLS = 12
 # Contours below SMOOTH_BELOW_M are drawn from a grid averaged over
 # SMOOTH_CELLS x SMOOTH_CELLS cells (~100 m): over flat multibeam ground the
 # raw cells draw hundreds of noise rings around the 20/30 m levels. A cell
-# may come out at most max(2 m, 10 %) deeper than measured, never above
-# SMOOTH_BELOW_M; shallower is always allowed. Soundings stay unsmoothed.
+# only ever comes out shallower than measured, never above SMOOTH_BELOW_M, so
+# a shoal keeps its depth and the contours err towards the shallow side.
 SMOOTH_BELOW_M = 10.0
 SMOOTH_CELLS = 8
-SMOOTH_MAX_DEEPER_M = 2.0
-SMOOTH_MAX_DEEPER_REL = 0.10
 DEM_SHOAL_TOL_M = 1.0
 DEM_SHOAL_TOL_REL = 0.15
 # SOUNDG thinning: per zoom, each 256 px tile is cut into this many squares
@@ -492,9 +490,8 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None, inland=Non
         smooth = fine.ReadAsArray()
         src = coarse = fine = None
         deep = np.isfinite(final) & (final > SMOOTH_BELOW_M) & (smooth != NODATA)
-        upper = final + np.maximum(SMOOTH_MAX_DEEPER_M, SMOOTH_MAX_DEEPER_REL * final)
-        final[deep] = np.clip(smooth[deep], SMOOTH_BELOW_M + 0.01, upper[deep])
-        del smooth, deep, upper
+        final[deep] = np.clip(smooth[deep], SMOOTH_BELOW_M + 0.01, final[deep])
+        del smooth, deep
     out = os.path.join(work, 'depth_grid.tif')
     z = np.where(np.isfinite(final), -final, NODATA).astype(np.float32)
     gdal.Translate(out, mem_raster(z, gt), creationOptions=['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES'])
