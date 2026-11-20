@@ -195,6 +195,7 @@ def test_infomar_writes_only_tiles_with_data_on_their_grid(monkeypatch, tmp_path
 
     monkeypatch.setattr(sources, 'infomar_export', export)
     monkeypatch.setattr(sources, 'INFOMAR_LAYERS', (('10m_Inshore_IE', GRID_STEP, 0.25),))
+    (tmp_path / 'infomar_10m_+052.750_-009.500.tif').write_text('')  # an earlier run's tile
     sources.fetch_infomar((-9.7, 52.9, -9.1, 53.4), str(tmp_path), str(tmp_path))
     written = sorted(p.name for p in tmp_path.glob('infomar_*.tif'))
     assert written == ['infomar_10m_+053.000_-009.500.tif']

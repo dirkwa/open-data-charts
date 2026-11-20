@@ -582,6 +582,7 @@ def infomar_tiles(layer, bounds, tile_deg, tmp):
 
 
 def fetch_infomar(bounds, target, tmp):
+    written = set()
     for layer, step, tile_deg in INFOMAR_LAYERS:
         cells = round(tile_deg / step)
         for s, w in infomar_tiles(layer, bounds, tile_deg, tmp):
@@ -604,6 +605,12 @@ def fetch_infomar(bounds, target, tmp):
             band.WriteArray(heights.astype(np.float32))
             out = None
             os.replace(path + '.part', path)
+            written.add(path)
+    # A tile from an earlier run that this one no longer has would still
+    # reach the mosaic.
+    for path in glob.glob(os.path.join(target, 'infomar_*.tif')):
+        if path not in written:
+            os.remove(path)
 
 
 def fetch_dem(region, out):
