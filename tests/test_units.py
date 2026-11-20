@@ -369,3 +369,22 @@ def test_a_chart_feature_past_the_antimeridian_reaches_the_easternmost_unit(tmp_
     digests = units.Digests([unit])
     units.add_feature_collection(digests, 'chart', str(path))
     assert digests.parts[unit.id]
+
+
+def test_the_dem_mosaic_is_hashed_as_the_builder_builds_it(tmp_path):
+    from osgeo import gdal
+
+    from odc import run_unit, sources
+
+    dem = tmp_path / 'dem'
+    dem.mkdir()
+    for name, step in (('emodnet_+38_-010.tif', 1 / 960), ('emodnethr_00_fine.tif', 1 / 3840)):
+        size = round(0.25 / step)
+        grid = gdal.GetDriverByName('GTiff').Create(str(dem / name), size, size, 1, gdal.GDT_Float32)
+        grid.SetGeoTransform((-9.25, step, 0, 38.75, 0, -step))
+        grid.GetRasterBand(1).SetNoDataValue(-9999)
+        grid = None
+    built = gdal.Open(run_unit.dem_mosaic(str(tmp_path), str(tmp_path / 'work')))
+    reading = units.mosaic_reading(sources.dem_grids(str(tmp_path)), **sources.DEM_MOSAIC_OPTIONS)
+    assert reading == (built.GetGeoTransform(), built.GetRasterBand(1).GetNoDataValue())
+    assert reading[0][1] == pytest.approx(1 / 3840)

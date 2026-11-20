@@ -221,11 +221,11 @@ def add_surveys(digests, mirror_index):
         digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 
 
-def mosaic_reading(paths):
+def mosaic_reading(paths, **options):
     """The mosaic's own geotransform and nodata, which every unit reads through."""
     if not paths:
         return None
-    mosaic = gdal.BuildVRT('/vsimem/units-dem.vrt', paths)
+    mosaic = gdal.BuildVRT('/vsimem/units-dem.vrt', paths, **options)
     reading = mosaic.GetGeoTransform(), mosaic.GetRasterBand(1).GetNoDataValue()
     mosaic = None
     gdal.Unlink('/vsimem/units-dem.vrt')
@@ -258,7 +258,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     add_land(digests, os.path.join(inputs, 'land.gpkg'))
     dem = sources.dem_grids(inputs)
     # The mosaic's origin, pixel size and nodata depend on every grid, so they reach every unit.
-    digests.add_all(f'dem mosaic {mosaic_reading(dem)}')
+    digests.add_all(f'dem mosaic {mosaic_reading(dem, **sources.DEM_MOSAIC_OPTIONS)}')
     add_raster_windows(digests, 'dem', dem, build_unit.DEM_MARGIN_DEG)
     etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)

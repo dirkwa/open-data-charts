@@ -312,6 +312,13 @@ def fetch_chart(region, out):
         print(f'{len(features):6d}  {objl} band {band} (layer {layer_id})', flush=True)
 
 
+# A fine model on top of the region's EMODnet keeps its own cells, and the
+# coarser grids are smoothed onto them as the builder smooths a DEM onto the
+# chart grid, not blown up into blocks. odc.units hashes the mosaic built
+# with the same options.
+DEM_MOSAIC_OPTIONS = {'resolution': 'highest', 'resampleAlg': 'cubicspline'}
+
+
 def dem_grids(inputs):
     """The region's bathymetric model grids, in the order the mosaic
     stacks them: a later grid wins where they overlap."""
