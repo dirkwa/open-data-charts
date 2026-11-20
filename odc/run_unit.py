@@ -2,7 +2,8 @@
 
 Usage: python3 -m odc.run_unit <inputs dir> <surveys dir> <mirror-index.json> <plan.json> <out dir> <unit id> ...
 
-Writes <out>/<unit>.<version>.mbtiles and <out>/<unit>.json for each unit.
+Writes <out>/<unit>.<version>.mbtiles and <out>/<unit>.json for each unit,
+and <out>/<unit>.<version>.hillshade.mbtiles for a unit with terrain to shade.
 """
 
 import glob
@@ -15,7 +16,8 @@ import tempfile
 
 from osgeo import gdal
 
-from odc.grid import MAX_ZOOM
+from odc import hillshade
+from odc.grid import MAX_ZOOM, Unit
 from odc.sources import dem_grids
 from odc.tile import set_metadata
 
@@ -90,6 +92,9 @@ def run_unit(inputs, surveys_dir, mirror_index, unit_id, version, attribution, o
             [sys.executable, '-m', 'odc.tile', geojson, mbtiles, unit_id, name, str(MAX_ZOOM), attribution], check=True
         )
         set_metadata(mbtiles, {'x-odc-version': version})
+        relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
+        shaded = os.path.join(out, hillshade.asset_name(unit_id, version))
+        hillshade.write_unit(relief, os.path.join(inputs, 'land.gpkg'), shaded, Unit.parse(unit_id), version)
         shutil.copy(os.path.join(geojson, 'unit.json'), os.path.join(out, f'{unit_id}.json'))
 
 

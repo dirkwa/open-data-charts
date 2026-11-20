@@ -28,6 +28,8 @@ Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and
 Saint-Barthélemy, French Guiana and Saint-Pierre and Miquelon. Each is built
 from Shom's surveys, seamarks and, where Shom publishes one, its bathymetric
 model of the coast, together with OpenStreetMap and the Copernicus DEM.
+Every unit with land comes with terrain shading from the Copernicus DEM, a
+separate layer the plotter can show over the chart or leave off.
 Shom publishes Corsica's model on mean sea level rather than on the lowest
 astronomical tide; the tide there ranges over a few tens of centimetres.
 New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and

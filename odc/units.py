@@ -30,6 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILDER_FILES = (
     'builder/Dockerfile',
     'odc/build_unit.py',
+    'odc/hillshade.py',
     'odc/grid.py',
     'odc/osm.py',
     'odc/tile.py',
