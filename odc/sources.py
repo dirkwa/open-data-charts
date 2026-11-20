@@ -3,6 +3,8 @@
   wfs/<namespace>__<layer>.json   Shom WFS S-57 objects (Licence Ouverte 2.0)
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
+  dem/emodnethr_*.tif             EMODnet Bathymetry high-resolution DTMs the region lists, on top
+                                  of the DTM, the later in the list on top, if asked for
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
@@ -28,6 +30,7 @@ Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 import datetime
 import glob
 import hashlib
+import io
 import json
 import math
 import os
@@ -39,7 +42,9 @@ import tempfile
 import time
 import urllib.error
 import urllib.parse
+import zipfile
 
+import numpy as np
 from osgeo import gdal, ogr, osr
 
 from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom
@@ -94,6 +99,10 @@ EMODNET_NODATA = -9999.0
 # marinas at 0 to 2 m. Such a cell is charted as depth unknown
 # (build_unit.MODEL_HOLE), neither a drying bank nor a source of fill.
 EMODNET_MICROTIDAL_SHORE_M = -0.5
+# A high-resolution DTM's EMO file, one line per grid cell centre:
+# lon;lat;deepest;shoalest;mean;... in metres below its datum (LAT for the
+# Instituto Hidrográfico's), negative above it.
+EMODNET_HR = 'https://downloads.emodnet-bathymetry.eu/high_resolution/{id}.emo.zip'
 # Denmark's Depth Model, 50 m, mean depth: the public share Dataforsyningen's
 # dataset 4817 links to, one folder per release (the year).
 DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
@@ -309,6 +318,7 @@ def dem_grids(inputs):
     dem = os.path.join(inputs, 'dem')
     return (
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
@@ -338,6 +348,55 @@ def fetch_emodnet(bounds, target, microtidal=False):
             grid = source = None
             os.replace(part, path)
             os.remove(raw)
+
+
+def emodnet_hr_grid(lines, cells_per_degree):
+    """Heights on the DTM's own grid, the shoalest where cells repeat, and
+    the grid's west and north edges."""
+    cols, rows, heights = [], [], []
+    for line in lines:
+        fields = line.split(';')
+        depth = fields[3] or fields[4]
+        if not depth:
+            continue
+        height = -float(depth)
+        if height > EMODNET_MAX_HEIGHT_M:
+            continue
+        cols.append(math.floor(float(fields[0]) * cells_per_degree))
+        rows.append(math.floor(float(fields[1]) * cells_per_degree))
+        heights.append(height)
+    if not heights:
+        return None
+    cols, rows, heights = np.array(cols), np.array(rows), np.array(heights, dtype='float32')
+    west, north = cols.min(), rows.max()
+    grid = np.full((north - rows.min() + 1, cols.max() - west + 1), EMODNET_NODATA, dtype='float32')
+    np.maximum.at(grid, (north - rows, cols - west), heights)
+    return grid, west / cells_per_degree, (north + 1) / cells_per_degree
+
+
+def fetch_emodnet_hr(dtms, target, tmp):
+    for i, dtm in enumerate(dtms):
+        archive = os.path.join(tmp, f'{dtm["id"]}.zip')
+        save_url(EMODNET_HR.format(id=dtm['id']), archive, timeout=1800)
+        with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
+            result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), dtm['cells_per_degree'])
+        os.remove(archive)
+        if result is None:
+            raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
+        heights, west, north = result
+        step = 1 / dtm['cells_per_degree']
+        path = os.path.join(target, f'emodnethr_{i:02d}_{dtm["id"]}.tif')
+        out = gdal.GetDriverByName('GTiff').Create(
+            path + '.part', heights.shape[1], heights.shape[0], 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3']
+        )
+        out.SetGeoTransform((west, step, 0.0, north, 0.0, -step))
+        out.SetProjection(lat_model.wgs84())
+        band = out.GetRasterBand(1)
+        band.SetNoDataValue(EMODNET_NODATA)
+        band.WriteArray(heights)
+        out = None
+        os.replace(path + '.part', path)
+        print(f'emodnet-hr: {dtm["id"]} {heights.shape[1]}x{heights.shape[0]}', flush=True)
 
 
 def ddm_release():
@@ -432,6 +491,9 @@ def fetch_dem(region, out):
         for dem in region.get('dem', []):
             if dem.get('source') == 'emodnet':
                 fetch_emodnet(fetch_bounds(region), target, dem.get('microtidal', False))
+                continue
+            if dem.get('source') == 'emodnet-hr':
+                fetch_emodnet_hr(dem['dtms'], target, tmp)
                 continue
             if dem.get('source') == 'ddm':
                 dates['ddm'] = fetch_ddm(fetch_bounds(region), target, tmp)

@@ -32,6 +32,10 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('vaklodingen' in region['sources']) == vaklodingen
         kartverket = any(dem.get('source') == 'kartverket' for dem in region.get('dem', []))
         assert ('kartverket' in region['sources']) == kartverket
+        hr = [dem for dem in region.get('dem', []) if dem.get('source') == 'emodnet-hr']
+        assert ('emodnet-hr' in region['sources']) == bool(hr)
+        for dem in hr:
+            assert all(dtm['id'] and dtm['cells_per_degree'] in (3840, 7680) for dtm in dem['dtms'])
 
 
 def test_no_unit_belongs_to_two_regions():

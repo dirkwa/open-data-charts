@@ -128,3 +128,20 @@ def test_an_osm_extract_is_tried_again_after_a_dropped_connection(monkeypatch, t
     sources.download_extract(['https://example.org/malta.osm.pbf'], target, wait=0)
     assert calls == ['https://example.org/malta.osm.pbf'] * 3
     assert (tmp_path / 'malta.osm.pbf').exists()
+
+
+def test_an_emodnet_hr_grid_keeps_the_shoalest_depth_on_its_own_cells():
+    import numpy as np
+
+    lines = [
+        '-9.10136719;38.73092448;8.79;8.54;8.62;0.10;4;;;;x;;',
+        '-9.10149740;38.73079427;;;3.24;;1;0;;;x;;',
+        '-9.10136719;38.73079427;-0.20;-0.90;-0.50;0.07;9;;;;x;;',
+        '-9.10136719;38.73079427;6.00;5.00;5.50;0.07;9;;;;x;;',
+        '-9.10149740;38.73092448;-20.0;-30.0;-25.0;;1;;;;x;;',
+    ]
+    heights, west, north = sources.emodnet_hr_grid(lines, 7680)
+    assert heights.shape == (2, 2)
+    assert west == np.floor(-9.10149740 * 7680) / 7680 and north == (np.floor(38.73092448 * 7680) + 1) / 7680
+    # Row 0 is north: the land cell there is dropped, the drying bank wins its repeated cell.
+    assert np.allclose(heights, [[sources.EMODNET_NODATA, -8.54], [-3.24, 0.9]])
