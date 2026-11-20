@@ -44,3 +44,33 @@ def test_a_kartverket_request_covers_its_chunk_on_the_coverage_cells():
         assert (edge - sources.KARTVERKET_CELL_EDGE_M) % sources.KARTVERKET_CELL_M == 0
     # 60-62 N, 4-6 E reaches (-111654, 6685590) to (29693, 6923060) in UTM 33.
     assert x[0] < -111654 and x[1] > 29693 and y[0] < 6685590 and y[1] > 6923060
+
+
+def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch, tmp_path):
+    import numpy as np
+    from osgeo import gdal, osr
+
+    from odc import build_unit
+
+    heights = np.array([[-12.0, -3.0, -0.4, 0.0, 1.5, 40.0, -9999.0]], dtype='float32')
+
+    def save_url(url, path, timeout=600):
+        ds = gdal.GetDriverByName('GTiff').Create(path, heights.shape[1], 1, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((2.0, 1 / 960, 0.0, 41.0, 0.0, -1 / 960))
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        ds.SetProjection(srs.ExportToWkt())
+        ds.GetRasterBand(1).SetNoDataValue(-9999.0)
+        ds.GetRasterBand(1).WriteArray(heights)
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    hole = build_unit.MODEL_HOLE
+    for microtidal, expected in (
+        (False, [-12, -3, -0.4, 0, 1.5, -9999, -9999]),
+        (True, [-12, -3, hole, hole, hole, -9999, -9999]),
+    ):
+        target = tmp_path / str(microtidal)
+        target.mkdir()
+        sources.fetch_emodnet((2.1, 39.1, 2.2, 39.2), str(target), microtidal)
+        out = gdal.Open(str(target / 'emodnet_+39_+002.tif')).ReadAsArray()[0]
+        assert np.allclose(out, expected)

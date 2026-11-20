@@ -15,7 +15,8 @@
   ],
   "dem": [
     {
-      "source": "emodnet"
+      "source": "emodnet",
+      "microtidal": true
     }
   ],
   "osm": [
