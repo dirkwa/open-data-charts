@@ -93,6 +93,17 @@ more, away from anything shallower) that no survey or finer model covers.
   4.0). Attribution: "NSGI, NLGEO2018 and NLLAT2018, CC BY 4.0
   (https://creativecommons.org/licenses/by/4.0/)".
 
+## Kartverket (Norway)
+
+Dybdedata, terrengmodell 50 m: Kartverket's seabed terrain model, depths on
+sjøkartnull (the datum of Norway's charts: LAT, or 0.2 to 0.3 m below it
+in the Skagerrak and the inner Oslofjord), through its WCS
+`https://wms.geonorge.no/skwms1/wms.dtm2`, Creative Commons Attribution 4.0
+International (CC BY 4.0). Attribution: "© Kartverket, Dybdedata
+terrengmodell 50 m, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)".
+Used as the bathymetric model of the regions whose file asks for it
+(`"dem": [{"source": "kartverket"}]`).
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0

@@ -1,7 +1,8 @@
 """A national bathymetric model on the chart datum: models on mean sea level
 or a levelling datum are moved to Lowest Astronomical Tide, the datum of the
 other regions, with the national surfaces of both above the ellipsoid (in
-PROJ's grid collection).
+PROJ's grid collection). Models already on their national chart datum
+(Norway's sjøkartnull: LAT, or up to 0.3 m below it) need no separation.
 
 The model is written in chunks on a grid whose step divides the EMODnet DTM's
 (1/16 arc-minute), so EMODnet fills the chunk where the model has no data
@@ -141,13 +142,15 @@ def holes(model_path, grid, s, w):
 def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True):
     """Heights above LAT (negative under water) over one chunk, the model
     where it has data and the fill (heights) elsewhere; False if neither
-    reaches the chunk, and then no chunk stays at `path`. The model holds depths, or heights if not `depths`."""
+    reaches the chunk, and then no chunk stays at `path`. The model holds
+    depths, or heights if not `depths`; without `separation_path` it is
+    already on the chart datum."""
     value = warp(model_path, grid, s, w, 'bilinear')
     heights = np.full(value.shape, NODATA, dtype='float32')
     if fill_path:
         heights = warp(fill_path, grid, s, w, 'near')
     if (value != NODATA).any():
-        sep = warp(separation_path, grid, s, w, 'bilinear')
+        sep = warp(separation_path, grid, s, w, 'bilinear') if separation_path else np.zeros_like(value)
         # Without a separation the model is on another datum: the fill stands.
         model = (value != NODATA) & (sep != NODATA)
         heights[model] = (-value[model] if depths else value[model]) + sep[model]

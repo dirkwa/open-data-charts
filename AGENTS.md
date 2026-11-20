@@ -18,7 +18,8 @@ the index and the docs say so.
   models (`dem`, none or several: Shom prepackages, or
   `{"source": "emodnet"}` for the EMODnet DTM over the region, or
   `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it and where no LAT separation reaches it, or
-  `{"source": "vaklodingen"}` for Rijkswaterstaat's Dutch coastal bathymetry the same way), its OpenStreetMap extracts (`osm`, each a
+  `{"source": "vaklodingen"}` for Rijkswaterstaat's Dutch coastal bathymetry the same way, or
+  `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
@@ -46,7 +47,8 @@ the index and the docs say so.
   level, NAP) to LAT with the national surfaces of both above the
   ellipsoid (Denmark's DKMSL and DKLAT, NSGI's NLGEO2018 and NLLAT2018);
   where they give no separation, the EMODnet fill stands instead of a depth
-  on another datum.
+  on another datum. A model already on its chart datum (Kartverket's) is written the
+  same way without a separation.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.
