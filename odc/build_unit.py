@@ -1619,6 +1619,21 @@ def computed_depths(args, box, unit, land, inland, water):
     return quality, entries, used, depth_layers, land_cells
 
 
+def chart_cover(areas):
+    covered = None
+    for area in areas:
+        if area is not None:
+            covered = area if covered is None else covered.Union(area)
+    return covered
+
+
+def uncharted_water(water, areas):
+    """Water no chart covers, as UNSARE like the water no depth reaches."""
+    covered = chart_cover(areas)
+    rest = water if covered is None else water.Difference(covered)
+    return [(p, {}, None) for p in polygon_parts(rest) if p.GetArea() >= MIN_UNSARE_DEG2]
+
+
 def chart_quality(areas, land_cells, box, unit):
     """Share of the unit's water a chart covers: 'chart' there, 'none' elsewhere."""
     cells = unit.cells
@@ -1628,10 +1643,7 @@ def chart_quality(areas, land_cells, box, unit):
     total = int(water.sum())
     if not total:
         return None
-    covered = None
-    for area in areas:
-        if area is not None:
-            covered = area if covered is None else covered.Union(area)
+    covered = chart_cover(areas)
     charted = int((land_mask(covered, box.bbox)[rows, cols] & water).sum()) if covered is not None else 0
     share = {k: v for k, v in (('chart', round(charted / total, 3)), ('none', round(1 - charted / total, 3))) if v}
     return {'best': next(c for c in QUALITY_ORDER if c in share), 'share': share}
@@ -1687,6 +1699,9 @@ def main():
         areas = chart.coverage(args.chart, bbox_geom)
         depth_layers = chart.chart_layers(args.chart, lambda p: s57_props(p, attributes), classes, bbox_geom, areas)
         quality = chart_quality(areas, land_cells, box, unit)
+        unsare = uncharted_water(water, areas)
+        if unsare:
+            depth_layers.setdefault('UNSARE', []).extend(unsare)
         entries, used = [], []
     else:
         quality, entries, used, depth_layers, land_cells = computed_depths(args, box, unit, land, inland, water)

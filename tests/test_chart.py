@@ -6,7 +6,7 @@ pytest.importorskip('osgeo')
 from osgeo import ogr  # noqa: E402
 
 from odc import chart  # noqa: E402
-from odc.build_unit import bbox_polygon, chart_quality, land_mask, write_layers  # noqa: E402
+from odc.build_unit import bbox_polygon, chart_quality, land_mask, uncharted_water, write_layers  # noqa: E402
 from odc.grid import Unit  # noqa: E402
 
 BOX = (174.0, -37.0, 175.0, -36.0)
@@ -116,3 +116,11 @@ def test_written_features_carry_both_zooms(tmp_path):
     assert feat['tippecanoe'] == {'minzoom': 11, 'maxzoom': 12}
     assert '_maxzoom' not in feat['properties']
     assert ogr.CreateGeometryFromJson(json.dumps(feat['geometry'])).GetArea() > 0
+
+
+def test_water_no_chart_covers_is_unsurveyed():
+    water = bbox_polygon(174.0, -37.0, 175.0, -36.0)
+    half = bbox_polygon(174.0, -37.0, 174.5, -36.0)
+    unsare = uncharted_water(water, [None, half, None, None, None])
+    assert len(unsare) == 1 and unsare[0][0].GetArea() == pytest.approx(0.5)
+    assert uncharted_water(water, [water] + [None] * 4) == []
