@@ -1,0 +1,60 @@
+{
+  "id": "med-ionian",
+  "name": "Ionian Sea and Sicily: southern Italy, Malta, Tunisia and the Ionian Islands",
+  "bbox": [
+    9.846,
+    34.309,
+    21.092,
+    39.908
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/campania-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/basilicata-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/calabria-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/puglia-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/sicilia-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/isole-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/malta-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/africa/tunisia-latest.osm.pbf",
+      "https://download.geofabrik.de/africa/tunisia-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/albania-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/greece-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

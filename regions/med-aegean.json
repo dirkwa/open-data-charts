@@ -1,0 +1,37 @@
+{
+  "id": "med-aegean",
+  "name": "Aegean: Greece and western Turkey",
+  "bbox": [
+    21.096,
+    34.309,
+    31.639,
+    42.031
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/greece-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/turkey-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/turkey-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/bulgaria-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

@@ -78,6 +78,11 @@ EMODNET_CHUNK_DEG = 2
 # 115 m land cell spilling past the OSM coastline charts as a drying bank.
 EMODNET_MAX_HEIGHT_M = 5.0
 EMODNET_NODATA = -9999.0
+# Where the tide ranges over a few tens of centimetres, a cell the DTM reads
+# this shallow or higher is its coastline, not water: it covers ports and
+# marinas at 0 to 2 m. Such a cell is charted as depth unknown
+# (build_unit.MODEL_HOLE), neither a drying bank nor a source of fill.
+EMODNET_MICROTIDAL_SHORE_M = -0.5
 # Denmark's Depth Model, 50 m, mean depth: the public share Dataforsyningen's
 # dataset 4817 links to, one folder per release (the year).
 DDM_SHARE = 'https://ftp.sdfe.dk/main.html?download&weblink=b4324b6389898704fd8ec7484882dbf3'
@@ -241,7 +246,7 @@ def dem_grids(inputs):
     )
 
 
-def fetch_emodnet(bounds, target):
+def fetch_emodnet(bounds, target, microtidal=False):
     minlon, minlat, maxlon, maxlat = bounds
     step = EMODNET_CHUNK_DEG
     for s in range(math.floor(minlat), math.ceil(maxlat), step):
@@ -253,6 +258,8 @@ def fetch_emodnet(bounds, target):
             source = gdal.Open(raw)
             heights = source.GetRasterBand(1).ReadAsArray()
             heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
+            if microtidal:
+                heights[(heights != EMODNET_NODATA) & (heights >= EMODNET_MICROTIDAL_SHORE_M)] = build_unit.MODEL_HOLE
             part = path + '.part'
             grid = gdal.GetDriverByName('GTiff').CreateCopy(part, source, options=['COMPRESS=DEFLATE', 'PREDICTOR=3'])
             band = grid.GetRasterBand(1)
@@ -354,7 +361,7 @@ def fetch_dem(region, out):
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         for dem in region.get('dem', []):
             if dem.get('source') == 'emodnet':
-                fetch_emodnet(fetch_bounds(region), target)
+                fetch_emodnet(fetch_bounds(region), target, dem.get('microtidal', False))
                 continue
             if dem.get('source') == 'ddm':
                 dates['ddm'] = fetch_ddm(fetch_bounds(region), target, tmp)
