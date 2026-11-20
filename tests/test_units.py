@@ -388,3 +388,15 @@ def test_the_dem_mosaic_is_hashed_as_the_builder_builds_it(tmp_path):
     reading = units.mosaic_reading(sources.dem_grids(str(tmp_path)), **sources.DEM_MOSAIC_OPTIONS)
     assert reading == (built.GetGeoTransform(), built.GetRasterBand(1).GetNoDataValue())
     assert reading[0][1] == pytest.approx(1 / 3840)
+
+
+def test_a_changed_dem_resampling_changes_every_unit(tmp_path, monkeypatch):
+    from odc import sources
+
+    (tmp_path / 'dem').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    write_grid(tmp_path / 'dem' / 'emodnet_a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    before = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    monkeypatch.setattr(sources, 'DEM_MOSAIC_OPTIONS', {**sources.DEM_MOSAIC_OPTIONS, 'resampleAlg': 'bilinear'})
+    after = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', 'x')
+    assert before[A.id] != after[A.id] and before[B.id] != after[B.id]
