@@ -524,3 +524,20 @@ def test_smoothing_never_makes_a_deep_shoal_deeper(tmp_path):
     assert -25.0 < model[centre] < -build_unit.SMOOTH_BELOW_M
     assert z[centre] == model[centre]
     assert (z >= model).all()
+
+
+def test_a_one_cell_shoal_on_the_chart_grid_keeps_its_depth(tmp_path):
+    from osgeo import gdal
+
+    from odc import build_unit
+
+    bbox = (0.0, 0.0, 0.01, 0.01)
+    ncols, nrows, gt = build_unit.chart_grid(bbox)
+    heights = np.full((nrows, ncols), -10.0, np.float32)
+    heights[nrows // 2, ncols // 2] = -1.0
+    dem = str(tmp_path / 'dem.tif')
+    gdal.GetDriverByName('GTiff').CreateCopy(dem, build_unit.mem_raster(heights, gt))
+    build_unit.build_depth_grid(dem, bbox, str(tmp_path), None)
+    model = gdal.Open(str(tmp_path / 'dem_grid.tif')).ReadAsArray()
+    assert model[nrows // 2, ncols // 2] == -1.0
+    assert (model == heights).all()

@@ -322,6 +322,23 @@ def prepare_dem(dem_path, bbox, work):
     return clipped, filled
 
 
+def on_chart_grid(path):
+    x0, xstep, _, y0, _, ystep = gdal.Open(path).GetGeoTransform()
+    tolerance = GRID_STEP * 1e-6
+    return (
+        abs(xstep - GRID_STEP) < tolerance
+        and abs(-ystep - GRID_STEP) < tolerance
+        and all(abs(v / GRID_STEP - round(v / GRID_STEP)) < 1e-6 for v in (x0, y0))
+    )
+
+
+def dem_resampling(path):
+    # cubicspline approximates rather than interpolates: on a DEM already on
+    # the chart grid (a fine model's own cells) it would pull a one-cell shoal
+    # towards its deeper neighbours, so such a DEM is taken cell for cell.
+    return 'nearest' if on_chart_grid(path) else 'cubicspline'
+
+
 def chart_grid(bbox):
     minx, miny, maxx, maxy = bbox
     ncols = int(round((maxx - minx) / GRID_STEP))
@@ -418,7 +435,7 @@ def build_depth_grid(dem_filled, bbox, work, survey_depth, deep=None, inland=Non
         outputBounds=list(bbox),
         width=ncols,
         height=nrows,
-        resampleAlg='cubicspline',
+        resampleAlg=dem_resampling(dem_filled),
         dstNodata=NODATA,
         outputType=gdal.GDT_Float32,
     )
