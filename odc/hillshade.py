@@ -7,7 +7,7 @@ lies under it. Each zoom is shaded on its own Web-Mercator pixel grid from
 the DEM resampled to that grid, so a pixel comes out the same whichever unit
 computes it.
 
-Usage: python3 -m odc.hillshade <land.gpkg> <out.mbtiles> <unit id> <version> <relief tif> ...
+Usage: python3 -m odc.hillshade <land.gpkg> <water.geojsonseq or -> <out.mbtiles> <unit id> <version> <relief tif> ...
 """
 
 import math
@@ -18,8 +18,9 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc.attribution import COPERNICUS_DEM
+from odc.attribution import COPERNICUS_DEM, OSM
 from odc.grid import UNIT_ZOOM, Unit
+from odc.osm import read_water
 from odc.tile import set_metadata
 
 gdal.UseExceptions()
@@ -40,6 +41,8 @@ MARGIN_PX = 1
 EARTH_RADIUS = 6378137.0
 WORLD = 2 * math.pi * EARTH_RADIUS
 DESCRIPTION = 'Terrain shading from the Copernicus DEM GLO-30. NOT FOR NAVIGATION.'
+# The DEM gives the relief, OpenStreetMap's land and water areas where it shows.
+ATTRIBUTION = f'{COPERNICUS_DEM}; {OSM}'
 
 
 def asset_name(unit_id, version):
@@ -87,7 +90,16 @@ def warp_dem(relief, px0, py0, width, height, z):
     return ds.GetRasterBand(1).ReadAsArray().astype(np.float64)
 
 
-def land_mask(land_path, px0, py0, width, height, z):
+def wgs84():
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    return srs
+
+
+def land_mask(land_path, water, px0, py0, width, height, z):
+    """The land polygons less the water areas behind the coastline, as the
+    chart's land is (build_unit.build_land)."""
     ds = gdal.GetDriverByName('MEM').Create('', width, height, 1, gdal.GDT_Byte)
     pixel = WORLD / (TILE << z)
     ds.SetGeoTransform((merc_x(px0, z), pixel, 0.0, merc_y(py0, z), 0.0, -pixel))
@@ -96,6 +108,13 @@ def land_mask(land_path, px0, py0, width, height, z):
     layer = source.GetLayer(0)
     layer.SetSpatialFilterRect(lon_of(px0, z), lat_of(py0 + height, z), lon_of(px0 + width, z), lat_of(py0, z))
     gdal.RasterizeLayer(ds, [1], layer, burn_values=[1])
+    if water is not None and not water.IsEmpty():
+        holes = ogr.GetDriverByName('Memory').CreateDataSource('')
+        cut = holes.CreateLayer('water', wgs84(), ogr.wkbMultiPolygon)
+        feature = ogr.Feature(cut.GetLayerDefn())
+        feature.SetGeometry(water)
+        cut.CreateFeature(feature)
+        gdal.RasterizeLayer(ds, [1], cut, burn_values=[0])
     return ds.GetRasterBand(1).ReadAsArray().astype(bool)
 
 
@@ -114,7 +133,7 @@ def shade(dem, py0, z):
     return np.clip(lit / np.sqrt(east**2 + north**2 + 1), 0.0, 1.0)
 
 
-def render(relief, land_path, px0, py0, width, height, z):
+def render(relief, land_path, px0, py0, width, height, z, water=None):
     """RGBA of global pixels px0.. and py0.. at zoom z."""
     m = MARGIN_PX
     dem = warp_dem(relief, px0 - m, py0 - m, width + 2 * m, height + 2 * m, z)
@@ -122,7 +141,7 @@ def render(relief, land_path, px0, py0, width, height, z):
     flat = math.sin(math.radians(ALTITUDE_DEG))
     dark = np.clip((flat - lit) / flat, 0.0, 1.0) * SHADOW_ALPHA
     bright = np.clip((lit - flat) / (1.0 - flat), 0.0, 1.0) * LIGHT_ALPHA
-    alpha = np.where(dark > 0, dark, bright) * land_mask(land_path, px0, py0, width, height, z)
+    alpha = np.where(dark > 0, dark, bright) * land_mask(land_path, water, px0, py0, width, height, z)
     rgba = np.zeros((height, width, 4), np.uint8)
     rgba[..., :3] = np.where(dark > 0, 0, 255)[..., None]
     rgba[..., 3] = np.round(alpha * 255).astype(np.uint8)
@@ -146,11 +165,11 @@ def encode(rgba):
         gdal.Unlink(path)
 
 
-def unit_tiles(relief, land_path, unit):
+def unit_tiles(relief, land_path, unit, water):
     """(z, x, y, webp) for each tile of the unit with any shading, XYZ rows."""
     for z in range(MINZOOM, MAXZOOM + 1):
         k = 1 << (z - UNIT_ZOOM)
-        rgba = render(relief, land_path, unit.x * k * TILE, unit.y * k * TILE, k * TILE, k * TILE, z)
+        rgba = render(relief, land_path, unit.x * k * TILE, unit.y * k * TILE, k * TILE, k * TILE, z, water)
         for ty in range(k):
             for tx in range(k):
                 tile = rgba[ty * TILE : (ty + 1) * TILE, tx * TILE : (tx + 1) * TILE]
@@ -158,15 +177,16 @@ def unit_tiles(relief, land_path, unit):
                     yield z, unit.x * k + tx, unit.y * k + ty, encode(tile)
 
 
-def write_unit(relief, land_path, out, unit, version):
+def write_unit(relief, land_path, out, unit, version, water_path=None):
     """The unit's shading as a raster MBTiles, or no file when the unit has
     none. Returns the number of tiles."""
     if not relief:
         return 0
+    water = read_water(water_path, unit.build_box.bbox) if water_path and os.path.exists(water_path) else None
     vrt = '/vsimem/hillshade-relief.vrt'
     gdal.BuildVRT(vrt, relief).Close()
     try:
-        tiles = list(unit_tiles(vrt, land_path, unit))
+        tiles = list(unit_tiles(vrt, land_path, unit, water))
     finally:
         gdal.Unlink(vrt)
     if not tiles:
@@ -186,7 +206,7 @@ def write_unit(relief, land_path, out, unit, version):
         {
             'name': f'Open Data Charts {unit.id} terrain shading (not for navigation)',
             'description': DESCRIPTION,
-            'attribution': COPERNICUS_DEM,
+            'attribution': ATTRIBUTION,
             'format': 'webp',
             'type': 'overlay',
             'bounds': ','.join(repr(v) for v in unit.bounds),
@@ -202,8 +222,9 @@ def write_unit(relief, land_path, out, unit, version):
 
 
 def main():
-    land_path, out, unit_id, version, *relief = sys.argv[1:]
-    print(write_unit(relief, land_path, out, Unit.parse(unit_id), version), 'tiles')
+    land_path, water_path, out, unit_id, version, *relief = sys.argv[1:]
+    water = None if water_path == '-' else water_path
+    print(write_unit(relief, land_path, out, Unit.parse(unit_id), version, water), 'tiles')
 
 
 if __name__ == '__main__':

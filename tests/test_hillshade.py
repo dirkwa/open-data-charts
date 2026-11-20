@@ -8,8 +8,9 @@ pytest.importorskip('osgeo')
 
 from osgeo import gdal, ogr, osr  # noqa: E402
 
-from odc import hillshade, index  # noqa: E402
+from odc import attribution, hillshade, index  # noqa: E402
 from odc.grid import Unit, mercator_pixel, tile_lon  # noqa: E402
+from odc.osm import read_water  # noqa: E402
 
 A, B = Unit(492, 288), Unit(493, 288)
 EDGE = tile_lon(B.x, 9)
@@ -98,6 +99,32 @@ def test_water_and_flat_ground_stay_transparent(tmp_path):
     assert not flat[..., 3].any()
 
 
+def test_inland_water_inside_the_land_stays_transparent(tmp_path):
+    z = 11
+    dem, land = write_dem(tmp_path), write_land(tmp_path, [EVERYWHERE])
+    k = 1 << (z - 9)
+    # A lake on the hill's south-east slope, which is shaded around it.
+    lake = (HILL[0] + 0.03, HILL[1] - 0.06, HILL[0] + 0.07, HILL[1] - 0.03)
+    ring = [[lake[0], lake[1]], [lake[2], lake[1]], [lake[2], lake[3]], [lake[0], lake[3]], [lake[0], lake[1]]]
+    water_path = tmp_path / 'water.geojsonseq'
+    water_path.write_text(
+        json.dumps({'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Polygon', 'coordinates': [ring]}}) + '\n'
+    )
+    water = read_water(str(water_path), B.build_box.bbox)
+    dry = render_unit(dem, land, B, z)
+    wet = hillshade.render(dem, land, B.x * k * 256, B.y * k * 256, k * 256, k * 256, z, water)
+    origin = np.array([B.x * k * 256, B.y * k * 256])
+    (x0, y0), (x1, y1) = (
+        (np.array(mercator_pixel(lon, lat, z)) - origin).astype(int)
+        for lon, lat in ((lake[0], lake[3]), (lake[2], lake[1]))
+    )
+    inside = (slice(y0 + 2, y1 - 2), slice(x0 + 2, x1 - 2))
+    assert dry[inside][..., 3].any()
+    assert not wet[inside][..., 3].any()
+    outside = (slice(y1 + 2, y1 + 10), slice(x0, x1))
+    assert np.array_equal(dry[outside], wet[outside])
+
+
 def test_a_unit_file_holds_only_its_own_tiles_in_tms_rows(tmp_path):
     dem, land = write_dem(tmp_path), write_land(tmp_path, [EVERYWHERE])
     out = str(tmp_path / hillshade.asset_name(A.id, 'v1'))
@@ -113,6 +140,7 @@ def test_a_unit_file_holds_only_its_own_tiles_in_tms_rows(tmp_path):
         assert A.x * k <= x < (A.x + 1) * k and A.y * k <= y < (A.y + 1) * k
         assert data[:4] == b'RIFF' and data[8:12] == b'WEBP'
     assert meta['format'] == 'webp' and meta['type'] == 'overlay'
+    assert attribution.COPERNICUS_DEM in meta['attribution'] and attribution.OSM in meta['attribution']
     assert meta['x-odc-unit'] == A.id and meta['x-odc-version'] == 'v1'
     assert meta['minzoom'] == str(hillshade.MINZOOM) and meta['maxzoom'] == str(hillshade.MAXZOOM)
 

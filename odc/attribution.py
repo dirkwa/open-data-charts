@@ -14,8 +14,9 @@ COPERNICUS_DEM = (
     'Copernicus DEM GLO-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 '
     'provided under COPERNICUS by the European Union and ESA'
 )
+OSM = '(c) OpenStreetMap contributors, ODbL'
 SHARED_LAST = (
-    '(c) OpenStreetMap contributors, ODbL',
+    OSM,
     COPERNICUS_DEM,
     'NOAA NCEI ETOPO 2022 15 Arc-Second Global Relief Model, doi:10.25921/fd45-gt74',
 )

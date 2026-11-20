@@ -253,7 +253,11 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     etopo = sorted(glob.glob(os.path.join(inputs, 'etopo', '*.tif')))
     add_raster_windows(digests, 'etopo', etopo, build_unit.ETOPO_MARGIN_DEG)
     add_squares(digests, 'aca-depth', sorted(glob.glob(os.path.join(inputs, 'aca-depth', '*.tif'))))
-    add_raster_windows(digests, 'relief', sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif'))))
+    relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
+    # The shading reads every unit through one mosaic of all relief tiles.
+    if relief:
+        digests.add_all(f'relief mosaic {mosaic_reading(relief)}')
+    add_raster_windows(digests, 'relief', relief)
     add_surveys(digests, mirror_index)
     return digests.versions()
 

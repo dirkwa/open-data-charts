@@ -94,7 +94,14 @@ def run_unit(inputs, surveys_dir, mirror_index, unit_id, version, attribution, o
         set_metadata(mbtiles, {'x-odc-version': version})
         relief = sorted(glob.glob(os.path.join(inputs, 'relief', '*.tif')))
         shaded = os.path.join(out, hillshade.asset_name(unit_id, version))
-        hillshade.write_unit(relief, os.path.join(inputs, 'land.gpkg'), shaded, Unit.parse(unit_id), version)
+        hillshade.write_unit(
+            relief,
+            os.path.join(inputs, 'land.gpkg'),
+            shaded,
+            Unit.parse(unit_id),
+            version,
+            os.path.join(inputs, 'water.geojsonseq'),
+        )
         shutil.copy(os.path.join(geojson, 'unit.json'), os.path.join(out, f'{unit_id}.json'))
 
 
