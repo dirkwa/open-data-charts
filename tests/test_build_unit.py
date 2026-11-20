@@ -10,6 +10,7 @@ from odc.build_unit import (  # noqa: E402
     CONTOUR_WINDOW_CELLS,
     ETOPO_PIXEL_DEG,
     GRID_STEP,
+    MODEL_HOLE,
     MODEL_INFORM,
     MODEL_SOUNDING_MAXZOOM,
     SOUNDING_MINZOOM,
@@ -21,6 +22,7 @@ from odc.build_unit import (  # noqa: E402
     dilate_disk,
     linestring,
     model_soundings,
+    prepare_dem,
     sounding_squares,
     thin_soundings,
     window_edges,
@@ -476,3 +478,28 @@ def test_model_numbers_stop_thinning_out_past_their_zoom():
     minzoom = thin_soundings(lon, lat, z, 17, np.ones(len(z), bool))
     assert minzoom.max() == MODEL_SOUNDING_MAXZOOM
     assert thin_soundings(lon, lat, z, 17).max() == 17
+
+
+def test_a_model_hole_stays_unknown_and_feeds_no_fill(tmp_path):
+    from osgeo import gdal, osr
+
+    step = 1 / 1920
+    values = np.full((100, 100), -6.0, dtype='float32')
+    values[40:60, 40:60] = MODEL_HOLE
+    values[50, 50] = -9999.0  # a gap with only marked cells in reach
+    values[10, 10:20] = -9999.0  # a gap next to data
+    ds = gdal.GetDriverByName('GTiff').Create(str(tmp_path / 'dem.tif'), 100, 100, 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((10.0, step, 0.0, 57.0, 0.0, -step))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetProjection(srs.ExportToWkt())
+    ds.GetRasterBand(1).SetNoDataValue(-9999.0)
+    ds.GetRasterBand(1).WriteArray(values)
+    ds = None
+    # The bbox plus prepare_dem's margin is the whole raster.
+    bbox = (10.01, 57.0 - 100 * step + 0.01, 10.0 + 100 * step - 0.01, 56.99)
+    _, filled = prepare_dem(str(tmp_path / 'dem.tif'), bbox, str(tmp_path))
+    grid = gdal.Open(filled).ReadAsArray()
+    assert (grid[40:60, 40:60] == -9999.0).all()
+    assert grid[39, 50] == -6.0
+    assert grid[10, 15] == -2.0

@@ -49,6 +49,9 @@ DRYING_TOP_Z = 50.0  # above any drying height in the DEM (max ~5 m)
 MIN_UNSARE_DEG2 = 1e-9  # only numerical crumbs; real gaps must not turn into holes
 FILL_SEARCH_CELLS = 4  # fill DEM gaps up to 4 cells (~400 m) from data
 FILL_MAX_DEPTH = 2.0  # filled near-shore cells are at most 2 m deep
+# Marks water a national model leaves out inside its coverage (odc.lat_model):
+# depth unknown, neither filled nor a source of fill.
+MODEL_HOLE = 9000.0
 EMPTY_DEM_STEP = 0.001  # degrees; about the 100 m of the Shom DEMs
 SIMPLIFY_DEG = 0.00003  # ~3 m, applied to grid-derived geometry only
 MIN_AREA_DEG2 = 1e-8
@@ -300,6 +303,10 @@ def prepare_dem(dem_path, bbox, work):
     band = ds.GetRasterBand(1)
     nodata = band.GetNoDataValue()
     before = band.ReadAsArray()
+    hole = before == MODEL_HOLE
+    if hole.any():
+        before[hole] = nodata
+        band.WriteArray(before)
     gdal.FillNodata(
         targetBand=band,
         maskBand=None,
@@ -310,6 +317,7 @@ def prepare_dem(dem_path, bbox, work):
     after = band.ReadAsArray()
     new = (before == nodata) & (after != nodata)
     after[new] = after[new].clip(min=-FILL_MAX_DEPTH)
+    after[hole] = nodata
     band.WriteArray(after)
     ds.FlushCache()
     ds = None
