@@ -104,6 +104,19 @@ terrengmodell 50 m, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)".
 Used as the bathymetric model of the regions whose file asks for it
 (`"dem": [{"source": "kartverket"}]`).
 
+## INFOMAR (Ireland)
+
+INFOMAR's bathymetry of Irish waters (Geological Survey Ireland and the
+Marine Institute), the 10 m inshore and 25 m grids on Lowest Astronomical
+Tide, through the image services
+`https://gsi.geodata.gov.ie/imagehost/rest/services/Marine/IE_GSI_MI_Bathymetry_10m_Inshore_IE_WGS84_LAT_GRID/ImageServer`
+and `..._25m_IE_Waters_WGS84_LAT_GRID`, Creative Commons Attribution 4.0
+International (CC BY 4.0), "not suitable for navigation purposes".
+Attribution: "Contains Irish Public Sector Data (Geological Survey Ireland
+& Marine Institute) licensed under a Creative Commons Attribution 4.0
+International (CC BY 4.0) licence". Used as the bathymetric model of the
+regions whose file asks for it (`"dem": [..., {"source": "infomar"}]`).
+
 ## LINZ (New Zealand)
 
 The Hydro layers of the LINZ Data Service (<https://data.linz.govt.nz>):

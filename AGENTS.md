@@ -20,7 +20,8 @@ the index and the docs say so.
   `{"source": "emodnet"}` for the EMODnet DTM over the region (`"microtidal": true` charts its shore cells, ports included, as unknown depth where no drying bank can be), or
   `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it and where no LAT separation reaches it, or
   `{"source": "vaklodingen"}` for Rijkswaterstaat's Dutch coastal bathymetry the same way, or
-  `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it), its OpenStreetMap extracts (`osm`, each a
+  `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it, or
+  `{"source": "infomar"}` for INFOMAR's Irish bathymetry on LAT, its 25 m and 10 m grids on top of the region's EMODnet), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
