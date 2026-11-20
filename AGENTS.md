@@ -58,6 +58,9 @@ the index and the docs say so.
 - `odc/build_unit.py`: one unit's S-57-shaped GeoJSON layers, built on the
   unit plus a margin (`Unit.build_box`).
 - `odc/tile.py`: tippecanoe, cut to the unit's bounds, `type=S-57`.
+- `odc/hillshade.py`: the unit's terrain shading from the Copernicus DEM, a
+  second, raster MBTiles (z9 to z12, WebP) shaded per zoom on the global
+  Web-Mercator pixel grid.
 - `odc/run_unit.py`: builds and tiles the units of one CI job.
 - `odc/index.py`: the published index, coverage and the retirement ledger.
 - `schema/open-data-index.schema.json` and `docs/index-format.md`: the

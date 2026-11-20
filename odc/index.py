@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 
 from osgeo import ogr
 
-from odc import attribution
+from odc import attribution, hillshade
 from odc.build_unit import quality_category
 from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
 
@@ -99,7 +99,24 @@ def unit_entry(region, unit_id, version, built_dir, today):
     }
     if info['quality'] is not None:  # a unit without a water cell in the depth grid has none
         entry['quality'] = info['quality']
+    shaded = hillshade.asset_name(unit_id, version)
+    shaded_path = os.path.join(built_dir, shaded)
+    if os.path.exists(shaded_path):  # a unit without land has no terrain to shade
+        entry['hillshade'] = {
+            'url': f'{REPO}/releases/download/units-{region["id"]}/{shaded}',
+            'size': os.path.getsize(shaded_path),
+            'sha256': sha256_of(shaded_path),
+            'minzoom': hillshade.MINZOOM,
+            'maxzoom': hillshade.MAXZOOM,
+        }
     return entry
+
+
+def asset_names(units):
+    """Every release asset the units' entries point to."""
+    return {
+        url.rsplit('/', 1)[1] for unit in units for url in (unit['url'], unit.get('hillshade', {}).get('url')) if url
+    }
 
 
 def region_entry(region, text):
@@ -146,12 +163,11 @@ def retire(old, index, retired, now, region_id, released):
     without a time; a later run that no longer finds it in the served index
     starts the grace period. An entry stays until its asset is gone from the
     region's release (`released`), so a failed deletion is retried."""
-    current = {u['url'].rsplit('/', 1)[1] for u in index['units']}
-    served = {u['url'].rsplit('/', 1)[1] for u in (old or {}).get('units', [])}
+    current = asset_names(index['units'])
+    served = asset_names((old or {}).get('units', []))
     ledger = {name: dict(entry) for name, entry in (retired or {}).items() if name not in current}
     for unit in (old or {}).get('units', []):
-        name = unit['url'].rsplit('/', 1)[1]
-        if name not in current:
+        for name in asset_names([unit]) - current:
             ledger.setdefault(name, {'region': unit['region'], 'since': None})
     for name, entry in ledger.items():
         if entry['since'] is None and name not in served:

@@ -78,7 +78,14 @@ metadata also carries `x-odc-unit` (the unit id) and `x-odc-version`.
         "share": { "multibeam": 0.18, "survey-recent": 0.22, "survey-old": 0.35, "model": 0.25 }
       },
       "surveys": 41,
-      "changes": "Seamarks updated"           // optional, short note for the update badge
+      "changes": "Seamarks updated",          // optional, short note for the update badge
+      "hillshade": {                          // optional, see Terrain shading
+        "url": "https://github.com/dirkwa/open-data-charts/releases/download/units-new-caledonia/z9-492-288.3f9a0c1d2e4b5a67.hillshade.mbtiles",
+        "size": 1417216,
+        "sha256": "…",
+        "minzoom": 9,
+        "maxzoom": 12
+      }
     }
   ]
 }
@@ -101,6 +108,19 @@ Shares of the unit's water area, by where its depths come from:
 `best` is the first of these, in this order, whose share is above zero.
 Consumers show an unknown category as "Other".
 
+## Terrain shading
+
+A unit with land carries `hillshade`: a raster MBTiles (`format=webp`,
+`type=overlay`, 256 px tiles, TMS row order) of the land's relief from the
+Copernicus DEM GLO-30, lit from the north-west. Shadows are black and lit
+slopes white, each partly transparent; flat ground and water are fully
+transparent. A plotter draws it over the chart as its own layer, which the
+user can switch off. Like the unit, every tile lies inside the unit's z9 tile,
+so a set is the union of its units' rows, served as one layer. Tiles stop at
+`maxzoom` (12, the DEM's 30 m); a plotter enlarges z12 tiles beyond it. A
+tile without any shading is left out, so a missing tile inside the set is
+transparent. The file shares the unit's `version` and is replaced with it.
+
 ## Coverage
 
 `coverage.geojson`, next to the index, holds the simplified survey
@@ -110,6 +130,7 @@ optional map overlay. It can be large; fetch it only when shown.
 ## Assets and versions
 
 Unit files are assets of one long-lived release per region
-(`units-<region>`), named `<unit id>.<version>.mbtiles`. A new version is
+(`units-<region>`), named `<unit id>.<version>.mbtiles`, and their terrain
+shading `<unit id>.<version>.hillshade.mbtiles`. A new version is
 uploaded before the index points to it; the old asset stays at least 14 days,
 so a download that started before an update still completes.

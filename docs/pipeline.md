@@ -108,3 +108,23 @@ satellite depth, the 5th percentile of the true depth is about 1.5 m below
 (`SATELLITE_BANDS`) start there: 0-2 m, 2-5 m and over 5 m. A fourth band
 over 10 m was tried and dropped, since around the 10 m line the satellite's
 noise drew thousands of specks and nearly tripled a unit's size.
+
+## Terrain shading
+
+Each unit with land also gets a raster MBTiles of its relief
+(`odc/hillshade.py`), from the same Copernicus DEM tiles the land contours
+come from. Every zoom from 9 to 12 is shaded on its own Web-Mercator pixel
+grid, with one pixel of margin for the slope at the edge: the DEM is
+averaged into the pixels below z12 and interpolated at z12, so a pixel is
+the same whichever unit computes it and units meet without a seam. The
+shading is masked to the land polygons; the DEM is a surface model, flat
+over water, but its coastal pixels would shade into the sea.
+
+The light comes from the north-west at 45°. Shadows are black up to 75 %
+opacity, lit slopes white up to 35 %, so the layer works over a day palette
+and, at lower opacity, over a night one.
+
+### Measured: Nouméa, z9-492-288 (2026-11-20)
+
+50 tiles (1, 3, 10 and 36 at z9 to z12), 1.4 MB as WebP at quality 75,
+built in under 2 s. A unit that is mostly land is several times that.

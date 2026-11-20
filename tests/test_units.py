@@ -156,6 +156,17 @@ def test_a_new_model_grid_changes_every_unit_through_the_mosaic(tmp_path):
     assert before[A.id] != after[A.id]
 
 
+def test_a_distant_relief_tile_of_another_spacing_changes_every_unit_through_the_mosaic(tmp_path):
+    (tmp_path / 'relief').mkdir()
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    mirror_index = {'surveys': {}}
+    write_grid(tmp_path / 'relief' / 'a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    before = units.unit_versions([A], str(tmp_path), mirror_index, 'b', 'x')
+    write_grid(tmp_path / 'relief' / 'far.tif', 170.0, -20.0, 0.002, 50)
+    after = units.unit_versions([A], str(tmp_path), mirror_index, 'b', 'x')
+    assert before[A.id] != after[A.id]
+
+
 def test_dem_grids_skip_an_unfinished_download(tmp_path):
     from odc import sources
 

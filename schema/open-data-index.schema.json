@@ -90,7 +90,19 @@
           }
         },
         "surveys": { "type": "integer", "minimum": 0 },
-        "changes": { "type": "string" }
+        "changes": { "type": "string" },
+        "hillshade": {
+          "type": "object",
+          "description": "Terrain shading of the unit's land, a raster MBTiles (format webp); absent for a unit with nothing to shade",
+          "required": ["url", "size", "sha256", "minzoom", "maxzoom"],
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "size": { "type": "integer", "minimum": 0 },
+            "sha256": { "$ref": "#/$defs/sha256" },
+            "minzoom": { "type": "integer" },
+            "maxzoom": { "type": "integer" }
+          }
+        }
       }
     }
   }

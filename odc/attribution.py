@@ -10,10 +10,14 @@ SHOM = (
     'Shom, Licence Ouverte Etalab 2.0',
     'Shom bathymetric datasets (doi:10.17183/S..., see INFORM of each sounding)',
 )
-SHARED_LAST = (
-    '(c) OpenStreetMap contributors, ODbL',
+COPERNICUS_DEM = (
     'Copernicus DEM GLO-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018 '
-    'provided under COPERNICUS by the European Union and ESA',
+    'provided under COPERNICUS by the European Union and ESA'
+)
+OSM = '(c) OpenStreetMap contributors, ODbL'
+SHARED_LAST = (
+    OSM,
+    COPERNICUS_DEM,
     'NOAA NCEI ETOPO 2022 15 Arc-Second Global Relief Model, doi:10.25921/fd45-gt74',
 )
 REGIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'regions')
