@@ -486,6 +486,7 @@ def test_a_model_hole_stays_unknown_and_feeds_no_fill(tmp_path):
     step = 1 / 1920
     values = np.full((100, 100), -6.0, dtype='float32')
     values[40:60, 40:60] = MODEL_HOLE
+    values[50, 50] = -9999.0  # a gap with only marked cells in reach
     values[10, 10:20] = -9999.0  # a gap next to data
     ds = gdal.GetDriverByName('GTiff').Create(str(tmp_path / 'dem.tif'), 100, 100, 1, gdal.GDT_Float32)
     ds.SetGeoTransform((10.0, step, 0.0, 57.0, 0.0, -step))
