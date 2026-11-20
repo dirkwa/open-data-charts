@@ -101,6 +101,7 @@ def test_a_port_the_model_leaves_out_is_unknown_where_the_fill_reads_shallow(tmp
     assert abs(heights[top + 10, 10] - (-11.7)) < 1e-3
     assert heights[2016, 510] == -0.5
 
+
 def test_the_model_gives_way_to_the_fill_where_no_separation_reaches(tmp_path):
     msl = np.full((10, 10), 40.5, dtype='float32')
     surfaces = [
@@ -148,4 +149,3 @@ def test_a_height_model_on_a_levelling_datum_lands_on_lat_on_the_lat_surface_gri
     assert abs(at(4.41, 53.59) - (-1.8)) < 1e-3
     assert abs(at(4.40025, 53.59975) - 3.2) < 0.5
     assert at(4.40075, 53.59975) == lat_model.NODATA
-
