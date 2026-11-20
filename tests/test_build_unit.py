@@ -503,3 +503,24 @@ def test_a_model_hole_stays_unknown_and_feeds_no_fill(tmp_path):
     assert (grid[40:60, 40:60] == -9999.0).all()
     assert grid[39, 50] == -6.0
     assert grid[10, 15] == -2.0
+
+
+def test_smoothing_never_makes_a_deep_shoal_deeper(tmp_path):
+    from osgeo import gdal
+
+    from odc import build_unit
+
+    bbox = (0.0, 0.0, 0.01, 0.01)
+    ncols, nrows, gt = build_unit.chart_grid(bbox)
+    rng = np.random.default_rng(1)
+    heights = (-30.0 + rng.uniform(-3, 3, (nrows, ncols))).astype(np.float32)
+    heights[nrows // 2, ncols // 2] = -12.0
+    dem = str(tmp_path / 'dem.tif')
+    gdal.GetDriverByName('GTiff').CreateCopy(dem, build_unit.mem_raster(heights, gt))
+    path, _, _ = build_unit.build_depth_grid(dem, bbox, str(tmp_path), None)
+    z = gdal.Open(path).ReadAsArray()
+    model = gdal.Open(str(tmp_path / 'dem_grid.tif')).ReadAsArray()
+    centre = nrows // 2, ncols // 2
+    assert -25.0 < model[centre] < -build_unit.SMOOTH_BELOW_M
+    assert z[centre] == model[centre]
+    assert (z >= model).all()
