@@ -104,6 +104,19 @@ terrengmodell 50 m, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)".
 Used as the bathymetric model of the regions whose file asks for it
 (`"dem": [{"source": "kartverket"}]`).
 
+## LINZ (New Zealand)
+
+The Hydro layers of the LINZ Data Service (<https://data.linz.govt.nz>):
+the New Zealand Hydrographic Authority's chart data as S-57 objects, one
+layer per object class and chart scale, published April 2023, through the
+service's WFS (an account key, kept as the repository secret
+`LINZ_API_KEY`). Creative Commons Attribution 4.0 International (CC BY 4.0).
+Attribution: "Sourced from the LINZ Data Service (https://data.linz.govt.nz)
+and licensed for reuse under the CC BY 4.0 licence: New Zealand
+Hydrographic Authority chart data (Hydro layers, as of April 2023)". Used
+for the depths, aids, hazards and areas of the regions that list
+`linz-hydro`; the layers taken are in `odc/linz_hydro_layers.json`.
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0
