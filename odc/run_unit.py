@@ -32,8 +32,10 @@ def dem_mosaic(inputs, work):
         return None
     os.makedirs(work, exist_ok=True)
     path = os.path.join(work, 'dem.vrt')
-    # A fine model on top of the region's EMODnet keeps its own cells.
-    gdal.BuildVRT(path, grids, resolution='highest')
+    # A fine model on top of the region's EMODnet keeps its own cells, and
+    # the coarser grids are smoothed onto them as the builder smooths a DEM
+    # onto the chart grid, not blown up into blocks.
+    gdal.BuildVRT(path, grids, resolution='highest', resampleAlg='cubicspline')
     return path
 
 

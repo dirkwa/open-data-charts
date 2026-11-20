@@ -48,7 +48,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom
-from odc.grid import units_in
+from odc.grid import GRID_STEP, units_in
 
 gdal.UseExceptions()
 
@@ -374,6 +374,43 @@ def emodnet_hr_grid(lines, cells_per_degree):
     return grid, west / cells_per_degree, (north + 1) / cells_per_degree
 
 
+def smooth_on_chart_grid(heights, west, north, cells_per_degree):
+    """The DTM bilinear on the chart grid, through its cell corners, each the
+    shoalest of the cells it touches: smooth contours, and every point of a
+    cell at least as shoal as the cell."""
+    rows, cols = heights.shape
+    padded = np.full((rows + 2, cols + 2), -np.inf, dtype='float32')
+    padded[1:-1, 1:-1] = np.where(heights == EMODNET_NODATA, -np.inf, heights)
+    corners = np.maximum.reduce([padded[:-1, :-1], padded[:-1, 1:], padded[1:, :-1], padded[1:, 1:]])
+    corners[np.isneginf(corners)] = EMODNET_NODATA
+    step = 1 / cells_per_degree
+    # Pixels are areas to GDAL: a corner is the centre of a pixel half a cell out.
+    src = gdal.GetDriverByName('MEM').Create('', cols + 1, rows + 1, 1, gdal.GDT_Float32)
+    src.SetGeoTransform((west - step / 2, step, 0.0, north + step / 2, 0.0, -step))
+    src.SetProjection(lat_model.wgs84())
+    src.GetRasterBand(1).SetNoDataValue(EMODNET_NODATA)
+    src.GetRasterBand(1).WriteArray(corners)
+    east, south = west + cols * step, north - rows * step
+    bounds = (
+        math.floor(west / GRID_STEP) * GRID_STEP,
+        math.floor(south / GRID_STEP) * GRID_STEP,
+        math.ceil(east / GRID_STEP) * GRID_STEP,
+        math.ceil(north / GRID_STEP) * GRID_STEP,
+    )
+    out = gdal.Warp(
+        '',
+        src,
+        format='MEM',
+        outputBounds=bounds,
+        xRes=GRID_STEP,
+        yRes=GRID_STEP,
+        resampleAlg='bilinear',
+        srcNodata=EMODNET_NODATA,
+        dstNodata=EMODNET_NODATA,
+    )
+    return out.GetRasterBand(1).ReadAsArray(), bounds[0], bounds[3]
+
+
 def fetch_emodnet_hr(dtms, target, tmp):
     for i, dtm in enumerate(dtms):
         archive = os.path.join(tmp, f'{dtm["id"]}.zip')
@@ -383,13 +420,12 @@ def fetch_emodnet_hr(dtms, target, tmp):
         os.remove(archive)
         if result is None:
             raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
-        heights, west, north = result
-        step = 1 / dtm['cells_per_degree']
+        heights, west, north = smooth_on_chart_grid(*result, dtm['cells_per_degree'])
         path = os.path.join(target, f'emodnethr_{i:02d}_{dtm["id"]}.tif')
         out = gdal.GetDriverByName('GTiff').Create(
             path + '.part', heights.shape[1], heights.shape[0], 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3']
         )
-        out.SetGeoTransform((west, step, 0.0, north, 0.0, -step))
+        out.SetGeoTransform((west, GRID_STEP, 0.0, north, 0.0, -GRID_STEP))
         out.SetProjection(lat_model.wgs84())
         band = out.GetRasterBand(1)
         band.SetNoDataValue(EMODNET_NODATA)
