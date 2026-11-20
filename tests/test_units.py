@@ -400,3 +400,13 @@ def test_a_changed_dem_resampling_changes_every_unit(tmp_path, monkeypatch):
     monkeypatch.setattr(sources, 'DEM_MOSAIC_OPTIONS', {**sources.DEM_MOSAIC_OPTIONS, 'resampleAlg': 'bilinear'})
     after = units.unit_versions([A, B], str(tmp_path), {'surveys': {}}, 'b', 'x')
     assert before[A.id] != after[A.id] and before[B.id] != after[B.id]
+
+
+def test_the_catalan_model_lies_on_top_of_emodnet_in_the_mosaic(tmp_path):
+    from odc import sources
+
+    (tmp_path / 'dem').mkdir()
+    for name in ('icgc_+41_+002.tif', 'emodnet_+40_+002.tif'):
+        (tmp_path / 'dem' / name).write_text('')
+    found = [p.rsplit('/', 1)[1] for p in sources.dem_grids(str(tmp_path))]
+    assert found == ['emodnet_+40_+002.tif', 'icgc_+41_+002.tif']

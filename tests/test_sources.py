@@ -205,3 +205,36 @@ def test_infomar_writes_only_tiles_with_data_on_their_grid(monkeypatch, tmp_path
     heights = band.ReadAsArray()
     assert heights[0, 0] == band.GetNoDataValue() and heights[0, 1] == band.GetNoDataValue()
     assert heights[1, 1] == -12.0
+
+
+def test_the_catalan_model_keeps_the_shoalest_metre_of_each_cell_and_only_its_own_chunks(tmp_path, monkeypatch):
+    import numpy as np
+    from osgeo import gdal, osr
+
+    from odc import lat_model
+
+    # 2 km of a 1 m model off Barcelona in UTM 31N: a 4 m channel bed with a
+    # 1 m rock in each 10 m square, and land of 20 m to the north.
+    heights = np.full((2000, 2000), -4.0, dtype='float32')
+    heights[::10, ::10] = -1.0
+    heights[:500] = 20.0
+    model = str(tmp_path / 'icgc.tif')
+    ds = gdal.GetDriverByName('GTiff').Create(model, 2000, 2000, 1, gdal.GDT_Float32)
+    ds.SetGeoTransform((431000.0, 1.0, 0.0, 4582000.0, 0.0, -1.0))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(25831)
+    ds.SetProjection(srs.ExportToWkt())
+    ds.GetRasterBand(1).SetNoDataValue(-9999.0)
+    ds.GetRasterBand(1).WriteArray(heights)
+    ds = None
+    monkeypatch.setattr(sources, 'ICGC_MODEL', model)
+    monkeypatch.setattr(sources, 'ICGC_GRID', lat_model.Grid(1 / 4000, 1))
+    target = tmp_path / 'dem'
+    target.mkdir()
+    sources.fetch_icgc((-1.0, 39.0, 3.5, 43.0), str(target))
+    assert sorted(p.name for p in target.iterdir()) == ['icgc_+41_+002.tif']
+    out = gdal.Open(str(target / 'icgc_+41_+002.tif')).ReadAsArray()
+    water = out[(out != lat_model.NODATA) & (out < 0)]
+    # Only a cell that a chunk edge cuts to a sliver can miss its rocks.
+    assert water.size and (water == -1.0).mean() > 0.95
+    assert not ((out > lat_model.MAX_HEIGHT_M) & (out != lat_model.NODATA)).any()

@@ -139,13 +139,13 @@ def holes(model_path, grid, s, w):
     return (closed & ~covered)[pad:-pad, pad:-pad]
 
 
-def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True):
+def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True, resample='bilinear'):
     """Heights above LAT (negative under water) over one chunk, the model
     where it has data and the fill (heights) elsewhere; False if neither
     reaches the chunk, and then no chunk stays at `path`. The model holds
     depths, or heights if not `depths`; without `separation_path` it is
     already on the chart datum."""
-    value = warp(model_path, grid, s, w, 'bilinear')
+    value = warp(model_path, grid, s, w, resample)
     heights = np.full(value.shape, NODATA, dtype='float32')
     if fill_path:
         heights = warp(fill_path, grid, s, w, 'near')

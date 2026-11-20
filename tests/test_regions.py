@@ -40,6 +40,8 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('infomar' in region['sources']) == infomar
         # INFOMAR covers Irish waters only; EMODnet charts the rest.
         assert not infomar or emodnet
+        icgc = any(dem.get('source') == 'icgc' for dem in region.get('dem', []))
+        assert ('icgc' in region['sources']) == icgc
 
 
 def test_no_unit_belongs_to_two_regions():
