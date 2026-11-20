@@ -12,6 +12,7 @@
     "shom-surveys",
     "shom-dem",
     "osm",
+    "openseamap",
     "copernicus"
   ],
   "dem": [
@@ -24,6 +25,10 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/france/corse-latest.osm.pbf",
       "https://download.geofabrik.de/europe/france/corse-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/sardegna-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/isole-latest.osm.pbf"
     ]
   ],
   "attribution": [

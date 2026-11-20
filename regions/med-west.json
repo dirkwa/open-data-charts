@@ -1,0 +1,56 @@
+{
+  "id": "med-west",
+  "name": "Western Mediterranean: Spain, the Balearics, Morocco and Algeria",
+  "bbox": [
+    -6.326,
+    34.309,
+    8.435,
+    42.031
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/spain/andalucia-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/spain/region_de_murcia-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/spain/comunitat_valenciana-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/spain/catalunya-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/spain/illes_balears-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/gibraltar-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/africa/morocco-latest.osm.pbf",
+      "https://download.geofabrik.de/africa/morocco-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/africa/algeria-latest.osm.pbf",
+      "https://download.geofabrik.de/africa/algeria-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/sardegna-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/isole-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

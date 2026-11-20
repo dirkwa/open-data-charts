@@ -1,0 +1,37 @@
+{
+  "id": "med-south",
+  "name": "Southern Mediterranean: Tunisia, Libya and Egypt",
+  "bbox": [
+    9.846,
+    29.537,
+    31.639,
+    34.305
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/africa/tunisia-latest.osm.pbf",
+      "https://download.geofabrik.de/africa/tunisia-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/africa/libya-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/africa/egypt-latest.osm.pbf",
+      "https://download.geofabrik.de/africa/egypt-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "med-north-adriatic",
+  "name": "Northern Adriatic and Tuscany: Italy, Slovenia and Croatia",
+  "bbox": [
+    9.846,
+    43.071,
+    21.092,
+    46.557
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/toscana-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/centro-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/emilia_romagna-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/veneto-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/friuli_venezia_giulia-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/marche-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/centro-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/italy/abruzzo-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/slovenia-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/croatia-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/bosnia-herzegovina-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}
