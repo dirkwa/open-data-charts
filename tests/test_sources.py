@@ -85,12 +85,15 @@ def test_a_linz_layer_is_asked_for_with_the_key_in_a_header_and_never_truncated(
     def get(url, headers=None, **_):
         asked.append((url, headers))
         rows = [{'type': 'Feature', 'id': f'layer-7.{i}', 'properties': {'fidn': 100 - i}} for i in range(3)]
+        rows[0]['geometry'] = {'type': 'Polygon', 'coordinates': [[[179.0, -40.0], [-179.0, -40.0], [-179.0, -41.0]]]}
         return io.BytesIO(json.dumps({'features': rows, 'numberMatched': matched}).encode())
 
     monkeypatch.setattr(shom, 'get', get)
     matched = 3
     features = sources.linz_layer('7', (174.0, -37.0, 175.0, -36.0), 'secret')
     assert [f['id'] for f in features] == ['linz-7.100', 'linz-7.98', 'linz-7.99']
+    # Across the antimeridian a ring stays east of Greenwich instead of spanning the globe.
+    assert features[0]['geometry']['coordinates'] == [[[179.0, -40.0], [181.0, -40.0], [181.0, -41.0]]]
     url, headers = asked[0]
     assert headers == {'Authorization': 'key secret'} and 'secret' not in url
     query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))

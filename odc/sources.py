@@ -239,6 +239,19 @@ def fetch_wfs(region, out):
         print(f'{len(features):6d}  {name}', flush=True)
 
 
+def east_of_greenwich(coords):
+    """New Zealand's charts reach past the antimeridian, and the WFS wraps
+    their longitudes into [-180, 180]: a depth area across it would then span
+    the globe and cover the land. All of LINZ's chart data lies east of
+    Greenwich, so a negative longitude moves 360 degrees east."""
+    if isinstance(coords[0], (int, float)):
+        if coords[0] < 0:
+            coords[0] += 360
+        return
+    for part in coords:
+        east_of_greenwich(part)
+
+
 def linz_layer(layer_id, bbox, key):
     minlon, minlat, maxlon, maxlat = bbox
     params = {
@@ -259,6 +272,8 @@ def linz_layer(layer_id, bbox, key):
     if isinstance(matched, int) and matched > len(features):
         raise RuntimeError(f'LINZ layer {layer_id}: {len(features)} of {matched} features returned')
     for feature in features:
+        if feature.get('geometry'):
+            east_of_greenwich(feature['geometry']['coordinates'])
         # fidn, LINZ's feature id, keeps the saved layer and so the unit versions stable.
         feature['id'] = f'linz-{layer_id}.{(feature.get("properties") or {}).get("fidn", feature.get("id"))}'
     return sorted(features, key=lambda f: str(f['id']))
