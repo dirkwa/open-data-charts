@@ -1,7 +1,7 @@
 import numpy as np
 from osgeo import gdal, osr
 
-from odc import lat_model
+from odc import build_unit, lat_model
 
 GRID = lat_model.Grid(1 / 1920, 2)
 
@@ -120,3 +120,32 @@ def test_a_height_model_on_a_levelling_datum_lands_on_lat_on_the_lat_surface_gri
     assert abs(at(4.41, 53.59) - (-1.8)) < 1e-3
     assert abs(at(4.40025, 53.59975) - 3.2) < 0.5
     assert at(4.40075, 53.59975) == lat_model.NODATA
+
+
+def test_a_port_the_model_leaves_out_is_unknown_where_the_fill_reads_shallow(tmp_path):
+    msl = np.full((300, 400), 40.5, dtype='float32')
+    surfaces = [
+        raster(tmp_path / 'msl.tif', 4326, (8.0, 58.0), 0.01, msl, -32768.0),
+        raster(tmp_path / 'lat.tif', 4326, (8.0, 58.0), 0.01, msl - 0.3, -32768.0),
+    ]
+    separation = str(tmp_path / 'sep.tif')
+    lat_model.separation(*surfaces, separation)
+
+    depths = np.full((192, 192), 12.0, dtype='float32')
+    depths[50:60, 50:60] = -9999.0  # a dredged basin EMODnet charts dry
+    depths[120:130, 120:130] = -9999.0  # a gap over deep water
+    model = raster(tmp_path / 'ddm.tif', 4326, (10.0, 57.0), GRID.step, depths, -9999.0)
+
+    emodnet = np.full((1920, 1920), -10.0, 'float32')
+    emodnet[983:992, 24:32] = 1.0  # around the basin
+    emodnet[1000:1016, 250:270] = -0.5  # shallow water well beyond the model
+    fill = raster(tmp_path / 'emodnet.tif', 4326, (10.0, 58.0), 1 / 960, emodnet, -9999.0)
+
+    out = str(tmp_path / 'chunk.tif')
+    assert lat_model.write_chunk(model, separation, fill, GRID, 56, 10, out)
+    heights = gdal.Open(out).ReadAsArray()
+    top = 1920  # the model's first row in the chunk
+    assert (heights[top + 52 : top + 58, 52:58] == build_unit.MODEL_HOLE).all()
+    assert (heights[top + 122 : top + 128, 122:128] == -10.0).all()
+    assert abs(heights[top + 10, 10] - (-11.7)) < 1e-3
+    assert heights[2016, 510] == -0.5

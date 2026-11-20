@@ -6,6 +6,11 @@ PROJ's grid collection).
 The model is written in chunks on a grid whose step divides the EMODnet DTM's
 (1/16 arc-minute), so EMODnet fills the chunk where the model has no data
 (foreign waters) without a second grid of another step in the mosaic.
+
+Ports and docks the model leaves out are holes in its coverage. EMODnet
+there reads shallow or dry where the basins are dredged, so a hole the fill
+would chart shallower than build_unit.FILL_MAX_DEPTH is written as
+build_unit.MODEL_HOLE instead: depth unknown.
 """
 
 import math
@@ -13,6 +18,8 @@ import os
 
 import numpy as np
 from osgeo import gdal, osr
+
+from odc.build_unit import FILL_MAX_DEPTH, MODEL_HOLE, dilate_disk
 
 gdal.UseExceptions()
 
@@ -27,6 +34,9 @@ MAX_HEIGHT_M = 5.0
 # The surfaces leave cells undefined along the coast; the nearest defined
 # separation is within a few kilometres there (cells are 0.01 degree).
 SEPARATION_FILL_CELLS = 50
+# A hole is model-less water the model's coverage closes over at this reach
+# (about 900 m north-south): Aarhus' port is about 1.5 km across.
+HOLE_REACH_DEG = 0.008
 
 
 def wgs84():
@@ -100,19 +110,32 @@ class Grid:
                 yield s, w
 
 
-def warp(path, grid, s, w, resample):
+def warp(path, grid, s, w, resample, pad=0):
+    """The chunk's cells, with `pad` more cells on every side."""
+    margin = pad * grid.step
     ds = gdal.Warp(
         '',
         path,
         format='MEM',
         dstSRS='EPSG:4326',
-        outputBounds=(w, s, w + grid.chunk_deg, s + grid.chunk_deg),
+        outputBounds=(w - margin, s - margin, w + grid.chunk_deg + margin, s + grid.chunk_deg + margin),
         xRes=grid.step,
         yRes=grid.step,
         resampleAlg=resample,
         dstNodata=NODATA,
     )
     return ds.GetRasterBand(1).ReadAsArray()
+
+
+def holes(model_path, grid, s, w):
+    """Cells of the chunk the model's coverage closes over without data.
+    Worked out on a margin as wide as the closing reaches, so neighbouring
+    chunks agree on their shared edge."""
+    reach = round(HOLE_REACH_DEG / grid.step)
+    pad = 2 * reach
+    covered = warp(model_path, grid, s, w, 'near', pad) != NODATA
+    closed = ~dilate_disk(~dilate_disk(covered, reach), reach)
+    return (closed & ~covered)[pad:-pad, pad:-pad]
 
 
 def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True):
@@ -129,6 +152,7 @@ def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths
         model = (value != NODATA) & (sep != NODATA)
         heights[model] = (-value[model] if depths else value[model]) + sep[model]
         heights[model & (heights > MAX_HEIGHT_M)] = NODATA
+        heights[holes(model_path, grid, s, w) & ~model & (heights > -FILL_MAX_DEPTH)] = MODEL_HOLE
     if not (heights != NODATA).any():
         # A chunk from an earlier run would still reach the builder.
         if os.path.exists(path):

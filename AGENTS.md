@@ -46,7 +46,8 @@ the index and the docs say so.
   level, NAP) to LAT with the national surfaces of both above the
   ellipsoid (Denmark's DKMSL and DKLAT, NSGI's NLGEO2018 and NLLAT2018);
   where they give no separation, the EMODnet fill stands instead of a depth
-  on another datum.
+  on another datum. Water the model leaves out inside its coverage (ports,
+  docks) where EMODnet reads shallower than 2 m is charted as depth unknown.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.
