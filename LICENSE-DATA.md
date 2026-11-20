@@ -96,7 +96,8 @@ more, away from anything shallower) that no survey or finer model covers.
 ## Kartverket (Norway)
 
 Dybdedata, terrengmodell 50 m: Kartverket's seabed terrain model, depths on
-sjøkartnull (the Norwegian chart datum, LAT), through its WCS
+sjøkartnull (the datum of Norway's charts: LAT, or 0.2 to 0.3 m below it
+in the Skagerrak and the inner Oslofjord), through its WCS
 `https://wms.geonorge.no/skwms1/wms.dtm2`, Creative Commons Attribution 4.0
 International (CC BY 4.0). Attribution: "© Kartverket, Dybdedata
 terrengmodell 50 m, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)".

@@ -6,7 +6,7 @@
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
-  dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull (LAT), EMODnet
+  dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull, EMODnet
                                   beyond it (odc.lat_model), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
@@ -96,8 +96,12 @@ NLLAT = 'https://cdn.proj.org/nl_nsgi_nllat2018.tif'
 # 1/64 arc-minute (about 29 m by 17 m at 53 degrees) keeps most of the 20 m
 # grid; 1-degree chunks keep each in memory small.
 VAKLODINGEN_GRID = lat_model.Grid(1 / 3840, 1)
-# Kartverket's seabed terrain model, 50 m, metres above sjøkartnull (the
-# Norwegian chart datum, LAT) in UTM 33, 0 where it has no data (CC BY 4.0).
+# Kartverket's seabed terrain model, 50 m, metres above sjøkartnull in UTM 33,
+# 0 where it has no data (CC BY 4.0). Sjøkartnull, the datum of Norway's
+# charts and tide tables, is LAT except from the Swedish border to Utsira
+# (0.2 m below LAT) and in the Oslofjord north of Drøbaksundet (0.3 m below);
+# the depths stay on it, so they read as Norway's own charts do and never
+# deeper than on LAT.
 KARTVERKET_WCS = (
     'https://wms.geonorge.no/skwms1/wms.dtm2?service=WCS&version=2.0.1&request=GetCoverage'
     '&coverageId=bathymetry50m&format=image/tiff&subset=x({w},{e})&subset=y({s},{n})'
