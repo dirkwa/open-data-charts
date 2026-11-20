@@ -120,3 +120,19 @@ def test_a_height_model_on_a_levelling_datum_lands_on_lat_on_the_lat_surface_gri
     assert abs(at(4.41, 53.59) - (-1.8)) < 1e-3
     assert abs(at(4.40025, 53.59975) - 3.2) < 0.5
     assert at(4.40075, 53.59975) == lat_model.NODATA
+
+
+def test_a_model_already_on_lat_needs_no_separation(tmp_path):
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(25833)
+    wgs = osr.SpatialReference()
+    wgs.ImportFromEPSG(4326)
+    wgs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    x, y, _ = osr.CoordinateTransformation(wgs, srs).TransformPoint(5.3, 60.4)
+    heights = np.full((40, 40), -12.5, dtype='float32')
+    model = raster(tmp_path / 'kv.tif', 25833, (x - 1000, y + 1000), 50, heights, 0.0)
+    out = str(tmp_path / 'chunk.tif')
+    assert lat_model.write_chunk(model, None, None, GRID, 60, 4, out, depths=False)
+    chunk = gdal.Open(out).ReadAsArray()
+    assert abs(chunk[int((62.0 - 60.4) / GRID.step), int((5.3 - 4.0) / GRID.step)] - (-12.5)) < 1e-3

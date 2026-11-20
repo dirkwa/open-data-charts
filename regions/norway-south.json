@@ -1,0 +1,32 @@
+{
+  "id": "norway-south",
+  "name": "Southern Norway: Oslofjord to Stad",
+  "bbox": [
+    4.4,
+    58.08,
+    11.2,
+    62.3
+  ],
+  "sources": [
+    "kartverket",
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "kartverket"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/norway-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/norway-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "© Kartverket, Dybdedata terrengmodell 50 m, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

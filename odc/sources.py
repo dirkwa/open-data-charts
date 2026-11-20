@@ -6,6 +6,8 @@
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
+  dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull (LAT), EMODnet
+                                  beyond it (odc.lat_model), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
@@ -35,7 +37,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 
-from osgeo import gdal, ogr
+from osgeo import gdal, ogr, osr
 
 from odc import aca_depth, attribution, build_unit, lat_model, osm, seamarks, shom
 from odc.grid import units_in
@@ -94,6 +96,18 @@ NLLAT = 'https://cdn.proj.org/nl_nsgi_nllat2018.tif'
 # 1/64 arc-minute (about 29 m by 17 m at 53 degrees) keeps most of the 20 m
 # grid; 1-degree chunks keep each in memory small.
 VAKLODINGEN_GRID = lat_model.Grid(1 / 3840, 1)
+# Kartverket's seabed terrain model, 50 m, metres above sjøkartnull (the
+# Norwegian chart datum, LAT) in UTM 33, 0 where it has no data (CC BY 4.0).
+KARTVERKET_WCS = (
+    'https://wms.geonorge.no/skwms1/wms.dtm2?service=WCS&version=2.0.1&request=GetCoverage'
+    '&coverageId=bathymetry50m&format=image/tiff&subset=x({w},{e})&subset=y({s},{n})'
+)
+KARTVERKET_CELL_M = 50
+# The coverage's cell edges, so a request returns its own cells unresampled.
+KARTVERKET_CELL_EDGE_M = 25
+# Bilinear warping onto the chunk reads a cell or two past its edge.
+KARTVERKET_MARGIN_M = 1000
+KARTVERKET_GRID = lat_model.Grid(1 / 1920, 2)
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -218,6 +232,7 @@ def dem_grids(inputs):
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
         + sorted(glob.glob(os.path.join(dem, '*.asc')))
     )
 
@@ -252,6 +267,15 @@ def ddm_release():
     return max(releases)
 
 
+def emodnet_fill(name, bounds, tmp):
+    emodnet = os.path.join(tmp, f'{name}-emodnet')
+    os.makedirs(emodnet)
+    fetch_emodnet(bounds, emodnet)
+    fill = os.path.join(tmp, f'{name}-emodnet.vrt')
+    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
+    return fill
+
+
 def on_lat(model, datum_url, lat_url, grid, name, bounds, target, tmp, depths):
     """Writes the model on LAT in chunks `<name>_*.tif`, EMODnet beyond it."""
     surfaces = []
@@ -260,11 +284,7 @@ def on_lat(model, datum_url, lat_url, grid, name, bounds, target, tmp, depths):
         save_url(url, surfaces[-1])
     separation = os.path.join(tmp, f'{name}-separation.tif')
     lat_model.separation(*surfaces, separation)
-    emodnet = os.path.join(tmp, f'{name}-emodnet')
-    os.makedirs(emodnet)
-    fetch_emodnet(bounds, emodnet)
-    fill = os.path.join(tmp, f'{name}-emodnet.vrt')
-    gdal.BuildVRT(fill, sorted(glob.glob(os.path.join(emodnet, 'emodnet_*.tif'))))
+    fill = emodnet_fill(name, bounds, tmp)
     for s, w in grid.chunks(bounds):
         path = os.path.join(target, f'{name}_{s:+03d}_{w:+04d}.tif')
         lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths)
@@ -288,6 +308,41 @@ def fetch_vaklodingen(bounds, target, tmp):
     on_lat(model, NLGEO, NLLAT, VAKLODINGEN_GRID, 'vaklodingen', bounds, target, tmp, depths=False)
 
 
+def kartverket_request(grid, s, w):
+    """The WCS request for a chunk: its UTM 33 bounds on the coverage's cell
+    edges, with a margin."""
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    utm = osr.SpatialReference()
+    utm.ImportFromEPSG(25833)
+    utm.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    west, south, east, north = osr.CoordinateTransformation(wgs84, utm).TransformBounds(
+        w, s, w + grid.chunk_deg, s + grid.chunk_deg, 21
+    )
+    cell, edge, margin = KARTVERKET_CELL_M, KARTVERKET_CELL_EDGE_M, KARTVERKET_MARGIN_M
+
+    def down(x):
+        return math.floor((x - margin - edge) / cell) * cell + edge
+
+    def up(x):
+        return math.ceil((x + margin - edge) / cell) * cell + edge
+
+    return KARTVERKET_WCS.format(w=down(west), e=up(east), s=down(south), n=up(north))
+
+
+def fetch_kartverket(bounds, target, tmp):
+    fill = emodnet_fill('kartverket', bounds, tmp)
+    grid = KARTVERKET_GRID
+    for s, w in grid.chunks(bounds):
+        raw = os.path.join(tmp, 'kartverket.wcs')
+        save_url(kartverket_request(grid, s, w), raw, timeout=1800)
+        model = os.path.join(tmp, 'kartverket.tif')
+        gdal.Translate(model, raw, noData=0)
+        path = os.path.join(target, f'kartverket_{s:+03d}_{w:+04d}.tif')
+        lat_model.write_chunk(model, None, fill, grid, s, w, path, depths=False)
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
@@ -302,6 +357,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'vaklodingen':
                 fetch_vaklodingen(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'kartverket':
+                fetch_kartverket(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
