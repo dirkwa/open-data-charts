@@ -26,6 +26,9 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/turkey-latest.osm.pbf",
       "https://download.geofabrik.de/europe/turkey-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/bulgaria-latest.osm.pbf"
     ]
   ],
   "attribution": [
