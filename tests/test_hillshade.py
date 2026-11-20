@@ -148,7 +148,10 @@ def test_a_unit_file_holds_only_its_own_tiles_in_tms_rows(tmp_path):
 def test_a_unit_without_relief_or_shading_gets_no_file(tmp_path):
     land = write_land(tmp_path, [EVERYWHERE])
     out = tmp_path / 'none.mbtiles'
+    out.write_bytes(b'an earlier build')
     assert hillshade.write_unit([], land, str(out), A, 'v1') == 0
+    assert not out.exists()
+    out.write_bytes(b'an earlier build')
     assert hillshade.write_unit([write_dem(tmp_path, height=0.0)], land, str(out), A, 'v1') == 0
     assert not out.exists()
 

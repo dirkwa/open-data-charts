@@ -180,19 +180,19 @@ def unit_tiles(relief, land_path, unit, water):
 def write_unit(relief, land_path, out, unit, version, water_path=None):
     """The unit's shading as a raster MBTiles, or no file when the unit has
     none. Returns the number of tiles."""
-    if not relief:
-        return 0
-    water = read_water(water_path, unit.build_box.bbox) if water_path and os.path.exists(water_path) else None
-    vrt = '/vsimem/hillshade-relief.vrt'
-    gdal.BuildVRT(vrt, relief).Close()
-    try:
-        tiles = list(unit_tiles(vrt, land_path, unit, water))
-    finally:
-        gdal.Unlink(vrt)
-    if not tiles:
-        return 0
+    tiles = []
+    if relief:
+        water = read_water(water_path, unit.build_box.bbox) if water_path and os.path.exists(water_path) else None
+        vrt = '/vsimem/hillshade-relief.vrt'
+        gdal.BuildVRT(vrt, relief).Close()
+        try:
+            tiles = list(unit_tiles(vrt, land_path, unit, water))
+        finally:
+            gdal.Unlink(vrt)
     if os.path.exists(out):
         os.remove(out)
+    if not tiles:
+        return 0
     with sqlite3.connect(out) as db:
         db.execute('CREATE TABLE metadata (name TEXT, value TEXT)')
         db.execute('CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB)')
