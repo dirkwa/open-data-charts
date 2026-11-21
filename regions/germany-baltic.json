@@ -1,0 +1,40 @@
+{
+  "id": "germany-baltic",
+  "name": "German Baltic",
+  "bbox": [
+    10.56,
+    53.35,
+    14.76,
+    54.15
+  ],
+  "sources": [
+    "bsh",
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "bsh"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/germany/mecklenburg-vorpommern-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/poland/zachodniopomorskie-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/poland/zachodniopomorskie-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH), Meeresboden-DGM 50 m (https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows), Datenlizenz Deutschland – Namensnennung – Version 2.0 (https://www.govdata.de/dl-de/by-2-0); modified: moved from NHN to LAT and resampled onto the chart grid; not suitable for navigation",
+    "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    "Agency for Data Supply and Infrastructure, DKLAT(2023), CC BY 4.0",
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}

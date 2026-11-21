@@ -1,0 +1,52 @@
+{
+  "id": "germany-north-sea",
+  "name": "German North Sea",
+  "bbox": [
+    6.34,
+    52.95,
+    10.54,
+    54.15
+  ],
+  "sources": [
+    "vaklodingen",
+    "bsh",
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "vaklodingen"
+    },
+    {
+      "source": "bsh"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/germany/niedersachsen-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/germany/bremen-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/netherlands/groningen-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/netherlands/groningen-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH), Meeresboden-DGM 50 m (https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows), Datenlizenz Deutschland – Namensnennung – Version 2.0 (https://www.govdata.de/dl-de/by-2-0); modified: moved from NHN to LAT and resampled onto the chart grid; not suitable for navigation",
+    "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    "Agency for Data Supply and Infrastructure, DKLAT(2023), CC BY 4.0",
+    "Rijkswaterstaat, Bathymetrie Nederland - kust en vaklodingen 20 m (CC0 1.0)",
+    "NSGI, NLGEO2018 and NLLAT2018, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}
