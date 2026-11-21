@@ -626,7 +626,8 @@ def bsh_save(url, path, wait=BSH_RETRY_WAIT_S):
         try:
             save_url(url, path, timeout=1800)
             return
-        except urllib.error.URLError as error:
+        # urllib leaves a timeout reading the headers or the body unwrapped.
+        except (urllib.error.URLError, TimeoutError) as error:
             if shom.is_client_error(error) or attempt == BSH_ATTEMPTS:
                 raise RuntimeError(f'BSH did not answer {url}: {error}') from error
             print(f'bsh: {error}, asking again', flush=True)

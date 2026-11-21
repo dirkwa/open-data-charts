@@ -252,13 +252,17 @@ def test_a_linz_400_is_asked_again_and_explained_when_it_stays(monkeypatch):
     assert len(answers) == 2
 
 
-def test_a_refused_bsh_request_is_asked_again_and_named_when_it_stays(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    'failure',
+    [urllib.error.URLError(ConnectionRefusedError(111, 'Connection refused')), TimeoutError('timed out')],
+)
+def test_a_failed_bsh_request_is_asked_again_and_named_when_it_stays(monkeypatch, tmp_path, failure):
     calls = []
 
     def save_url(url, path, timeout=600):
         calls.append(url)
         if len(calls) < 3:
-            raise urllib.error.URLError(ConnectionRefusedError(111, 'Connection refused'))
+            raise failure
         open(path, 'wb').close()
 
     monkeypatch.setattr(sources, 'save_url', save_url)
