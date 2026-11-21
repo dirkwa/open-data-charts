@@ -9,14 +9,17 @@ and <out>/<unit>.<version>.hillshade.mbtiles for a unit with terrain to shade.
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
+import numpy as np
 from osgeo import gdal
 
 from odc import chart, hillshade
+from odc.build_unit import MODEL_HOLE
 from odc.grid import MAX_ZOOM, Unit
 from odc.sources import DEM_MOSAIC_OPTIONS, dem_grids
 from odc.tile import set_metadata
@@ -32,8 +35,55 @@ def dem_mosaic(inputs, work):
         return None
     os.makedirs(work, exist_ok=True)
     path = os.path.join(work, 'dem.vrt')
-    gdal.BuildVRT(path, grids, **DEM_MOSAIC_OPTIONS)
+    gdal.BuildVRT(path, split_holes(grids, work), **DEM_MOSAIC_OPTIONS)
+    nearest_holes(path)
     return path
+
+
+def split_holes(grids, work):
+    """The grids with each one the mosaic resamples and that marks unknown
+    depth (build_unit.MODEL_HOLE) split in two: its depths with the holes
+    taken out, then the holes alone. Resampling then never blends a hole
+    marker into the depths beside it, which would read as high ground."""
+    finest = min(abs(gdal.Open(path).GetGeoTransform()[1]) for path in grids)
+    split = []
+    for path in grids:
+        ds = gdal.Open(path)
+        if abs(ds.GetGeoTransform()[1]) <= finest * (1 + 1e-9):
+            split.append(path)
+            continue
+        band = ds.GetRasterBand(1)
+        heights = band.ReadAsArray()
+        hole = heights == MODEL_HOLE
+        if not hole.any():
+            split.append(path)
+            continue
+        nodata = band.GetNoDataValue()
+        stem = os.path.join(work, 'holes', os.path.splitext(os.path.basename(path))[0])
+        os.makedirs(os.path.dirname(stem), exist_ok=True)
+        for suffix, values in (
+            ('.depths.tif', np.where(hole, nodata, heights)),
+            ('.holes.tif', np.where(hole, MODEL_HOLE, nodata)),
+        ):
+            out = gdal.GetDriverByName('GTiff').CreateCopy(stem + suffix, ds)
+            out.GetRasterBand(1).WriteArray(values.astype(heights.dtype))
+            out = None
+            split.append(stem + suffix)
+    return split
+
+
+HOLES_SOURCE = re.compile(
+    r'<(\w+Source)(?: resampling="[^"]*")?>(\s*<SourceFilename[^>]*>[^<]*\.holes\.tif</SourceFilename>)'
+)
+
+
+def nearest_holes(vrt):
+    """Cubicspline would spread a hole over every cell its kernel reaches;
+    nearest keeps it to the cells the hole covers."""
+    with open(vrt) as fh:
+        text = fh.read()
+    with open(vrt, 'w') as fh:
+        fh.write(HOLES_SOURCE.sub(r'<\1 resampling="nearest">\2', text))
 
 
 def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
