@@ -112,11 +112,14 @@ class Grid:
 
 
 def warp(path, grid, s, w, resample, pad=0):
-    """The chunk's cells, with `pad` more cells on every side."""
+    """The chunk's cells, with `pad` more cells on every side. The shoalest
+    value (`max`) is taken from the full-resolution samples: an overview has
+    averaged a shoal into the water around it."""
     margin = pad * grid.step
     ds = gdal.Warp(
         '',
         path,
+        options=['-ovr', 'NONE'] if resample == 'max' else [],
         format='MEM',
         dstSRS='EPSG:4326',
         outputBounds=(w - margin, s - margin, w + grid.chunk_deg + margin, s + grid.chunk_deg + margin),

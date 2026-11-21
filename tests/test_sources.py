@@ -227,6 +227,8 @@ def test_the_catalan_model_keeps_the_shoalest_metre_of_each_cell_and_only_its_ow
     ds.SetProjection(srs.ExportToWkt())
     ds.GetRasterBand(1).SetNoDataValue(-9999.0)
     ds.GetRasterBand(1).WriteArray(heights)
+    # Like the real model's overviews, which average the rocks away.
+    ds.BuildOverviews('AVERAGE', [2, 4, 8, 16, 32])
     ds = None
     monkeypatch.setattr(sources, 'icgc_model', lambda tmp: str(tmp_path / 'copy.tif'))
     shutil.copy(model, tmp_path / 'copy.tif')
