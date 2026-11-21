@@ -68,6 +68,9 @@ WFS_PAGE = 5000
 # LINZ Data Service: the WFS takes the account's key as a header, which keeps
 # it out of URLs and logs.
 LINZ_WFS = 'https://data.linz.govt.nz/services/wfs'
+LINZ_ATTEMPTS = 3
+LINZ_RETRY_WAIT_S = 60
+LINZ_REASON_BYTES = 2000
 LINZ_KEY_ENV = 'LINZ_API_KEY'
 # A Geofabrik extract with no other mirror fails a whole region's run on one
 # dropped connection, so each alternative is tried a few times.
@@ -282,6 +285,22 @@ def east_of_greenwich(coords):
         east_of_greenwich(part)
 
 
+def linz_get(url, key, wait=LINZ_RETRY_WAIT_S):
+    """LINZ's WFS answers a passing failure behind it with 400 Bad Request as
+    well, so a 400 is asked again before the run gives up, with the
+    service's own explanation in the error."""
+    for attempt in range(1, LINZ_ATTEMPTS + 1):
+        try:
+            with shom.get(url, timeout=600, headers={'Authorization': f'key {key}'}) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as error:
+            reason = error.read(LINZ_REASON_BYTES).decode('utf-8', 'replace').strip()
+            if error.code != 400 or attempt == LINZ_ATTEMPTS:
+                raise RuntimeError(f'LINZ answered {error.code} {error.reason}: {reason}') from error
+            print(f'LINZ answered 400 ({reason[:200]}), asking again', flush=True)
+            time.sleep(wait * attempt)
+
+
 def linz_layer(layer_id, bbox, key):
     minlon, minlat, maxlon, maxlat = bbox
     params = {
@@ -294,9 +313,7 @@ def linz_layer(layer_id, bbox, key):
         # WFS 2.0 with an EPSG URN: axis order lat,lon.
         'bbox': f'{minlat},{minlon},{maxlat},{maxlon},urn:ogc:def:crs:EPSG::4326',
     }
-    url = f'{LINZ_WFS}?{urllib.parse.urlencode(params)}'
-    with shom.get(url, timeout=600, headers={'Authorization': f'key {key}'}) as r:
-        page = json.load(r)
+    page = linz_get(f'{LINZ_WFS}?{urllib.parse.urlencode(params)}', key)
     features = page.get('features') or []
     matched = page.get('numberMatched')
     if isinstance(matched, int) and matched > len(features):
