@@ -252,6 +252,29 @@ def test_a_linz_400_is_asked_again_and_explained_when_it_stays(monkeypatch):
     assert len(answers) == 2
 
 
+@pytest.mark.parametrize(
+    'failure',
+    [urllib.error.URLError(ConnectionRefusedError(111, 'Connection refused')), TimeoutError('timed out')],
+)
+def test_a_failed_bsh_request_is_asked_again_and_named_when_it_stays(monkeypatch, tmp_path, failure):
+    calls = []
+
+    def save_url(url, path, timeout=600):
+        calls.append(url)
+        if len(calls) < 3:
+            raise failure
+        open(path, 'wb').close()
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    sources.bsh_save('https://example.org/wcs', str(tmp_path / 'part.tif'), wait=0)
+    assert len(calls) == 3
+    calls.clear()
+    monkeypatch.setattr(sources, 'BSH_ATTEMPTS', 2)
+    with pytest.raises(RuntimeError, match='https://example.org/wcs'):
+        sources.bsh_save('https://example.org/wcs', str(tmp_path / 'part.tif'), wait=0)
+    assert len(calls) == 2
+
+
 def test_chart_layers_need_the_key_and_go_when_the_region_drops_them(tmp_path, monkeypatch):
     stale = tmp_path / 'chart' / '1__DEPARE__4.json'
     stale.parent.mkdir()

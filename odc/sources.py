@@ -147,6 +147,10 @@ BSH_SEAS = {
 BSH_CELL_M = 50
 BSH_MARGIN_M = 1000
 BSH_NODATA = -99999.0
+# BSH's server refuses connections for minutes at a time; a region asks it
+# for dozens of chunks, so a refusal is waited out before the run gives up.
+BSH_ATTEMPTS = 4
+BSH_RETRY_WAIT_S = 120
 # NHN (DHHN2016) above the ellipsoid, BKG (CC BY 4.0). No LAT surface covers
 # German waters whole: DKLAT reaches them from 53.8 N, NLLAT the Ems. Both go
 # onto DKLAT's 0.01-degree grid, extended south over NLLAT's extent, NLLAT on
@@ -617,6 +621,19 @@ def bsh_request(sea, grid, s, w):
     return BSH_WCS.format(sea=sea, w=w_, e=e_, s=s_, n=n_)
 
 
+def bsh_save(url, path, wait=BSH_RETRY_WAIT_S):
+    for attempt in range(1, BSH_ATTEMPTS + 1):
+        try:
+            save_url(url, path, timeout=1800)
+            return
+        # urllib leaves a timeout reading the headers or the body unwrapped.
+        except (urllib.error.URLError, TimeoutError) as error:
+            if shom.is_client_error(error) or attempt == BSH_ATTEMPTS:
+                raise RuntimeError(f'BSH did not answer {url}: {error}') from error
+            print(f'bsh: {error}, asking again', flush=True)
+            time.sleep(wait * attempt)
+
+
 def has_data(path):
     ds = gdal.Open(path)
     band = ds.GetRasterBand(1)
@@ -660,7 +677,7 @@ def fetch_bsh(bounds, target, tmp):
             url = bsh_request(sea, grid, s, w)
             if url:
                 parts.append(os.path.join(tmp, f'bsh-{sea}.tif'))
-                save_url(url, parts[-1], timeout=1800)
+                bsh_save(url, parts[-1])
         path = os.path.join(target, f'bsh_{s:+03d}_{w:+04d}.tif')
         if not any(has_data(part) for part in parts):
             if earlier:
