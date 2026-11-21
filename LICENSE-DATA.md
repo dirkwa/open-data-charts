@@ -107,6 +107,20 @@ more, away from anything shallower) that no survey or finer model covers.
   chart grid; not suitable for navigation". Moved to LAT with GCG2016,
   DKLAT(2023) and NLLAT2018. Used as the bathymetric model of the regions whose file asks
   for it (`"dem": [..., {"source": "bsh"}]`).
+- **DGM-W**: Wasserstraßen- und Schifffahrtsverwaltung des Bundes (WSV),
+  the digital terrain models of the Ems (2015, 5 m), Jade (2018, 5 m), Weser
+  (2021, 2 m) and outer Elbe (2024, 1 m) estuaries, heights above NHN, from
+  the archive at <https://www.kuestendaten.de>, under the
+  Geodatennutzungsverordnung (GeoNutzV,
+  <https://www.geodatenzentrum.de/docpdf/geonutzv.pdf>), which allows use
+  and redistribution with a source note. Attribution, with a change note:
+  "© Wasserstraßen- und Schifffahrtsverwaltung des Bundes (WSV), DGM-W Ems
+  2015, Jade 2018, Weser 2021 and Außenelbe 2024 (...), GeoNutzV (...);
+  modified: cut to the estuaries, moved from NHN to LAT and resampled onto
+  the chart grid; not suitable for navigation". Only the estuaries seaward
+  of Emden, Bremerhaven and Cuxhaven are used: up the tidal rivers chart
+  datum is set in steps rather than at LAT. Moved to LAT as BSH's model is,
+  for the regions whose file asks for it (`"dem": [..., {"source": "wsv"}]`).
 - **GCG2016**: Bundesamt für Kartographie und Geodäsie (BKG), the German
   quasigeoid (NHN above the ellipsoid), from the PROJ data CDN, Creative
   Commons Attribution 4.0 International (CC BY 4.0). Attribution:

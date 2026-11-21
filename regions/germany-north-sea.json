@@ -10,6 +10,7 @@
   "sources": [
     "vaklodingen",
     "bsh",
+    "wsv",
     "emodnet-dtm",
     "osm",
     "openseamap",
@@ -21,6 +22,9 @@
     },
     {
       "source": "bsh"
+    },
+    {
+      "source": "wsv"
     }
   ],
   "osm": [
@@ -40,6 +44,7 @@
   ],
   "attribution": [
     "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH), Meeresboden-DGM 50 m (https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows), Datenlizenz Deutschland – Namensnennung – Version 2.0 (https://www.govdata.de/dl-de/by-2-0); modified: moved from NHN to LAT and resampled onto the chart grid; not suitable for navigation",
+    "© Wasserstraßen- und Schifffahrtsverwaltung des Bundes (WSV), DGM-W Ems 2015, Jade 2018, Weser 2021 and Außenelbe 2024 (https://www.kuestendaten.de), Geodatennutzungsverordnung (GeoNutzV, https://www.geodatenzentrum.de/docpdf/geonutzv.pdf); modified: cut to the estuaries, moved from NHN to LAT and resampled onto the chart grid; not suitable for navigation",
     "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
     "Agency for Data Supply and Infrastructure, DKLAT(2023), CC BY 4.0",
     "Rijkswaterstaat, Bathymetrie Nederland - kust en vaklodingen 20 m (CC0 1.0)",

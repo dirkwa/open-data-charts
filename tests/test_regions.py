@@ -32,6 +32,8 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('vaklodingen' in region['sources']) == vaklodingen
         bsh = any(dem.get('source') == 'bsh' for dem in region.get('dem', []))
         assert ('bsh' in region['sources']) == bsh
+        wsv = any(dem.get('source') == 'wsv' for dem in region.get('dem', []))
+        assert ('wsv' in region['sources']) == wsv
         kartverket = any(dem.get('source') == 'kartverket' for dem in region.get('dem', []))
         assert ('kartverket' in region['sources']) == kartverket
         hr = [dem for dem in region.get('dem', []) if dem.get('source') == 'emodnet-hr']

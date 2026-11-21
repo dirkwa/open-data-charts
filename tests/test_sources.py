@@ -179,6 +179,80 @@ def test_bsh_on_emodnet_alone_marks_its_gaps_unknown_and_keeps_emodnet_beyond(mo
     assert np.allclose(gdal.Open(str(dem / 'bsh_+52_+007.tif')).ReadAsArray(), -1.0)
 
 
+def test_wsv_estuaries_go_on_lat_shoalest_first_cut_to_what_each_keeps(monkeypatch, tmp_path):
+    import zipfile
+
+    from osgeo import gdal, osr
+
+    from odc import lat_model
+
+    bsh_world(monkeypatch, -3.0)
+    world = sources.save_url
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    utm = osr.SpatialReference()
+    utm.ImportFromEPSG(25832)
+    utm.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    to_utm = osr.CoordinateTransformation(wgs84, utm)
+    x0, y0, _ = to_utm.TransformPoint(7.4, 54.6)
+    x0, y0 = round(x0, -3), round(y0, -3)
+
+    def save_url(url, path, timeout=600):
+        if url == 'https://example.org/older.zip':
+            # 10 m below NHN over 30 km, one 100 m cell 2 m below it.
+            cells = np.full((300, 300), -10.0, 'float32')
+            cells[150, 50] = -2.0
+            raster(str(tmp_path / 'older.tif'), 25832, (x0 - 15000, 100, 0, y0 + 15000, 0, -100), cells, -9999.0)
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.write(tmp_path / 'older.tif', 'older.tif')
+        elif url == 'https://example.org/newer.tif':
+            # 6 m below NHN over a 10 km strip, in a file that names no reference system.
+            ds = gdal.GetDriverByName('GTiff').Create(path, 100, 300, 1, gdal.GDT_Float32)
+            ds.SetGeoTransform((x0, 100, 0, y0 + 15000, 0, -100))
+            ds.GetRasterBand(1).SetNoDataValue(-9999.0)
+            ds.GetRasterBand(1).WriteArray(np.full((300, 100), -6.0, 'float32'))
+        else:
+            world(url, path, timeout)
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    monkeypatch.setattr(
+        sources,
+        'WSV_MODELS',
+        (
+            {'url': 'https://example.org/older.zip', 'member': 'older.tif', 'keep': (0, 0, x0 + 5000, 1e7)},
+            {'url': 'https://example.org/newer.tif'},
+        ),
+    )
+    monkeypatch.setattr(sources, 'WSV_GRID', lat_model.Grid(1 / 240, 1))
+    dem = tmp_path / 'dem'
+    dem.mkdir()
+    earlier = np.full((240, 240), -1.0, 'float32')
+    raster(str(dem / 'ddm_+54_+007.tif'), 4326, (7, 1 / 240, 0, 55, 0, -1 / 240), earlier, -9999.0)
+    tmp = tmp_path / 'tmp'
+    tmp.mkdir()
+    sources.fetch_wsv((7.0, 54.0, 7.99, 54.99), str(dem), str(tmp))
+    chunk = gdal.Open(str(dem / 'wsv_+54_+007.tif')).ReadAsArray()
+    to_wgs84 = osr.CoordinateTransformation(utm, wgs84)
+
+    def at(x, y):
+        lon, lat, _ = to_wgs84.TransformPoint(x, y)
+        return cell(chunk, 54, 7, lon, lat)
+
+    # NHN is 2 m above LAT here: the older model's 10 m read 8 m, its 2 m shoal 0 m.
+    assert at(x0 - 12000, y0 + 5000) == pytest.approx(-8.0)
+    assert at(x0 - 9950, y0 - 50) == pytest.approx(0.0)
+    # The newer model lies on top; beyond what the older keeps there is no data, and the
+    # earlier model below shows through in the mosaic.
+    assert at(x0 + 2500, y0) == pytest.approx(-4.0)
+    assert at(x0 + 7500, y0 - 5000) == pytest.approx(-4.0)
+    assert at(x0 + 13000, y0) == lat_model.NODATA
+    assert sources.dem_grids(str(tmp_path))[-1].endswith('wsv_+54_+007.tif')
+    # A region the models do not reach gets no chunk.
+    sources.fetch_wsv((9.0, 52.0, 9.5, 52.5), str(dem), str(tmp))
+    assert not list(dem.glob('wsv_+52_*'))
+
+
 def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch, tmp_path):
     import numpy as np
     from osgeo import gdal, osr
