@@ -8,6 +8,9 @@
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
+  dem/bsh_*.tif                   BSH's German North Sea and Baltic seabed model on LAT, on top of
+                                  what the region's earlier models wrote, EMODnet where there are
+                                  none (odc.lat_model), if asked for
   dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull, EMODnet
                                   beyond it (odc.lat_model), if asked for
   dem/infomar_*.tif               INFOMAR's Irish bathymetry on LAT (CC BY 4.0), on the chart grid
@@ -128,6 +131,33 @@ NLLAT = 'https://cdn.proj.org/nl_nsgi_nllat2018.tif'
 # 1/64 arc-minute (about 29 m by 17 m at 53 degrees) keeps most of the 20 m
 # grid; 1-degree chunks keep each in memory small.
 VAKLODINGEN_GRID = lat_model.Grid(1 / 3840, 1)
+# BSH's seabed model of the German North Sea and Baltic, 50 m, metres above
+# NHN in ETRS89 UTM 32, one WCS coverage per sea, no data outside German
+# waters (Datenlizenz Deutschland Namensnennung 2.0). The coverages' cell
+# edges lie on multiples of 50 m.
+BSH_WCS = (
+    'https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows?service=WCS&version=2.0.1&request=GetCoverage'
+    '&coverageId=ELC_INSPIRE__EL.GridCoverage_{sea}&format=image/tiff&subset=E({w},{e})&subset=N({s},{n})'
+)
+# Each coverage's extent: a request reaching past it is refused.
+BSH_SEAS = {
+    'northsea': (146900, 5901750, 521900, 6211450),
+    'balticsea': (500000, 5950000, 900000, 6150000),
+}
+BSH_CELL_M = 50
+BSH_MARGIN_M = 1000
+BSH_NODATA = -99999.0
+# NHN (DHHN2016) above the ellipsoid, BKG (CC BY 4.0). No LAT surface covers
+# German waters whole: DKLAT reaches them from 53.8 N, NLLAT the Ems. Both go
+# onto DKLAT's 0.01-degree grid, extended south over NLLAT's extent, NLLAT on
+# top, and the separation is filled between them and along the East Frisian
+# coast from the nearest defined cells.
+GCG2016 = 'https://cdn.proj.org/de_bkg_gcg2016.tif'
+BSH_LAT_BOUNDS = (1.995, 49.995, 17.005, 59.505)
+BSH_LAT_STEP = 0.01
+BSH_LAT_NODATA = -32768.0
+# As fine as the vaklodingen's grid, so a chunk replacing theirs loses none of it.
+BSH_GRID = lat_model.Grid(1 / 3840, 1)
 # Kartverket's seabed terrain model, 50 m, metres above sjøkartnull in UTM 33,
 # 0 where it has no data (CC BY 4.0). Sjøkartnull, the datum of Norway's
 # charts and tide tables, is LAT except from the Swedish border to Utsira
@@ -362,6 +392,7 @@ def dem_grids(inputs):
         + sorted(glob.glob(os.path.join(dem, 'icgc_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'bsh_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_25m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_10m_*.tif')))
@@ -562,6 +593,88 @@ def fetch_kartverket(bounds, target, tmp):
         lat_model.write_chunk(model, None, fill, grid, s, w, path, depths=False)
 
 
+def bsh_request(sea, grid, s, w):
+    """The WCS request for a chunk on one sea's coverage: its UTM 32 bounds
+    on the coverage's cell edges, with a margin, cut to the coverage; None
+    if the chunk lies outside it."""
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    utm = osr.SpatialReference()
+    utm.ImportFromEPSG(25832)
+    utm.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    west, south, east, north = osr.CoordinateTransformation(wgs84, utm).TransformBounds(
+        w, s, w + grid.chunk_deg, s + grid.chunk_deg, 21
+    )
+    cell, margin = BSH_CELL_M, BSH_MARGIN_M
+    cw, cs, ce, cn = BSH_SEAS[sea]
+    w_ = max(cw, math.floor((west - margin) / cell) * cell)
+    s_ = max(cs, math.floor((south - margin) / cell) * cell)
+    e_ = min(ce, math.ceil((east + margin) / cell) * cell)
+    n_ = min(cn, math.ceil((north + margin) / cell) * cell)
+    if w_ >= e_ or s_ >= n_:
+        return None
+    return BSH_WCS.format(sea=sea, w=w_, e=e_, s=s_, n=n_)
+
+
+def has_data(path):
+    ds = gdal.Open(path)
+    band = ds.GetRasterBand(1)
+    return bool((band.ReadAsArray() != band.GetNoDataValue()).any())
+
+
+def fetch_bsh(bounds, target, tmp):
+    """On top of what the region's earlier models wrote, which already carry
+    EMODnet beyond themselves, so the BSH chunks replace theirs whole; on the
+    region's EMODnet where there are none."""
+    datum = os.path.join(tmp, os.path.basename(GCG2016))
+    save_url(GCG2016, datum)
+    lat_surfaces = []
+    for url in (DKLAT, NLLAT):
+        lat_surfaces.append(os.path.join(tmp, os.path.basename(url)))
+        save_url(url, lat_surfaces[-1])
+    lat = os.path.join(tmp, 'bsh-lat.tif')
+    gdal.Warp(
+        lat,
+        lat_surfaces,
+        dstSRS='EPSG:4326',
+        outputBounds=BSH_LAT_BOUNDS,
+        xRes=BSH_LAT_STEP,
+        yRes=BSH_LAT_STEP,
+        resampleAlg='bilinear',
+        dstNodata=BSH_LAT_NODATA,
+    )
+    separation = os.path.join(tmp, 'bsh-separation.tif')
+    lat_model.separation(datum, lat, separation)
+    emodnet = emodnet_fill('bsh', bounds, tmp)
+    earlier = [path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith('bsh_')]
+    fill = os.path.join(tmp, 'bsh-fill.vrt')
+    if earlier:
+        gdal.BuildVRT(fill, earlier, resolution='highest')
+    else:
+        fill = emodnet
+    grid = BSH_GRID
+    for s, w in grid.chunks(bounds):
+        parts = []
+        for sea in BSH_SEAS:
+            url = bsh_request(sea, grid, s, w)
+            if url:
+                parts.append(os.path.join(tmp, f'bsh-{sea}.tif'))
+                save_url(url, parts[-1], timeout=1800)
+        path = os.path.join(target, f'bsh_{s:+03d}_{w:+04d}.tif')
+        if not any(has_data(part) for part in parts):
+            if earlier:
+                # The earlier models' chunks stand as they are.
+                if os.path.exists(path):
+                    os.remove(path)
+            else:
+                lat_model.write_chunk(emodnet, None, None, grid, s, w, path, depths=False, resample='near')
+            continue
+        model = os.path.join(tmp, 'bsh.vrt')
+        gdal.BuildVRT(model, parts, srcNodata=BSH_NODATA, VRTNodata=lat_model.NODATA)
+        lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths=False, emodnet_path=emodnet)
+
+
 INFOMAR = (
     'https://gsi.geodata.gov.ie/imagehost/rest/services/Marine/IE_GSI_MI_Bathymetry_{layer}_WGS84_LAT_GRID/ImageServer'
 )
@@ -694,6 +807,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'vaklodingen':
                 fetch_vaklodingen(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'bsh':
+                fetch_bsh(fetch_bounds(region), target, tmp)
                 continue
             if dem.get('source') == 'kartverket':
                 fetch_kartverket(fetch_bounds(region), target, tmp)
