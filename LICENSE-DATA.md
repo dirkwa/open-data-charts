@@ -93,6 +93,29 @@ more, away from anything shallower) that no survey or finer model covers.
   4.0). Attribution: "NSGI, NLGEO2018 and NLLAT2018, CC BY 4.0
   (https://creativecommons.org/licenses/by/4.0/)".
 
+## BSH and BKG (Germany)
+
+- **Meeresboden-DGM**: Bundesamt für Seeschifffahrt und Hydrographie (BSH),
+  the 50 m seabed model of the German North Sea and Baltic, heights above
+  NHN, through the INSPIRE WCS `https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows`,
+  Datenlizenz Deutschland – Namensnennung – Version 2.0
+  (<https://www.govdata.de/dl-de/by-2-0>). BSH states the data is not
+  suitable for navigation. Attribution, with the change note the licence
+  asks for: "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH),
+  Meeresboden-DGM 50 m (...), Datenlizenz Deutschland – Namensnennung –
+  Version 2.0 (...); modified: moved from NHN to LAT and resampled onto the
+  chart grid; not suitable for navigation". Moved to LAT with GCG2016 and
+  DKLAT(2023). Used as the bathymetric model of the regions whose file asks
+  for it (`"dem": [..., {"source": "bsh"}]`).
+- **GCG2016**: Bundesamt für Kartographie und Geodäsie (BKG), the German
+  quasigeoid (NHN above the ellipsoid), from the PROJ data CDN, Creative
+  Commons Attribution 4.0 International (CC BY 4.0). Attribution:
+  "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0".
+- **DKLAT(2023)**: Agency for Data Supply and Infrastructure (Denmark), LAT
+  above the ellipsoid, the only LAT surface reaching German waters, from the
+  PROJ data CDN, Creative Commons Attribution 4.0 International (CC BY 4.0).
+  Attribution: "Agency for Data Supply and Infrastructure, DKLAT(2023), CC BY 4.0".
+
 ## Kartverket (Norway)
 
 Dybdedata, terrengmodell 50 m: Kartverket's seabed terrain model, depths on

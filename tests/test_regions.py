@@ -23,13 +23,15 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('shom-dem' in region['sources'] or 'shom-ird-dem' in region['sources']) == bool(shom_dems)
         # National models bring EMODnet along for the waters beyond them.
         emodnet = any(
-            dem.get('source') in ('emodnet', 'ddm', 'vaklodingen', 'kartverket') for dem in region.get('dem', [])
+            dem.get('source') in ('emodnet', 'ddm', 'vaklodingen', 'bsh', 'kartverket') for dem in region.get('dem', [])
         )
         assert ('emodnet-dtm' in region['sources']) == emodnet
         ddm = any(dem.get('source') == 'ddm' for dem in region.get('dem', []))
         assert ('ddm' in region['sources']) == ddm
         vaklodingen = any(dem.get('source') == 'vaklodingen' for dem in region.get('dem', []))
         assert ('vaklodingen' in region['sources']) == vaklodingen
+        bsh = any(dem.get('source') == 'bsh' for dem in region.get('dem', []))
+        assert ('bsh' in region['sources']) == bsh
         kartverket = any(dem.get('source') == 'kartverket' for dem in region.get('dem', []))
         assert ('kartverket' in region['sources']) == kartverket
         hr = [dem for dem in region.get('dem', []) if dem.get('source') == 'emodnet-hr']

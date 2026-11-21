@@ -20,6 +20,7 @@ the index and the docs say so.
   `{"source": "emodnet"}` for the EMODnet DTM over the region (`"microtidal": true` charts its shore cells, ports included, as unknown depth where no drying bank can be), or
   `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it and where no LAT separation reaches it, or
   `{"source": "vaklodingen"}` for Rijkswaterstaat's Dutch coastal bathymetry the same way, or
+  `{"source": "bsh"}` for BSH's seabed model of German waters, moved from NHN to LAT, on top of the region's earlier models (or EMODnet without them), or
   `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it, or
   `{"source": "infomar"}` for INFOMAR's Irish bathymetry on LAT, its 25 m and 10 m grids on top of the region's EMODnet, or
   `{"source": "icgc"}` for ICGC's 1 m topobathymetric model of the Catalan coast, mirrored in the release `icgc` and kept on mean sea level, beside the region's EMODnet), its OpenStreetMap extracts (`osm`, each a
