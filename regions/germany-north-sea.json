@@ -25,16 +25,13 @@
   ],
   "osm": [
     [
-      "https://download.geofabrik.de/europe/germany/niedersachsen-latest.osm.pbf"
+      "https://download.geofabrik.de/europe/germany/niedersachsen/niedersachsen-latest.osm.pbf"
     ],
     [
-      "https://download.geofabrik.de/europe/germany/bremen-latest.osm.pbf"
+      "https://download.geofabrik.de/europe/germany/hamburg/hamburg-latest.osm.pbf"
     ],
     [
-      "https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf"
-    ],
-    [
-      "https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf"
+      "https://download.geofabrik.de/europe/germany/schleswig-holstein/schleswig-holstein-latest.osm.pbf"
     ],
     [
       "https://download.openstreetmap.fr/extracts/europe/netherlands/groningen-latest.osm.pbf",
