@@ -662,10 +662,13 @@ def fetch_bsh(bounds, target, tmp):
                 parts.append(os.path.join(tmp, f'bsh-{sea}.tif'))
                 save_url(url, parts[-1], timeout=1800)
         path = os.path.join(target, f'bsh_{s:+03d}_{w:+04d}.tif')
-        # Elsewhere the earlier models' chunks stand as they are.
-        if earlier and not any(has_data(part) for part in parts):
-            if os.path.exists(path):
-                os.remove(path)
+        if not any(has_data(part) for part in parts):
+            if earlier:
+                # The earlier models' chunks stand as they are.
+                if os.path.exists(path):
+                    os.remove(path)
+            else:
+                lat_model.write_chunk(emodnet, None, None, grid, s, w, path, depths=False, resample='near')
             continue
         model = os.path.join(tmp, 'bsh.vrt')
         gdal.BuildVRT(model, parts, srcNodata=BSH_NODATA, VRTNodata=lat_model.NODATA)

@@ -172,6 +172,11 @@ def test_bsh_on_emodnet_alone_marks_its_gaps_unknown_and_keeps_emodnet_beyond(mo
     # A chunk without BSH data still carries EMODnet: no other model stands under it.
     east = gdal.Open(str(dem / 'bsh_+54_+008.tif')).ReadAsArray()
     assert np.allclose(east, -1.0)
+    # So does one outside both coverages, where no request is made.
+    tmp = tmp_path / 'tmp2'
+    tmp.mkdir()
+    sources.fetch_bsh((7.1, 52.1, 7.9, 52.9), str(dem), str(tmp))
+    assert np.allclose(gdal.Open(str(dem / 'bsh_+52_+007.tif')).ReadAsArray(), -1.0)
 
 
 def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch, tmp_path):
