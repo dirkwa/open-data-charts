@@ -1,6 +1,7 @@
 import io
 import json
 import shutil
+import urllib.error
 import urllib.parse
 
 import numpy as np
@@ -103,6 +104,25 @@ def test_a_linz_layer_is_asked_for_with_the_key_in_a_header_and_never_truncated(
     matched = 4
     with pytest.raises(RuntimeError, match='3 of 4'):
         sources.linz_layer('7', (174.0, -37.0, 175.0, -36.0), 'secret')
+
+
+def test_a_linz_400_is_asked_again_and_explained_when_it_stays(monkeypatch):
+    answers = []
+
+    def get(url, **_):
+        answers.append(url)
+        if len(answers) < 3:
+            raise urllib.error.HTTPError(url, 400, 'Bad Request', {}, io.BytesIO(b'<Exception>busy</Exception>'))
+        return io.BytesIO(b'{"features": []}')
+
+    monkeypatch.setattr(shom, 'get', get)
+    assert sources.linz_get('https://example.org/wfs', 'secret', wait=0) == {'features': []}
+    assert len(answers) == 3
+    answers.clear()
+    monkeypatch.setattr(sources, 'LINZ_ATTEMPTS', 2)
+    with pytest.raises(RuntimeError, match='400 Bad Request: <Exception>busy'):
+        sources.linz_get('https://example.org/wfs', 'secret', wait=0)
+    assert len(answers) == 2
 
 
 def test_chart_layers_need_the_key_and_go_when_the_region_drops_them(tmp_path, monkeypatch):
