@@ -707,7 +707,10 @@ def fetch_bsh(bounds, target, tmp):
     region's EMODnet where there are none."""
     separation = german_separation(tmp)
     emodnet = emodnet_fill('bsh', bounds, tmp)
-    earlier = [path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith('bsh_')]
+    # WSV's chunks lie over BSH's in the mosaic, never under them.
+    earlier = [
+        path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith(('bsh_', 'wsv_'))
+    ]
     fill = os.path.join(tmp, 'bsh-fill.vrt')
     if earlier:
         gdal.BuildVRT(fill, earlier, resolution='highest')
@@ -785,12 +788,17 @@ def fetch_wsv(bounds, target, tmp):
     model = wsv_model(tmp)
     w, s, e, n = raster_bounds(model)
     covered = (max(bounds[0], w), max(bounds[1], s), min(bounds[2], e), min(bounds[3], n))
-    if covered[0] >= covered[2] or covered[1] >= covered[3]:
-        return
-    separation = german_separation(tmp)
-    for s, w in WSV_GRID.chunks(covered):
-        path = os.path.join(target, f'wsv_{s:+03d}_{w:+04d}.tif')
-        lat_model.write_chunk(model, separation, None, WSV_GRID, s, w, path, depths=False, resample='max')
+    written = set()
+    if covered[0] < covered[2] and covered[1] < covered[3]:
+        separation = german_separation(tmp)
+        for s, w in WSV_GRID.chunks(covered):
+            path = os.path.join(target, f'wsv_{s:+03d}_{w:+04d}.tif')
+            if lat_model.write_chunk(model, separation, None, WSV_GRID, s, w, path, depths=False, resample='max'):
+                written.add(path)
+    # A chunk from an earlier run outside today's coverage would still reach the builder.
+    for path in glob.glob(os.path.join(target, 'wsv_*.tif')):
+        if path not in written:
+            os.remove(path)
 
 
 INFOMAR = (

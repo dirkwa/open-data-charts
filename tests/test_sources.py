@@ -248,9 +248,17 @@ def test_wsv_estuaries_go_on_lat_shoalest_first_cut_to_what_each_keeps(monkeypat
     assert at(x0 + 7500, y0 - 5000) == pytest.approx(-4.0)
     assert at(x0 + 13000, y0) == lat_model.NODATA
     assert sources.dem_grids(str(tmp_path))[-1].endswith('wsv_+54_+007.tif')
-    # A region the models do not reach gets no chunk.
+    # BSH's chunks are filled from the models below them, never from WSV's.
+    bsh_world(monkeypatch, -3.0)
+    sources.fetch_bsh((7.1, 54.1, 7.9, 54.9), str(dem), str(tmp))
+    lon, lat, _ = to_wgs84.TransformPoint(x0 + 7500, y0 - 5000)
+    assert cell(gdal.Open(str(dem / 'bsh_+54_+007.tif')).ReadAsArray(), 54, 7, lon, lat) == pytest.approx(-1.0)
+    # Where the models no longer reach, an earlier run's chunks go.
+    stale = dem / 'wsv_+52_+009.tif'
+    stale.write_bytes(b'')
+    monkeypatch.setattr(sources, 'save_url', save_url)
     sources.fetch_wsv((9.0, 52.0, 9.5, 52.5), str(dem), str(tmp))
-    assert not list(dem.glob('wsv_+52_*'))
+    assert not list(dem.glob('wsv_*'))
 
 
 def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch, tmp_path):
