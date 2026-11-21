@@ -12,6 +12,8 @@
                                   beyond it (odc.lat_model), if asked for
   dem/infomar_*.tif               INFOMAR's Irish bathymetry on LAT (CC BY 4.0), on the chart grid
                                   or a coarser one, if asked for
+  dem/icgc_*.tif                  ICGC's Catalan coastal topobathymetric model on mean sea level,
+                                  no data beyond it (odc.lat_model), if asked for
   chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
                                   per LDS layer, band 0 the smallest scale (odc.chart), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
@@ -139,6 +141,18 @@ KARTVERKET_CELL_EDGE_M = 25
 # Bilinear warping onto the chunk reads a cell or two past its edge.
 KARTVERKET_MARGIN_M = 1000
 KARTVERKET_GRID = lat_model.Grid(1 / 1920, 2)
+# ICGC's topobathymetric model of the Catalan coast, 1 m, one Cloud Optimized
+# GeoTIFF in ETRS89 UTM 31N, heights above mean sea level at Alicante, the
+# datum of Spain's levelling, negative under water (CC BY 4.0). Mean sea level
+# lies a decimetre or two above the chart datum of this microtidal coast, the
+# datum EMODnet's Mediterranean depths are on too. ICGC's server refuses
+# GitHub's runners, so the file is mirrored, cut into parts under GitHub's
+# 2 GiB asset limit, in this repository's release ICGC_RELEASE.
+ICGC_FILE = 'batimetria-v2r1-elevacions-2021-2025.tif'
+ICGC_RELEASE = 'icgc'
+ICGC_BOUNDS = (0.513995, 40.406269, 3.335166, 42.440739)
+# The chart grid, so a channel a few cells wide survives.
+ICGC_GRID = lat_model.Grid(GRID_STEP, 1)
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -328,6 +342,7 @@ def dem_grids(inputs):
     return (
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'icgc_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
@@ -613,6 +628,38 @@ def fetch_infomar(bounds, target, tmp):
             os.remove(path)
 
 
+def icgc_model(tmp):
+    """The mirrored model, its parts joined in name order and each checked against its digest."""
+    repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
+    assets = release_assets(f'https://api.github.com/repos/{repo}/releases/tags/{ICGC_RELEASE}')
+    parts = sorted(name for name in assets if name.startswith(ICGC_FILE + '.part'))
+    if not parts:
+        raise RuntimeError(f'the release {ICGC_RELEASE} has no parts of {ICGC_FILE}')
+    model = os.path.join(tmp, ICGC_FILE)
+    with open(model, 'wb') as joined:
+        for name in parts:
+            part = os.path.join(tmp, name)
+            save_square(*assets[name], part)
+            with open(part, 'rb') as fh:
+                shutil.copyfileobj(fh, joined, CHUNK)
+            os.remove(part)
+    return model
+
+
+def fetch_icgc(bounds, target, tmp):
+    """The model's shoalest value in each cell, so a shoal never reads
+    deeper than the model has it; the region's own EMODnet stands beyond it."""
+    minlon, minlat, maxlon, maxlat = ICGC_BOUNDS
+    covered = (max(bounds[0], minlon), max(bounds[1], minlat), min(bounds[2], maxlon), min(bounds[3], maxlat))
+    if covered[0] >= covered[2] or covered[1] >= covered[3]:
+        return
+    model = icgc_model(tmp)
+    for s, w in ICGC_GRID.chunks(covered):
+        path = os.path.join(target, f'icgc_{s:+03d}_{w:+04d}.tif')
+        lat_model.write_chunk(model, None, None, ICGC_GRID, s, w, path, depths=False, resample='max')
+    os.remove(model)
+
+
 def fetch_dem(region, out):
     target = os.path.join(out, 'dem')
     os.makedirs(target, exist_ok=True)
@@ -636,6 +683,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'infomar':
                 fetch_infomar(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'icgc':
+                fetch_icgc(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):

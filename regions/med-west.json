@@ -9,6 +9,7 @@
   ],
   "sources": [
     "emodnet-dtm",
+    "icgc",
     "osm",
     "openseamap",
     "copernicus"
@@ -17,6 +18,9 @@
     {
       "source": "emodnet",
       "microtidal": true
+    },
+    {
+      "source": "icgc"
     }
   ],
   "osm": [
@@ -52,6 +56,7 @@
     ]
   ],
   "attribution": [
-    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "Institut Cartogràfic i Geològic de Catalunya (ICGC), Batimetria de la costa de Catalunya v2.1, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)"
   ]
 }

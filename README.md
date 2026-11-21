@@ -60,7 +60,11 @@ are Atlantic Iberia (Galicia, Portugal and the Gulf of Cadiz to Huelva),
 the Canary Islands, Madeira and the Azores. In Portugal, Madeira and the
 Azores, the Instituto Hidrográfico's high-resolution models from EMODnet
 (surveys of ports and estuaries, and the coastal lidar, 14 to 29 m, on
-LAT) lie on top of the DTM where they reach.
+LAT) lie on top of the DTM where they reach. Along the Catalan coast, out to
+about 50 m, the western Mediterranean takes its depths from ICGC's
+topobathymetric model (lidar and multibeam, 1 m) instead, on mean sea level
+like EMODnet's Mediterranean, each chart cell keeping the model's shoalest
+value.
 Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
