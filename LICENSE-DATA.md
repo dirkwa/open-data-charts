@@ -104,15 +104,15 @@ more, away from anything shallower) that no survey or finer model covers.
   asks for: "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH),
   Meeresboden-DGM 50 m (...), Datenlizenz Deutschland – Namensnennung –
   Version 2.0 (...); modified: moved from NHN to LAT and resampled onto the
-  chart grid; not suitable for navigation". Moved to LAT with GCG2016 and
-  DKLAT(2023). Used as the bathymetric model of the regions whose file asks
+  chart grid; not suitable for navigation". Moved to LAT with GCG2016,
+  DKLAT(2023) and NLLAT2018. Used as the bathymetric model of the regions whose file asks
   for it (`"dem": [..., {"source": "bsh"}]`).
 - **GCG2016**: Bundesamt für Kartographie und Geodäsie (BKG), the German
   quasigeoid (NHN above the ellipsoid), from the PROJ data CDN, Creative
   Commons Attribution 4.0 International (CC BY 4.0). Attribution:
   "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0".
 - **DKLAT(2023)**: Agency for Data Supply and Infrastructure (Denmark), LAT
-  above the ellipsoid, the only LAT surface reaching German waters, from the
+  above the ellipsoid, which reaches German waters from 53.8 N, from the
   PROJ data CDN, Creative Commons Attribution 4.0 International (CC BY 4.0).
   Attribution: "Agency for Data Supply and Infrastructure, DKLAT(2023), CC BY 4.0".
 

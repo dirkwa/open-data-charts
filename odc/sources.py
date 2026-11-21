@@ -147,10 +147,15 @@ BSH_SEAS = {
 BSH_CELL_M = 50
 BSH_MARGIN_M = 1000
 BSH_NODATA = -99999.0
-# NHN (DHHN2016) above the ellipsoid, BKG (CC BY 4.0); LAT from DKLAT, the
-# only LAT surface reaching German waters (from 53.8 N; lat_model fills the
-# separation south of it from the nearest defined cells).
+# NHN (DHHN2016) above the ellipsoid, BKG (CC BY 4.0). No LAT surface covers
+# German waters whole: DKLAT reaches them from 53.8 N, NLLAT the Ems. Both go
+# onto DKLAT's 0.01-degree grid, extended south over NLLAT's extent, NLLAT on
+# top, and the separation is filled between them and along the East Frisian
+# coast from the nearest defined cells.
 GCG2016 = 'https://cdn.proj.org/de_bkg_gcg2016.tif'
+BSH_LAT_BOUNDS = (1.995, 49.995, 17.005, 59.505)
+BSH_LAT_STEP = 0.01
+BSH_LAT_NODATA = -32768.0
 # As fine as the vaklodingen's grid, so a chunk replacing theirs loses none of it.
 BSH_GRID = lat_model.Grid(1 / 3840, 1)
 # Kartverket's seabed terrain model, 50 m, metres above sjøkartnull in UTM 33,
@@ -622,18 +627,32 @@ def fetch_bsh(bounds, target, tmp):
     """On top of what the region's earlier models wrote, which already carry
     EMODnet beyond themselves, so the BSH chunks replace theirs whole; on the
     region's EMODnet where there are none."""
-    surfaces = []
-    for url in (GCG2016, DKLAT):
-        surfaces.append(os.path.join(tmp, os.path.basename(url)))
-        save_url(url, surfaces[-1])
+    datum = os.path.join(tmp, os.path.basename(GCG2016))
+    save_url(GCG2016, datum)
+    lat_surfaces = []
+    for url in (DKLAT, NLLAT):
+        lat_surfaces.append(os.path.join(tmp, os.path.basename(url)))
+        save_url(url, lat_surfaces[-1])
+    lat = os.path.join(tmp, 'bsh-lat.tif')
+    gdal.Warp(
+        lat,
+        lat_surfaces,
+        dstSRS='EPSG:4326',
+        outputBounds=BSH_LAT_BOUNDS,
+        xRes=BSH_LAT_STEP,
+        yRes=BSH_LAT_STEP,
+        resampleAlg='bilinear',
+        dstNodata=BSH_LAT_NODATA,
+    )
     separation = os.path.join(tmp, 'bsh-separation.tif')
-    lat_model.separation(*surfaces, separation)
+    lat_model.separation(datum, lat, separation)
+    emodnet = emodnet_fill('bsh', bounds, tmp)
     earlier = [path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith('bsh_')]
+    fill = os.path.join(tmp, 'bsh-fill.vrt')
     if earlier:
-        fill = os.path.join(tmp, 'bsh-fill.vrt')
         gdal.BuildVRT(fill, earlier, resolution='highest')
     else:
-        fill = emodnet_fill('bsh', bounds, tmp)
+        fill = emodnet
     grid = BSH_GRID
     for s, w in grid.chunks(bounds):
         parts = []
@@ -644,13 +663,13 @@ def fetch_bsh(bounds, target, tmp):
                 save_url(url, parts[-1], timeout=1800)
         path = os.path.join(target, f'bsh_{s:+03d}_{w:+04d}.tif')
         # Elsewhere the earlier models' chunks stand as they are.
-        if not any(has_data(part) for part in parts):
+        if earlier and not any(has_data(part) for part in parts):
             if os.path.exists(path):
                 os.remove(path)
             continue
         model = os.path.join(tmp, 'bsh.vrt')
         gdal.BuildVRT(model, parts, srcNodata=BSH_NODATA, VRTNodata=lat_model.NODATA)
-        lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths=False)
+        lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths=False, emodnet_path=emodnet)
 
 
 INFOMAR = (

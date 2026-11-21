@@ -142,12 +142,16 @@ def holes(model_path, grid, s, w):
     return (closed & ~covered)[pad:-pad, pad:-pad]
 
 
-def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths=True, resample='bilinear'):
+def write_chunk(
+    model_path, separation_path, fill_path, grid, s, w, path, depths=True, resample='bilinear', emodnet_path=None
+):
     """Heights above LAT (negative under water) over one chunk, the model
     where it has data and the fill (heights) elsewhere; False if neither
     reaches the chunk, and then no chunk stays at `path`. The model holds
     depths, or heights if not `depths`; without `separation_path` it is
-    already on the chart datum."""
+    already on the chart datum. A fill that is more than EMODnet (other
+    models' chunks) names EMODnet in `emodnet_path`: only where the fill is
+    EMODnet's own value can a hole in the model's coverage be unknown depth."""
     value = warp(model_path, grid, s, w, resample)
     heights = np.full(value.shape, NODATA, dtype='float32')
     if fill_path:
@@ -158,7 +162,10 @@ def write_chunk(model_path, separation_path, fill_path, grid, s, w, path, depths
         model = (value != NODATA) & (sep != NODATA)
         heights[model] = (-value[model] if depths else value[model]) + sep[model]
         heights[model & (heights > MAX_HEIGHT_M)] = NODATA
-        heights[holes(model_path, grid, s, w) & ~model & (heights > -FILL_MAX_DEPTH)] = MODEL_HOLE
+        unknown = holes(model_path, grid, s, w) & ~model & (heights > -FILL_MAX_DEPTH)
+        if emodnet_path:
+            unknown &= heights == warp(emodnet_path, grid, s, w, 'near')
+        heights[unknown] = MODEL_HOLE
     if not (heights != NODATA).any():
         # A chunk from an earlier run would still reach the builder.
         if os.path.exists(path):

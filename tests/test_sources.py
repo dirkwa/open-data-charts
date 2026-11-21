@@ -68,57 +68,110 @@ def test_a_bsh_request_covers_its_chunk_on_the_coverage_cells_and_stays_inside_i
     assert sources.bsh_request('balticsea', sources.BSH_GRID, 54, 6) is None
 
 
-def test_bsh_depths_go_on_lat_on_top_of_the_earlier_model_and_leave_its_other_chunks_alone(monkeypatch, tmp_path):
-    from osgeo import gdal, osr
+def bsh_world(monkeypatch, emodnet_height):
+    """BSH's North Sea 10 m below NHN west of 400000 E (about 7.5 E), with a
+    600 m gap around 7.3 E 54.5 N; NHN 2 m above LAT north of 53.8 N (DKLAT),
+    2.5 m south of it (NLLAT); EMODnet flat at `emodnet_height`."""
+    from osgeo import osr
 
     from odc import lat_model
 
-    def raster(path, srs, gt, values, nodata):
-        ds = gdal.GetDriverByName('GTiff').Create(path, values.shape[1], values.shape[0], 1, gdal.GDT_Float32)
-        ds.SetGeoTransform(gt)
-        ref = osr.SpatialReference()
-        ref.ImportFromEPSG(srs)
-        ds.SetProjection(ref.ExportToWkt())
-        ds.GetRasterBand(1).SetNoDataValue(nodata)
-        ds.GetRasterBand(1).WriteArray(values)
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    utm = osr.SpatialReference()
+    utm.ImportFromEPSG(25832)
+    utm.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    gap_e, gap_n, _ = osr.CoordinateTransformation(wgs84, utm).TransformPoint(7.3, 54.5)
 
     def save_url(url, path, timeout=600):
-        if url in (sources.GCG2016, sources.DKLAT):
-            height = 40.0 if url == sources.GCG2016 else 38.0
-            raster(path, 4326, (6.0, 0.01, 0, 57.0, 0, -0.01), np.full((400, 500), height, 'float32'), -9999.0)
-            return
-        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-        (e, n) = ([int(v) for v in subset[2:-1].split(',')] for subset in sorted(query['subset']))
-        cells = np.full(((n[1] - n[0]) // 50, (e[1] - e[0]) // 50), sources.BSH_NODATA, 'float32')
-        if 'northsea' in query['coverageId'][0]:
-            # German waters west of 400000 E (about 7.5 E at 54.5 N), 10 m below NHN.
-            cells[:, : max(0, (400000 - e[0]) // 50)] = -10.0
-        raster(path, 25832, (e[0], 50, 0, n[1], 0, -50), cells, sources.BSH_NODATA)
+        if url == sources.GCG2016:
+            raster(path, 4326, (6.0, 0.01, 0, 57.0, 0, -0.01), np.full((500, 500), 40.0, 'float32'), -9999.0)
+        elif url == sources.DKLAT:
+            raster(path, 4326, (6.0, 0.01, 0, 57.0, 0, -0.01), np.full((320, 500), 38.0, 'float32'), -32768.0)
+        elif url == sources.NLLAT:
+            raster(path, 4326, (6.0, 0.01, 0, 53.8, 0, -0.01), np.full((180, 500), 37.5, 'float32'), -32768.0)
+        elif url.startswith('https://ows.emodnet-bathymetry.eu/'):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            (lat, lon) = ([int(v) for v in subset.split('(')[1][:-1].split(',')] for subset in sorted(query['subset']))
+            cells = np.full(((lat[1] - lat[0]) * 960, (lon[1] - lon[0]) * 960), emodnet_height, 'float32')
+            raster(path, 4326, (lon[0], 1 / 960, 0, lat[1], 0, -1 / 960), cells, -9999.0)
+        else:
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            (e, n) = ([int(v) for v in subset[2:-1].split(',')] for subset in sorted(query['subset']))
+            cells = np.full(((n[1] - n[0]) // 50, (e[1] - e[0]) // 50), sources.BSH_NODATA, 'float32')
+            if 'northsea' in query['coverageId'][0]:
+                cells[:, : max(0, (400000 - e[0]) // 50)] = -10.0
+                row, col = int((n[1] - gap_n) // 50), int((gap_e - e[0]) // 50)
+                if 0 <= row < cells.shape[0] and 0 <= col < cells.shape[1]:
+                    cells[max(0, row - 6) : row + 6, max(0, col - 6) : col + 6] = sources.BSH_NODATA
+            raster(path, 25832, (e[0], 50, 0, n[1], 0, -50), cells, sources.BSH_NODATA)
 
     monkeypatch.setattr(sources, 'save_url', save_url)
     monkeypatch.setattr(sources, 'BSH_GRID', lat_model.Grid(1 / 240, 1))
+
+
+def raster(path, srs, gt, values, nodata):
+    from osgeo import gdal, osr
+
+    ds = gdal.GetDriverByName('GTiff').Create(path, values.shape[1], values.shape[0], 1, gdal.GDT_Float32)
+    ds.SetGeoTransform(gt)
+    ref = osr.SpatialReference()
+    ref.ImportFromEPSG(srs)
+    ds.SetProjection(ref.ExportToWkt())
+    ds.GetRasterBand(1).SetNoDataValue(nodata)
+    ds.GetRasterBand(1).WriteArray(values)
+
+
+def cell(chunk, s, w, lon, lat, step=1 / 240):
+    return chunk[int((s + 1 - lat) / step), int((lon - w) / step)]
+
+
+def test_bsh_depths_go_on_lat_on_top_of_the_earlier_model_and_leave_its_other_chunks_alone(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    bsh_world(monkeypatch, -3.0)
     dem = tmp_path / 'dem'
     dem.mkdir()
-    for w in (7, 8):
-        raster(
-            str(dem / f'ddm_+54_{w:+04d}.tif'),
-            4326,
-            (w, 1 / 240, 0, 55.0, 0, -1 / 240),
-            np.full((240, 240), -5.0, 'float32'),
-            -9999.0,
-        )
+    for s in (53, 54):
+        for w in (7, 8):
+            values = np.full((240, 240), -1.0, 'float32')
+            raster(str(dem / f'ddm_{s:+03d}_{w:+04d}.tif'), 4326, (w, 1 / 240, 0, s + 1, 0, -1 / 240), values, -9999.0)
     stale = dem / 'bsh_+54_+008.tif'
     stale.write_bytes(b'')
     tmp = tmp_path / 'tmp'
     tmp.mkdir()
-    sources.fetch_bsh((7.1, 54.1, 8.9, 54.9), str(dem), str(tmp))
-    chunk = gdal.Open(str(dem / 'bsh_+54_+007.tif')).ReadAsArray()
-    # NHN lies 2 m above LAT here: BSH's 10 m is 8 m on LAT; east of BSH's waters the earlier model stands.
-    assert np.allclose(chunk[:, :60], -8.0)
-    assert np.allclose(chunk[:, -60:], -5.0)
-    # 8-9 E has no BSH data: the earlier model's chunk stands alone.
+    sources.fetch_bsh((7.1, 53.1, 8.9, 54.9), str(dem), str(tmp))
+    north = gdal.Open(str(dem / 'bsh_+54_+007.tif')).ReadAsArray()
+    south = gdal.Open(str(dem / 'bsh_+53_+007.tif')).ReadAsArray()
+    # BSH's 10 m on LAT: 8 m where DKLAT has NHN 2 m above it, 7.5 m south of 53.8 N where NLLAT has 2.5 m.
+    assert cell(north, 54, 7, 7.2, 54.2) == pytest.approx(-8.0)
+    assert cell(south, 53, 7, 7.2, 53.4) == pytest.approx(-7.5)
+    # East of BSH's waters, and in its gap, the earlier model's depths stand.
+    assert cell(north, 54, 7, 7.9, 54.5) == pytest.approx(-1.0)
+    assert cell(north, 54, 7, 7.3, 54.5) == pytest.approx(-1.0)
+    # 8-9 E has no BSH data: the earlier model's chunks stand alone.
     assert not stale.exists()
     assert sources.dem_grids(str(tmp_path))[-1].endswith('bsh_+54_+007.tif')
+
+
+def test_bsh_on_emodnet_alone_marks_its_gaps_unknown_and_keeps_emodnet_beyond(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    from odc import build_unit
+
+    bsh_world(monkeypatch, -1.0)
+    dem = tmp_path / 'dem'
+    dem.mkdir()
+    tmp = tmp_path / 'tmp'
+    tmp.mkdir()
+    sources.fetch_bsh((7.1, 54.1, 8.9, 54.9), str(dem), str(tmp))
+    west = gdal.Open(str(dem / 'bsh_+54_+007.tif')).ReadAsArray()
+    assert cell(west, 54, 7, 7.3, 54.5) == build_unit.MODEL_HOLE
+    assert cell(west, 54, 7, 7.9, 54.5) == pytest.approx(-1.0)
+    # A chunk without BSH data still carries EMODnet: no other model stands under it.
+    east = gdal.Open(str(dem / 'bsh_+54_+008.tif')).ReadAsArray()
+    assert np.allclose(east, -1.0)
 
 
 def test_a_microtidal_shore_in_the_emodnet_dtm_is_charted_as_unknown(monkeypatch, tmp_path):
