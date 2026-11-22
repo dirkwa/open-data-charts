@@ -29,12 +29,19 @@
   ],
   "osm": [
     [
+      "https://geo2day.com/europe/germany/niedersachsen.pbf",
       "https://download.geofabrik.de/europe/germany/niedersachsen/niedersachsen-latest.osm.pbf"
     ],
     [
+      "https://geo2day.com/europe/germany/bremen.pbf",
+      "https://download.geofabrik.de/europe/germany/bremen/bremen-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/germany/hamburg.pbf",
       "https://download.geofabrik.de/europe/germany/hamburg/hamburg-latest.osm.pbf"
     ],
     [
+      "https://geo2day.com/europe/germany/schleswig_holstein.pbf",
       "https://download.geofabrik.de/europe/germany/schleswig-holstein/schleswig-holstein-latest.osm.pbf"
     ],
     [

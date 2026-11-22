@@ -29,9 +29,11 @@
       "https://download.geofabrik.de/europe/denmark-latest.osm.pbf"
     ],
     [
+      "https://geo2day.com/europe/germany/schleswig_holstein.pbf",
       "https://download.geofabrik.de/europe/germany/schleswig-holstein/schleswig-holstein-latest.osm.pbf"
     ],
     [
+      "https://geo2day.com/europe/germany/mecklenburg_vorpommern.pbf",
       "https://download.geofabrik.de/europe/germany/mecklenburg-vorpommern/mecklenburg-vorpommern-latest.osm.pbf"
     ]
   ],
