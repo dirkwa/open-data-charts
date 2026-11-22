@@ -1,0 +1,25 @@
+{
+  "id": "panama",
+  "name": "Panama",
+  "bbox": [
+    -83.1,
+    7.0,
+    -77.1,
+    9.8
+  ],
+  "sources": [
+    "allen-coral-atlas",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/central-america/panama-latest.osm.pbf",
+      "https://download.geofabrik.de/central-america/panama-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"
+  ]
+}
