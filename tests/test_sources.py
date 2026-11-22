@@ -579,3 +579,14 @@ def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(m
     assert cell(chunk, -11, 145, 145 + 30.5 * step, -10 - 60.5 * step) == pytest.approx(1.0)
     assert cell(chunk, -11, 145, 145.7, -10.3) == pytest.approx(-3.0)
     assert sources.dem_grids(str(tmp_path)) == [str(dem / 'ausseabed_-11_+145.tif')]
+
+
+def test_ausseabed_chunks_lie_on_the_chart_grid_so_one_cell_shoals_survive(tmp_path):
+    from odc import build_unit
+
+    # A chunk's origin is a whole degree: on its grid's step alone depends
+    # whether the builder takes it cell for cell or smooths a shoal away.
+    step = sources.AUSSEABED_GRID.step
+    path = str(tmp_path / 'ausseabed_-11_+145.tif')
+    raster(path, 4326, (145.0, step, 0, -10.0, 0, -step), np.full((4, 4), -10.0, 'float32'), -9999.0)
+    assert build_unit.dem_resampling(path) == 'nearest'

@@ -240,8 +240,9 @@ AUSSEABED_MODELS = (
         (139.0, -13.0, 146.0, -8.0),
     ),
 )
-# About the models' 30 m, on a step dividing the EMODnet DTM's.
-AUSSEABED_GRID = lat_model.Grid(1 / 3840, 1)
+# On the chart grid, so the builder takes the chunks cell for cell and the
+# max resampling's one-cell shoals keep their depth.
+AUSSEABED_GRID = lat_model.Grid(GRID_STEP, 1)
 # The models reach far into the Coral Sea; a chunk with nothing
 # shallower is left to ETOPO, so the region's units stay near the coast.
 AUSSEABED_DEEP_M = 300.0

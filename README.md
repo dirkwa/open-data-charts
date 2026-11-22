@@ -70,7 +70,8 @@ Guinea, takes its depths from Geoscience Australia's AusBathyTopo model of
 2023 (30 m, compiled from the Australian Hydrographic Office's multibeam,
 singlebeam and lidar surveys, research cruises and satellite-derived
 bathymetry), moved from mean sea level to LAT with AIMS' lowest predicted
-tide from the EOT20 tide model. Water deeper than 300 m is left to ETOPO.
+tide from the EOT20 tide model. Chunks with no water shallower than 300 m
+are left to ETOPO.
 Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
