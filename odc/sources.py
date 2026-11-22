@@ -11,6 +11,8 @@
   dem/bsh_*.tif                   BSH's German North Sea and Baltic seabed model on LAT, on top of
                                   what the region's earlier models wrote, EMODnet where there are
                                   none (odc.lat_model), if asked for
+  dem/wsv_*.tif                   WSV's estuary models (DGM-W) on LAT, no data beyond them, over
+                                  the region's earlier models in the mosaic (odc.lat_model), if asked for
   dem/kartverket_*.tif            Kartverket's Norwegian seabed model on sjøkartnull, EMODnet
                                   beyond it (odc.lat_model), if asked for
   dem/infomar_*.tif               INFOMAR's Irish bathymetry on LAT (CC BY 4.0), on the chart grid
@@ -162,6 +164,38 @@ BSH_LAT_STEP = 0.01
 BSH_LAT_NODATA = -32768.0
 # As fine as the vaklodingen's grid, so a chunk replacing theirs loses none of it.
 BSH_GRID = lat_model.Grid(1 / 3840, 1)
+# WSV's models of the estuaries (DGM-W), 1 to 5 m, metres above NHN in
+# ETRS89 UTM 32 (GeoNutzV), oldest first so the later lie on top. Up a tidal
+# river chart datum is set in steps of its own rather than at LAT, which the
+# LAT surfaces do not give: each model is kept (`keep`, UTM 32 metres) to the
+# estuary seaward of Emden, Bremerhaven and Cuxhaven, where they do.
+WSV_ARCHIVE = 'https://www.kuestendaten.de/media/zdm/portaltide{river}/Allgemeine_Informationen/Archiv/GIS/'
+WSV_MODELS = (
+    {
+        'url': WSV_ARCHIVE.format(river='ems') + 'DGM-W_Aussen-und_Unterems_2015_5x5m_Geotiff_ETRS89.zip',
+        'member': 'DGM-W_2015_Ems_5x5m.tif',
+        'keep': (326000, 5909000, 420000, 5965000),
+    },
+    {
+        'url': WSV_ARCHIVE.format(river='weser') + 'DGM-W_Jade_2018/DGM-W_2018_Jade_5x5m.zip',
+        'member': 'DGM-W_2018_Jade_5x5m.tif',
+    },
+    {
+        'url': WSV_ARCHIVE.format(river='weser') + 'DGM-W_2021/DGM-W_2021_Weser_Nordsee_2x2m_GeoTiff.zip',
+        'member': 'DGM-W_Weser_2021_2x2m.tif',
+        'keep': (440000, 5930000, 510000, 5982000),
+    },
+    *(
+        {
+            'url': WSV_ARCHIVE.format(river='elbe')
+            + f'DGM-W_Aussenelbe_2024_1x1m/Geotiff/DGM-W_2024_Aussenelbe_1x1m_Teil{part}.tif',
+            'keep': (440000, 5940000, 484000, 6000000),
+        }
+        for part in (1, 2, 3)
+    ),
+)
+WSV_SRS = 'EPSG:25832'
+WSV_GRID = lat_model.Grid(GRID_STEP, 1)
 # Kartverket's seabed terrain model, 50 m, metres above sjøkartnull in UTM 33,
 # 0 where it has no data (CC BY 4.0). Sjøkartnull, the datum of Norway's
 # charts and tide tables, is LAT except from the Swedish border to Utsira
@@ -397,6 +431,7 @@ def dem_grids(inputs):
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'bsh_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'wsv_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_25m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_10m_*.tif')))
@@ -640,17 +675,18 @@ def has_data(path):
     return bool((band.ReadAsArray() != band.GetNoDataValue()).any())
 
 
-def fetch_bsh(bounds, target, tmp):
-    """On top of what the region's earlier models wrote, which already carry
-    EMODnet beyond themselves, so the BSH chunks replace theirs whole; on the
-    region's EMODnet where there are none."""
+def german_separation(tmp):
+    """NHN above LAT over German waters, built once per run."""
+    separation = os.path.join(tmp, 'german-separation.tif')
+    if os.path.exists(separation):
+        return separation
     datum = os.path.join(tmp, os.path.basename(GCG2016))
     save_url(GCG2016, datum)
     lat_surfaces = []
     for url in (DKLAT, NLLAT):
         lat_surfaces.append(os.path.join(tmp, os.path.basename(url)))
         save_url(url, lat_surfaces[-1])
-    lat = os.path.join(tmp, 'bsh-lat.tif')
+    lat = os.path.join(tmp, 'german-lat.tif')
     gdal.Warp(
         lat,
         lat_surfaces,
@@ -661,10 +697,20 @@ def fetch_bsh(bounds, target, tmp):
         resampleAlg='bilinear',
         dstNodata=BSH_LAT_NODATA,
     )
-    separation = os.path.join(tmp, 'bsh-separation.tif')
     lat_model.separation(datum, lat, separation)
+    return separation
+
+
+def fetch_bsh(bounds, target, tmp):
+    """On top of what the region's earlier models wrote, which already carry
+    EMODnet beyond themselves, so the BSH chunks replace theirs whole; on the
+    region's EMODnet where there are none."""
+    separation = german_separation(tmp)
     emodnet = emodnet_fill('bsh', bounds, tmp)
-    earlier = [path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith('bsh_')]
+    # WSV's chunks lie over BSH's in the mosaic, never under them.
+    earlier = [
+        path for path in dem_grids(os.path.dirname(target)) if not os.path.basename(path).startswith(('bsh_', 'wsv_'))
+    ]
     fill = os.path.join(tmp, 'bsh-fill.vrt')
     if earlier:
         gdal.BuildVRT(fill, earlier, resolution='highest')
@@ -690,6 +736,69 @@ def fetch_bsh(bounds, target, tmp):
         model = os.path.join(tmp, 'bsh.vrt')
         gdal.BuildVRT(model, parts, srcNodata=BSH_NODATA, VRTNodata=lat_model.NODATA)
         lat_model.write_chunk(model, separation, fill, grid, s, w, path, depths=False, emodnet_path=emodnet)
+
+
+def wsv_model(tmp):
+    """The estuary models as one mosaic in UTM 32, each cut to what it keeps."""
+    layers = []
+    for i, model in enumerate(WSV_MODELS):
+        local = os.path.join(tmp, f'wsv-{i}-' + os.path.basename(model['url']))
+        save_url(model['url'], local, timeout=3600)
+        source = f'/vsizip/{local}/{model["member"]}' if 'member' in model else local
+        layers.append(os.path.join(tmp, f'wsv-{i}.vrt'))
+        ds = gdal.Open(source)
+        gt = ds.GetGeoTransform()
+        west, south, east, north = model.get('keep', (-math.inf, -math.inf, math.inf, math.inf))
+        # Not every file names its reference system.
+        gdal.Translate(
+            layers[-1],
+            ds,
+            format='VRT',
+            outputSRS=WSV_SRS,
+            projWin=(
+                max(west, gt[0]),
+                min(north, gt[3]),
+                min(east, gt[0] + gt[1] * ds.RasterXSize),
+                max(south, gt[3] + gt[5] * ds.RasterYSize),
+            ),
+        )
+    mosaic = os.path.join(tmp, 'wsv.vrt')
+    gdal.BuildVRT(mosaic, layers, resolution='highest', VRTNodata=lat_model.NODATA)
+    return mosaic
+
+
+def raster_bounds(path):
+    """A raster's extent in WGS84."""
+    ds = gdal.Open(path)
+    gt = ds.GetGeoTransform()
+    source = osr.SpatialReference(wkt=ds.GetProjection())
+    source.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    wgs84 = osr.SpatialReference()
+    wgs84.ImportFromEPSG(4326)
+    wgs84.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    return osr.CoordinateTransformation(source, wgs84).TransformBounds(
+        gt[0], gt[3] + gt[5] * ds.RasterYSize, gt[0] + gt[1] * ds.RasterXSize, gt[3], 21
+    )
+
+
+def fetch_wsv(bounds, target, tmp):
+    """The estuary models' shoalest value in each chart cell, on LAT, and no
+    data beyond them: the mosaic lays them over the region's earlier models,
+    which a copy onto the finer chart grid would turn blocky."""
+    model = wsv_model(tmp)
+    w, s, e, n = raster_bounds(model)
+    covered = (max(bounds[0], w), max(bounds[1], s), min(bounds[2], e), min(bounds[3], n))
+    written = set()
+    if covered[0] < covered[2] and covered[1] < covered[3]:
+        separation = german_separation(tmp)
+        for s, w in WSV_GRID.chunks(covered):
+            path = os.path.join(target, f'wsv_{s:+03d}_{w:+04d}.tif')
+            if lat_model.write_chunk(model, separation, None, WSV_GRID, s, w, path, depths=False, resample='max'):
+                written.add(path)
+    # A chunk from an earlier run outside today's coverage would still reach the builder.
+    for path in glob.glob(os.path.join(target, 'wsv_*.tif')):
+        if path not in written:
+            os.remove(path)
 
 
 INFOMAR = (
@@ -827,6 +936,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'bsh':
                 fetch_bsh(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'wsv':
+                fetch_wsv(fetch_bounds(region), target, tmp)
                 continue
             if dem.get('source') == 'kartverket':
                 fetch_kartverket(fetch_bounds(region), target, tmp)
