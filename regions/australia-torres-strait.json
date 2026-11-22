@@ -1,0 +1,38 @@
+{
+  "id": "australia-torres-strait",
+  "name": "Torres Strait",
+  "bbox": [
+    141.5,
+    -11.0,
+    144.5,
+    -9.0
+  ],
+  "sources": [
+    "ausseabed",
+    "allen-coral-atlas",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "ausseabed"
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/australia/queensland-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/papua_new_guinea-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/papua-new-guinea-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Australian Hydrographic Office, Geoscience Australia: © Commonwealth of Australia 2023, AusBathyTopo (Torres Strait) 30m 2023 (https://data.gov.au/data/dataset/16cc06d1-1962-477c-b738-8b4b5dcfcc8e), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
+    "AIMS, Tidal Statistics for Australia derived from the EOT20 tidal model (NESP MaC 3.17), doi:10.26274/z8b6-zx94, CC BY 4.0",
+    "Hart-Davis et al. (2021), EOT20 – A global Empirical Ocean Tide model from multi-mission satellite altimetry, SEANOE, doi:10.17882/79489, CC BY 4.0",
+    "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"
+  ]
+}

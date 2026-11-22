@@ -517,3 +517,76 @@ def test_the_mirrored_catalan_model_is_joined_from_its_checked_parts(monkeypatch
 def test_a_region_away_from_catalonia_fetches_no_catalan_model(monkeypatch, tmp_path):
     monkeypatch.setattr(sources, 'icgc_model', lambda tmp: pytest.fail('fetched'))
     sources.fetch_icgc((10.0, 40.0, 12.0, 42.0), str(tmp_path), str(tmp_path))
+
+
+def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(monkeypatch, tmp_path):
+    import zipfile
+
+    from osgeo import gdal
+
+    from odc import lat_model
+
+    step = 1 / 240
+    asked = []
+
+    def save_url(url, path, timeout=600):
+        asked.append(url)
+        if url == sources.AUSSEABED + 'one.zip':
+            # 20 m below mean sea level with a 1 m shoal from 10 to 11 S, 1000 m below it further south.
+            cells = np.full((480, 240), -20.0, 'float32')
+            cells[60, 30] = -1.0
+            cells[240:] = -1000.0
+            raster(str(tmp_path / 'old.tif'), 4326, (145, step, 0, -10, 0, -step), cells, -9999.0)
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.write(tmp_path / 'old.tif', 'old.tif')
+        elif url == sources.AUSSEABED + 'two.zip':
+            cells = np.full((120, 120), -5.0, 'float32')
+            raster(str(tmp_path / 'new.tif'), 4326, (145.5, step, 0, -10, 0, -step), cells, -9999.0)
+            with zipfile.ZipFile(path, 'w') as archive:
+                archive.write(tmp_path / 'new.tif', 'new.tif')
+        elif url == sources.AUSSEABED_LPT:
+            # Lowest tide 2 m below mean sea level, undefined over a strip of coast.
+            lpt = np.full((320, 320), -2.0, 'float32')
+            lpt[150:170, 150:170] = np.nan
+            raster(path, 4326, (140, 1 / 32, 0, -5, 0, -1 / 32), lpt, np.nan)
+        else:
+            raise AssertionError(url)
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    monkeypatch.setattr(
+        sources,
+        'AUSSEABED_MODELS',
+        (
+            ('one.zip', 'old.tif', (145.0, -12.0, 146.0, -10.0)),
+            ('two.zip', 'new.tif', (145.5, -10.5, 146.0, -10.0)),
+            ('far.zip', 'far.tif', (121.0, -18.0, 124.0, -8.0)),
+        ),
+    )
+    monkeypatch.setattr(sources, 'AUSSEABED_GRID', lat_model.Grid(step, 1))
+    dem = tmp_path / 'dem'
+    dem.mkdir()
+    stale = dem / 'ausseabed_-20_+150.tif'
+    stale.write_bytes(b'')
+    tmp = tmp_path / 'tmp'
+    tmp.mkdir()
+    sources.fetch_ausseabed((144.5, -12.5, 146.5, -9.5), str(dem), str(tmp))
+    assert sources.AUSSEABED + 'far.zip' not in asked
+    assert sorted(p.name for p in dem.iterdir()) == ['ausseabed_-11_+145.tif']
+    chunk = gdal.Open(str(dem / 'ausseabed_-11_+145.tif')).ReadAsArray()
+    assert cell(chunk, -11, 145, 145.2, -10.6) == pytest.approx(-18.0)
+    # Where the tide model leaves the coast undefined, the nearest lowest tide stands.
+    assert cell(chunk, -11, 145, 145.1, -10.1) == pytest.approx(-18.0)
+    assert cell(chunk, -11, 145, 145 + 30.5 * step, -10 - 60.5 * step) == pytest.approx(1.0)
+    assert cell(chunk, -11, 145, 145.7, -10.3) == pytest.approx(-3.0)
+    assert sources.dem_grids(str(tmp_path)) == [str(dem / 'ausseabed_-11_+145.tif')]
+
+
+def test_ausseabed_chunks_lie_on_the_chart_grid_so_one_cell_shoals_survive(tmp_path):
+    from odc import build_unit
+
+    # A chunk's origin is a whole degree: on its grid's step alone depends
+    # whether the builder takes it cell for cell or smooths a shoal away.
+    step = sources.AUSSEABED_GRID.step
+    path = str(tmp_path / 'ausseabed_-11_+145.tif')
+    raster(path, 4326, (145.0, step, 0, -10.0, 0, -step), np.full((4, 4), -10.0, 'float32'), -9999.0)
+    assert build_unit.dem_resampling(path) == 'nearest'

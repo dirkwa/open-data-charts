@@ -19,6 +19,8 @@
                                   or a coarser one, if asked for
   dem/icgc_*.tif                  ICGC's Catalan coastal topobathymetric model on mean sea level,
                                   no data beyond it (odc.lat_model), if asked for
+  dem/ausseabed_*.tif             Geoscience Australia's AusBathyTopo model on LAT (CC BY 4.0), no
+                                  data beyond them nor in deep water (odc.lat_model), if asked for
   chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
                                   per LDS layer, band 0 the smallest scale (odc.chart), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
@@ -224,6 +226,35 @@ ICGC_RELEASE = 'icgc'
 ICGC_BOUNDS = (0.513995, 40.406269, 3.335166, 42.440739)
 # The chart grid, so a channel a few cells wide survives.
 ICGC_GRID = lat_model.Grid(GRID_STEP, 1)
+# Geoscience Australia's AusBathyTopo models, 30 m, one Cloud Optimized
+# GeoTIFF per tile in WGS84, heights above approximate mean sea level,
+# negative under water (CC BY 4.0, with the Australian Hydrographic Office's
+# surveys in them under the same licence). Each zip is downloaded whole and
+# read in place, the later tile on top where tiles overlap. A tile names the
+# extent it reaches, so a region downloads only the zips it needs.
+AUSSEABED = 'https://files.ausseabed.gov.au/survey/'
+AUSSEABED_MODELS = (
+    (
+        'Australian%20Bathymetry%20Topography%20(Torres%20Strait)%202023%2030m.zip',
+        'Australian_Bathymetry_Topography__Torres_Strait__2023_30m_MSL_cog.tif',
+        (139.0, -13.0, 146.0, -8.0),
+    ),
+)
+# On the chart grid, so the builder takes the chunks cell for cell and the
+# max resampling's one-cell shoals keep their depth.
+AUSSEABED_GRID = lat_model.Grid(GRID_STEP, 1)
+# The models reach far into the Coral Sea; a chunk with nothing
+# shallower is left to ETOPO, so the region's units stay near the coast.
+AUSSEABED_DEEP_M = 300.0
+# AIMS' Lowest Predicted Tide over 2021 to 2025 from the EOT20 tide model,
+# metres below mean sea level on a 1/32-degree grid, NaN over land (CC BY
+# 4.0): LAT for Australian waters. Cells along the coast are filled from the
+# nearest defined ones within AUSSEABED_SEPARATION_FILL_CELLS.
+AUSSEABED_LPT = (
+    'https://nextcloud.eatlas.org.au/public.php/dav/files/8CTMtLc6QFaYmqb/out/'
+    'AU_AIMS_EOT20-tide-stats_LPT_2021-01-2025-12.tif'
+)
+AUSSEABED_SEPARATION_FILL_CELLS = 16
 ARCGIS_PAGE = 1000
 ACA_WFS = (
     'https://allencoralatlas.org/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature'
@@ -428,6 +459,7 @@ def dem_grids(inputs):
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'icgc_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'ausseabed_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'vaklodingen_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'bsh_*.tif')))
@@ -801,6 +833,75 @@ def fetch_wsv(bounds, target, tmp):
             os.remove(path)
 
 
+def ausseabed_separation(tmp):
+    """Mean sea level above LAT over Australian waters."""
+    lpt = os.path.join(tmp, 'ausseabed-lpt.tif')
+    save_url(AUSSEABED_LPT, lpt)
+    source = gdal.Open(lpt)
+    below = -source.GetRasterBand(1).ReadAsArray().astype('float32')
+    sep = np.where(np.isnan(below), lat_model.NODATA, np.maximum(below, lat_model.MIN_SEPARATION_M))
+    path = os.path.join(tmp, 'ausseabed-separation.tif')
+    out = gdal.GetDriverByName('GTiff').Create(path, source.RasterXSize, source.RasterYSize, 1, gdal.GDT_Float32)
+    out.SetGeoTransform(source.GetGeoTransform())
+    out.SetProjection(lat_model.wgs84())
+    band = out.GetRasterBand(1)
+    band.SetNoDataValue(lat_model.NODATA)
+    band.WriteArray(sep.astype('float32'))
+    gdal.FillNodata(
+        targetBand=band,
+        maskBand=None,
+        maxSearchDist=AUSSEABED_SEPARATION_FILL_CELLS,
+        smoothingIterations=0,
+        options=['TEMP_FILE_DRIVER=MEM'],
+    )
+    out = source = None
+    return path
+
+
+def overlaps(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def ausseabed_model(bounds, tmp):
+    """The tiles reaching `bounds` as one mosaic, or None."""
+    tiles = [(archive, member) for archive, member, extent in AUSSEABED_MODELS if overlaps(extent, bounds)]
+    if not tiles:
+        return None
+    layers = []
+    for archive in dict.fromkeys(archive for archive, _ in tiles):
+        local = os.path.join(tmp, urllib.parse.unquote(archive))
+        save_url(AUSSEABED + archive, local, timeout=3600)
+    for archive, member in tiles:
+        layers.append(f'/vsizip/{os.path.join(tmp, urllib.parse.unquote(archive))}/{member}')
+    mosaic = os.path.join(tmp, 'ausseabed.vrt')
+    gdal.BuildVRT(mosaic, layers, resolution='highest', VRTNodata=lat_model.NODATA)
+    return mosaic
+
+
+def fetch_ausseabed(bounds, target, tmp):
+    """The models' shoalest value in each cell, on LAT, where a chunk reaches
+    water shallower than AUSSEABED_DEEP_M."""
+    model = ausseabed_model(bounds, tmp)
+    written = set()
+    if model:
+        separation = ausseabed_separation(tmp)
+        w, s, e, n = raster_bounds(model)
+        covered = (max(bounds[0], w), max(bounds[1], s), min(bounds[2], e), min(bounds[3], n))
+        for s, w in AUSSEABED_GRID.chunks(covered):
+            path = os.path.join(target, f'ausseabed_{s:+03d}_{w:+04d}.tif')
+            if not lat_model.write_chunk(
+                model, separation, None, AUSSEABED_GRID, s, w, path, depths=False, resample='max'
+            ):
+                continue
+            heights = gdal.Open(path).ReadAsArray()
+            if (heights[heights != lat_model.NODATA] > -AUSSEABED_DEEP_M).any():
+                written.add(path)
+    # Deep chunks, and chunks from an earlier run outside today's coverage, would still reach the builder.
+    for path in glob.glob(os.path.join(target, 'ausseabed_*.tif')):
+        if path not in written:
+            os.remove(path)
+
+
 INFOMAR = (
     'https://gsi.geodata.gov.ie/imagehost/rest/services/Marine/IE_GSI_MI_Bathymetry_{layer}_WGS84_LAT_GRID/ImageServer'
 )
@@ -948,6 +1049,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'icgc':
                 fetch_icgc(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'ausseabed':
+                fetch_ausseabed(fetch_bounds(region), target, tmp)
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):
