@@ -46,6 +46,8 @@ def test_every_region_names_its_extracts_and_dems():
         assert not infomar or emodnet
         icgc = any(dem.get('source') == 'icgc' for dem in region.get('dem', []))
         assert ('icgc' in region['sources']) == icgc
+        ausseabed = any(dem.get('source') == 'ausseabed' for dem in region.get('dem', []))
+        assert ('ausseabed' in region['sources']) == ausseabed
 
 
 def test_no_unit_belongs_to_two_regions():

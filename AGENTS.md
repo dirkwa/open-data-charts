@@ -24,7 +24,8 @@ the index and the docs say so.
   `{"source": "wsv"}` for WSV's 1 to 5 m models of the Ems, Jade, Weser and Elbe estuaries (DGM-W), cut to where LAT is the chart datum and moved there the same way, no data beyond them so the mosaic lays them over the region's other models, or
   `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it, or
   `{"source": "infomar"}` for INFOMAR's Irish bathymetry on LAT, its 25 m and 10 m grids on top of the region's EMODnet, or
-  `{"source": "icgc"}` for ICGC's 1 m topobathymetric model of the Catalan coast, mirrored in the release `icgc` and kept on mean sea level, beside the region's EMODnet), its OpenStreetMap extracts (`osm`, each a
+  `{"source": "icgc"}` for ICGC's 1 m topobathymetric model of the Catalan coast, mirrored in the release `icgc` and kept on mean sea level, beside the region's EMODnet, or
+  `{"source": "ausseabed"}` for Geoscience Australia's 30 m AusBathyTopo model of the Torres Strait, moved from mean sea level to LAT with AIMS' lowest predicted tide, only where they reach water shallower than 300 m), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built

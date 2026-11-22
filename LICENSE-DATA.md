@@ -194,6 +194,31 @@ Catalunya (ICGC), Batimetria de la costa de Catalunya v2.1, CC BY 4.0
 (https://creativecommons.org/licenses/by/4.0/)". Used as the bathymetric
 model of the regions whose file asks for it (`"dem": [{"source": "icgc"}]`).
 
+## Geoscience Australia and AIMS (Australia)
+
+- **AusBathyTopo (Torres Strait) 30m 2023**: Geoscience Australia's depth
+  model of the Torres Strait, heights above approximate mean sea level,
+  with the Australian Hydrographic Office's surveys in it, from
+  `https://files.ausseabed.gov.au/survey/`, Creative Commons Attribution 4.0
+  International (CC BY 4.0), "not to be used for navigation". Attribution,
+  with a change note: "Australian Hydrographic Office, Geoscience
+  Australia: © Commonwealth of Australia 2023, AusBathyTopo (Torres Strait)
+  30m 2023 (...), CC BY 4.0 (...); modified: moved from mean sea level to
+  LAT and resampled onto the chart grid; not to be used for navigation".
+  Used as the bathymetric model of the regions whose file asks for it
+  (`"dem": [{"source": "ausseabed"}]`), only where it reaches water
+  shallower than 300 m.
+- **Tidal statistics for Australia**: the Australian Institute of Marine
+  Science's Lowest Predicted Tide over 2021 to 2025 from the EOT20 tide
+  model, standing for LAT, published on eAtlas
+  (doi:10.26274/z8b6-zx94), CC BY 4.0. EOT20 (Hart-Davis et al. 2021,
+  SEANOE, doi:10.17882/79489) is CC BY 4.0 too. Attribution: "AIMS, Tidal
+  Statistics for Australia derived from the EOT20 tidal model (NESP MaC
+  3.17), doi:10.26274/z8b6-zx94, CC BY 4.0" and "Hart-Davis et al. (2021),
+  EOT20 – A global Empirical Ocean Tide model from multi-mission satellite
+  altimetry, SEANOE, doi:10.17882/79489, CC BY 4.0". Used to move
+  AusBathyTopo to LAT.
+
 ## OpenStreetMap
 
 © OpenStreetMap contributors, Open Database License (ODbL) 1.0

@@ -65,6 +65,12 @@ about 50 m, the western Mediterranean takes its depths from ICGC's
 topobathymetric model (lidar and multibeam, 1 m) instead, on mean sea level
 like EMODnet's Mediterranean, each chart cell keeping the model's shoalest
 value.
+The Torres Strait, from the tip of Cape York to the coast of Papua New
+Guinea, takes its depths from Geoscience Australia's AusBathyTopo model of
+2023 (30 m, compiled from the Australian Hydrographic Office's multibeam,
+singlebeam and lidar surveys, research cruises and satellite-derived
+bathymetry), moved from mean sea level to LAT with AIMS' lowest predicted
+tide from the EOT20 tide model. Water deeper than 300 m is left to ETOPO.
 Outside Shom's waters, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
