@@ -24,6 +24,7 @@ from odc.build_unit import (  # noqa: E402
     model_soundings,
     prepare_dem,
     sounding_squares,
+    submerge_reefs,
     thin_soundings,
     window_edges,
 )
@@ -541,3 +542,25 @@ def test_a_one_cell_shoal_on_the_chart_grid_keeps_its_depth(tmp_path):
     model = gdal.Open(str(tmp_path / 'dem_grid.tif')).ReadAsArray()
     assert model[nrows // 2, ncols // 2] == -1.0
     assert (model == heights).all()
+
+
+def test_a_reef_flat_is_charted_under_water_where_the_depths_show_water():
+    flat = ogr.CreateGeometryFromJson(json.dumps(square(166.38, -22.26, 0.002)))
+    reefs = [
+        (flat, {'WATLEV': '4', 'NATSUR': '14', 'INFORM': 'reef flat'}, None),
+        (flat.Clone(), {'WATLEV': '3', 'INFORM': 'patch reef'}, None),
+    ]
+
+    def depth_area(x, drval1, **attrs):
+        ring = [[x, -22.26], [x + 0.001, -22.26], [x + 0.001, -22.258], [x, -22.258], [x, -22.26]]
+        geom = ogr.CreateGeometryFromJson(json.dumps({'type': 'Polygon', 'coordinates': [ring]}))
+        return (geom, {'DRVAL1': drval1, **attrs}, None)
+
+    depare = [
+        depth_area(166.38, 0.0),  # shallow water over the reef's western half stays drying
+        depth_area(166.381, 2.0),
+        depth_area(166.381, 2.0, INFORM='satellite'),
+    ]
+    out = sorted((a['INFORM'], a['WATLEV'], round(g.GetArea() * 1e6, 3)) for g, a, _ in submerge_reefs(reefs, depare))
+    assert out == [('patch reef', '3', 4.0), ('reef flat', '3', 2.0), ('reef flat', '4', 2.0)]
+    assert submerge_reefs(reefs[:1], depare[:1]) == reefs[:1]
