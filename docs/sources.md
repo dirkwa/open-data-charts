@@ -18,7 +18,10 @@ astronomical tide; the tide there ranges over a few tens of centimetres.
 New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and
 coastal structures, and the tropical regions the Allen Coral Atlas's reef
 map, which charts reef flats, crests and shallow lagoons where no finer reef
-map has them. In the units charted for their land or model, water that the
+map has them. Both are traced from satellite images, so their outlines are
+approximate: a reef flat is charted as covering and uncovering except where
+a survey or model shows 2 m of water or more over it, which is charted as a
+reef always under water. In the units charted for their land or model, water that the
 atlas's satellite-derived bathymetry covers and no survey or model does is
 charted in coarse depth bands (0-2, 2-5 and over 5 m) without soundings or
 contours. The bands are set shallower than the satellite reads: against

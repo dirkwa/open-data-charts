@@ -1238,6 +1238,38 @@ def reef_item(part, watlev, inform):
     return (part, {'WATLEV': watlev, 'NATSUR': NATSUR_CORAL, 'INFORM': inform}, None)
 
 
+# A reef flat mapped from satellite imagery is charted as drying only where
+# the depths do not show water at least this deep: its outline is
+# approximate, and a survey or model sees the water over it.
+REEF_UNDER_WATER_M = 2.0
+
+
+def submerge_reefs(reefs, depare):
+    """Reef areas charted as covers and uncovers, always under water (WATLEV 3)
+    where a depth area from the surveys or models holds REEF_UNDER_WATER_M or
+    more. Satellite depth bands (with INFORM) do not count."""
+    wet = [
+        (geom, geom.GetEnvelope())
+        for geom, attrs, *_ in depare
+        if 'INFORM' not in attrs and attrs.get('DRVAL1', -1) >= REEF_UNDER_WATER_M
+    ]
+    out = []
+    for geom, attrs, extra in reefs:
+        if attrs.get('WATLEV') != '4' or geom.GetDimension() != 2:
+            out.append((geom, attrs, extra))
+            continue
+        under = multipolygon([geom.Intersection(part) for part in overlapping(wet, geom)]).UnionCascaded()
+        if under is None or under.IsEmpty():
+            out.append((geom, attrs, extra))
+            continue
+        # No area filter on the pieces: an area depends on how the build box clipped
+        # them, and a location must be charted alike in every unit that sees it.
+        dry = geom.Difference(under).MakeValid()
+        out += [(p, {**attrs, 'WATLEV': '4'}, extra) for p in polygon_parts(dry)]
+        out += [(p, {**attrs, 'WATLEV': '3'}, extra) for p in polygon_parts(under.MakeValid())]
+    return out
+
+
 REEF_MATCH_DEG = 0.0005  # ~50 m: an OSM outline this close to a mapped reef is that reef
 
 
@@ -1741,7 +1773,7 @@ def main():
         step('Reefs')
         land_index = tiled_parts(land, args.bbox)
         reefs = build_reefs(args.nc_reefs, args.aca_reefs, osm_reefs, land_index, bbox_geom)
-        layers.setdefault('OBSTRN', []).extend(reefs)
+        layers.setdefault('OBSTRN', []).extend(submerge_reefs(reefs, layers.get('DEPARE', [])))
     if osm_items:
         step('Buildings near the sea')
         layers.setdefault('BUISGL', []).extend(osm_buildings(osm_items, land_cells, args.bbox))
