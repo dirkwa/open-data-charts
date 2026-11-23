@@ -233,7 +233,48 @@ ICGC_GRID = lat_model.Grid(GRID_STEP, 1)
 # read in place, the later tile on top where tiles overlap. A tile names the
 # extent it reaches, so a region downloads only the zips it needs.
 AUSSEABED = 'https://files.ausseabed.gov.au/survey/'
+# The newer Torres Strait model last, over the Great Barrier Reef one.
 AUSSEABED_MODELS = (
+    (
+        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        'Great_Barrier_Reef_A_2020_30m_MSL_cog.tif',
+        (142.0, -17.0, 147.0, -10.0),
+    ),
+    (
+        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        'Great_Barrier_Reef_B_2020_30m_MSL_cog.tif',
+        (144.0, -23.0, 149.0, -16.0),
+    ),
+    (
+        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        'Great_Barrier_Reef_C_2020_30m_MSL_cog.tif',
+        (148.0, -24.0, 154.0, -18.0),
+    ),
+    (
+        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        'Great_Barrier_Reef_D_2020_30m_MSL_cog.tif',
+        (150.0, -29.0, 156.0, -23.0),
+    ),
+    (
+        'North%20Australia%20Bathymetry%202018%2030m.zip',
+        'North_Australia_Bathymetry_A_2018_30m_cog.tif',
+        (121.0, -18.0, 124.0, -8.0),
+    ),
+    (
+        'North%20Australia%20Bathymetry%202018%2030m.zip',
+        'North_Australia_Bathymetry_B_2018_30m_cog.tif',
+        (123.0, -17.0, 127.0, -8.0),
+    ),
+    (
+        'North%20Australia%20Bathymetry%202018%2030m.zip',
+        'North_Australia_Bathymetry_C_2018_30m_cog.tif',
+        (126.0, -16.0, 130.0, -8.0),
+    ),
+    (
+        'North%20Australia%20Bathymetry%202018%2030m.zip',
+        'North_Australia_Bathymetry_D_2018_30m_cog.tif',
+        (129.0, -16.0, 133.0, -8.0),
+    ),
     (
         'Australian%20Bathymetry%20Topography%20(Torres%20Strait)%202023%2030m.zip',
         'Australian_Bathymetry_Topography__Torres_Strait__2023_30m_MSL_cog.tif',
@@ -283,6 +324,16 @@ def save_url(url, path, timeout=600):
     with shom.get(url, timeout=timeout) as response, open(path + '.part', 'wb') as fh:
         shutil.copyfileobj(response, fh, CHUNK)
     os.replace(path + '.part', path)
+
+
+def remote_size(url):
+    with shom.get(url, headers={'Range': 'bytes=0-0'}) as response:
+        return int(response.headers['Content-Range'].rsplit('/', 1)[1])
+
+
+def save_large(url, path):
+    """A download of gigabytes in ranges, each asked again on its own if the connection drops."""
+    shom.download(url, path, remote_size(url))
 
 
 def wfs_layers():
@@ -870,7 +921,7 @@ def ausseabed_model(bounds, tmp):
     layers = []
     for archive in dict.fromkeys(archive for archive, _ in tiles):
         local = os.path.join(tmp, urllib.parse.unquote(archive))
-        save_url(AUSSEABED + archive, local, timeout=3600)
+        save_large(AUSSEABED + archive, local)
     for archive, member in tiles:
         layers.append(f'/vsizip/{os.path.join(tmp, urllib.parse.unquote(archive))}/{member}')
     mosaic = os.path.join(tmp, 'ausseabed.vrt')
