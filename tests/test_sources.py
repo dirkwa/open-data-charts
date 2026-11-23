@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import shutil
 import urllib.error
 import urllib.parse
@@ -520,8 +521,6 @@ def test_a_region_away_from_catalonia_fetches_no_catalan_model(monkeypatch, tmp_
 
 
 def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(monkeypatch, tmp_path):
-    import zipfile
-
     from osgeo import gdal
 
     from odc import lat_model
@@ -529,38 +528,37 @@ def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(m
     step = 1 / 240
     asked = []
 
-    def save_url(url, path, timeout=600):
+    def save_zip_members(url, members, folder):
         asked.append(url)
-        if url == sources.AUSSEABED + 'one.zip':
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, members[0])
+        if url == 'one.zip':
             # 20 m below mean sea level with a 1 m shoal from 10 to 11 S, 1000 m below it further south.
             cells = np.full((480, 240), -20.0, 'float32')
             cells[60, 30] = -1.0
             cells[240:] = -1000.0
-            raster(str(tmp_path / 'old.tif'), 4326, (145, step, 0, -10, 0, -step), cells, -9999.0)
-            with zipfile.ZipFile(path, 'w') as archive:
-                archive.write(tmp_path / 'old.tif', 'old.tif')
-        elif url == sources.AUSSEABED + 'two.zip':
-            cells = np.full((120, 120), -5.0, 'float32')
-            raster(str(tmp_path / 'new.tif'), 4326, (145.5, step, 0, -10, 0, -step), cells, -9999.0)
-            with zipfile.ZipFile(path, 'w') as archive:
-                archive.write(tmp_path / 'new.tif', 'new.tif')
-        elif url == sources.AUSSEABED_LPT:
-            # Lowest tide 2 m below mean sea level, undefined over a strip of coast.
-            lpt = np.full((320, 320), -2.0, 'float32')
-            lpt[150:170, 150:170] = np.nan
-            raster(path, 4326, (140, 1 / 32, 0, -5, 0, -1 / 32), lpt, np.nan)
+            raster(path, 4326, (145, step, 0, -10, 0, -step), cells, -9999.0)
+        elif url == 'two.zip':
+            raster(path, 4326, (145.5, step, 0, -10, 0, -step), np.full((120, 120), -5.0, 'float32'), -9999.0)
         else:
             raise AssertionError(url)
 
+    def save_url(url, path, timeout=600):
+        assert url == sources.AUSSEABED_LPT
+        # Lowest tide 2 m below mean sea level, undefined over a strip of coast.
+        lpt = np.full((320, 320), -2.0, 'float32')
+        lpt[150:170, 150:170] = np.nan
+        raster(path, 4326, (140, 1 / 32, 0, -5, 0, -1 / 32), lpt, np.nan)
+
     monkeypatch.setattr(sources, 'save_url', save_url)
-    monkeypatch.setattr(sources, 'save_large', save_url)
+    monkeypatch.setattr(sources, 'save_zip_members', save_zip_members)
     monkeypatch.setattr(
         sources,
         'AUSSEABED_MODELS',
         (
-            ('one.zip', 'old.tif', (145.0, -12.0, 146.0, -10.0)),
-            ('two.zip', 'new.tif', (145.5, -10.5, 146.0, -10.0)),
-            ('far.zip', 'far.tif', (121.0, -18.0, 124.0, -8.0)),
+            ('one.zip', ('old.tif',), (145.0, -12.0, 146.0, -10.0)),
+            ('two.zip', ('new.tif',), (145.5, -10.5, 146.0, -10.0)),
+            ('far.zip', ('far.tif',), (121.0, -18.0, 124.0, -8.0)),
         ),
     )
     monkeypatch.setattr(sources, 'AUSSEABED_GRID', lat_model.Grid(step, 1))
@@ -571,7 +569,7 @@ def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(m
     tmp = tmp_path / 'tmp'
     tmp.mkdir()
     sources.fetch_ausseabed((144.5, -12.5, 146.5, -9.5), str(dem), str(tmp))
-    assert sources.AUSSEABED + 'far.zip' not in asked
+    assert asked == ['one.zip', 'two.zip']
     assert sorted(p.name for p in dem.iterdir()) == ['ausseabed_-11_+145.tif']
     chunk = gdal.Open(str(dem / 'ausseabed_-11_+145.tif')).ReadAsArray()
     assert cell(chunk, -11, 145, 145.2, -10.6) == pytest.approx(-18.0)
@@ -580,6 +578,73 @@ def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(m
     assert cell(chunk, -11, 145, 145 + 30.5 * step, -10 - 60.5 * step) == pytest.approx(1.0)
     assert cell(chunk, -11, 145, 145.7, -10.3) == pytest.approx(-3.0)
     assert sources.dem_grids(str(tmp_path)) == [str(dem / 'ausseabed_-11_+145.tif')]
+
+
+def test_a_projected_ausseabed_model_lies_on_the_national_one_by_its_shoalest_sample(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    from odc.grid import GRID_STEP
+
+    def save_zip_members(url, members, folder):
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, members[0])
+        if url == 'national.zip':
+            raster(path, 4326, (150.0, 0.01, 0, -33.0, 0, -0.01), np.full((100, 100), -40.0, 'float32'), -9999.0)
+        else:
+            # 5 m cells in UTM zone 56 south, 12 m deep with one 2 m shoal.
+            cells = np.full((400, 400), -12.0, 'float32')
+            cells[200, 200] = -2.0
+            raster(path, 32756, (288000, 5, 0, 6255000, 0, -5), cells, -9999.0)
+
+    monkeypatch.setattr(sources, 'save_zip_members', save_zip_members)
+    extent = (150.0, -34.0, 151.0, -33.0)
+    monkeypatch.setattr(sources, 'AUSSEABED_NATIONAL', ('national.zip', ('national.tif',), extent))
+    monkeypatch.setattr(sources, 'AUSSEABED_MODELS', (('nsw.zip', ('nsw.tif',), extent),))
+    bounds = (150.5, -33.9, 150.9, -33.6)
+    mosaic = sources.ausseabed_model(bounds, str(tmp_path), national=True)
+    ds = gdal.Open(mosaic)
+    x0, xstep, _, y0, _, ystep = ds.GetGeoTransform()
+    assert xstep == pytest.approx(GRID_STEP)
+    heights = ds.ReadAsArray()
+    assert heights.max() == pytest.approx(-2.0)
+    assert (heights == -40.0).any()
+    assert (heights == -12.0).any()
+    assert sources.ausseabed_model(bounds, str(tmp_path / 'none')) is not None
+    monkeypatch.setattr(sources, 'AUSSEABED_MODELS', ())
+    assert sources.ausseabed_model(bounds, str(tmp_path / 'none')) is None
+
+
+def test_zip_members_come_by_their_own_ranges_and_inflate_whole(monkeypatch, tmp_path):
+    import zipfile
+
+    archive = tmp_path / 'models.zip'
+    big = os.urandom(3 << 20)
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('readme.txt', 'skip me')
+        zf.writestr('grid/w001001.adf', big)
+        zf.writestr('grid/hdr.adf', b'header', compress_type=zipfile.ZIP_STORED)
+    data = archive.read_bytes()
+    ranges = []
+
+    class Response(io.BytesIO):
+        def __init__(self, body, headers):
+            super().__init__(body)
+            self.headers = headers
+
+    def get(url, timeout=120, tries=4, headers=None):
+        first, last = (int(v) for v in headers['Range'].removeprefix('bytes=').split('-'))
+        ranges.append((first, last))
+        return Response(data[first : last + 1], {'Content-Range': f'bytes {first}-{last}/{len(data)}'})
+
+    monkeypatch.setattr(sources.shom, 'get', get)
+    monkeypatch.setattr(sources.shom, 'PIECE', 1 << 20)
+    members = ('grid/hdr.adf', 'grid/w001001.adf')
+    sources.save_zip_members('https://example.org/models.zip', members, str(tmp_path / 'out'))
+    assert (tmp_path / 'out' / 'grid' / 'w001001.adf').read_bytes() == big
+    assert (tmp_path / 'out' / 'grid' / 'hdr.adf').read_bytes() == b'header'
+    assert not (tmp_path / 'out' / 'readme.txt').exists()
+    assert sorted(p.name for p in (tmp_path / 'out' / 'grid').iterdir()) == ['hdr.adf', 'w001001.adf']
+    assert sum(last - first + 1 for first, last in ranges) < 2 * len(data)
 
 
 def test_ausseabed_chunks_lie_on_the_chart_grid_so_one_cell_shoals_survive(tmp_path):

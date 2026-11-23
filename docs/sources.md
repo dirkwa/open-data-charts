@@ -68,9 +68,15 @@ and the Great Barrier Reef down to the Gold Coast, take their depths from
 Geoscience Australia's AusBathyTopo models (30 m, compiled from the
 Australian Hydrographic Office's multibeam, singlebeam and lidar surveys,
 research cruises and satellite-derived bathymetry: Northern Australia 2018,
-Great Barrier Reef 2020, Torres Strait 2023), moved from mean sea level to
-LAT with AIMS' lowest predicted tide from the EOT20 tide model. Chunks with
-no water shallower than 300 m are left to ETOPO.
+Great Barrier Reef 2020, Torres Strait 2023, Bass Strait 2022), moved from
+mean sea level to LAT with AIMS' lowest predicted tide from the EOT20 tide
+model. New South Wales, from the Gold Coast to Eden, adds the NSW
+government's 5 m model from marine lidar and multibeam surveys, which covers
+the shore, the harbours and estuaries and the first few kilometres out. New
+South Wales, Victoria and Tasmania lay these over Geoscience Australia's
+national 250 m model of 2026, which fills the water between the coastal
+models and the shelf edge. Chunks with no water shallower than 300 m are
+left to ETOPO.
 Outside Shom's waters and New Zealand, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can

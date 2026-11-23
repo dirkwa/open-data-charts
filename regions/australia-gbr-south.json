@@ -35,6 +35,7 @@
   ],
   "attribution": [
     "Geoscience Australia (2020), AusBathyTopo (Great Barrier Reef) 30m 2020 - A High-resolution Depth Model, Geoscience Australia, Canberra, http://pid.geoscience.gov.au/dataset/ga/115066: © Commonwealth of Australia (Geoscience Australia) 2020, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
+    "NSW Department of Climate Change, Energy, the Environment and Water, NSW bathymetry sourced from multibeam and marine lidar surveys (https://data.gov.au/data/dataset/nsw-nsw-bathymetry-sourced-from-multibeam-and-marine-lidar-surveys): © State of New South Wales, CC BY 3.0 AU (https://creativecommons.org/licenses/by/3.0/au/); modified: moved from the Australian Height Datum to LAT and resampled onto the chart grid; not to be used for navigation",
     "AIMS, Tidal Statistics for Australia derived from the EOT20 tidal model (NESP MaC 3.17), doi:10.26274/z8b6-zx94, CC BY 4.0",
     "Hart-Davis et al. (2021), EOT20 – A global Empirical Ocean Tide model from multi-mission satellite altimetry, SEANOE, doi:10.17882/79489, CC BY 4.0",
     "Allen Coral Atlas (2022), Imagery, maps and monitoring of the world's tropical coral reefs, doi:10.5281/zenodo.3833242, CC BY 4.0"

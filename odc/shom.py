@@ -128,8 +128,8 @@ def md5_of(path):
     return digest.hexdigest()
 
 
-def download(url, dst, size, md5=None, connections=CONNECTIONS):
-    """Fetch url into dst in parallel ranges and check its md5, if given."""
+def download(url, dst, size, md5=None, connections=CONNECTIONS, offset=0):
+    """Fetch `size` bytes of url from `offset` into dst in parallel ranges and check their md5, if given."""
     part = dst + '.part'
     with open(part, 'wb') as fh:
         fh.truncate(size)
@@ -140,7 +140,7 @@ def download(url, dst, size, md5=None, connections=CONNECTIONS):
         end = min(size, start + PIECE)
         for attempt in range(5):
             try:
-                with get(url, timeout=300, headers={'Range': f'bytes={start}-{end - 1}'}) as response:
+                with get(url, timeout=300, headers={'Range': f'bytes={offset + start}-{offset + end - 1}'}) as response:
                     body = response.read()
                 if len(body) != end - start:
                     raise OSError(f'short read {len(body)} != {end - start}')

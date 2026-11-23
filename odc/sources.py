@@ -19,8 +19,9 @@
                                   or a coarser one, if asked for
   dem/icgc_*.tif                  ICGC's Catalan coastal topobathymetric model on mean sea level,
                                   no data beyond it (odc.lat_model), if asked for
-  dem/ausseabed_*.tif             Geoscience Australia's AusBathyTopo model on LAT (CC BY 4.0), no
-                                  data beyond them nor in deep water (odc.lat_model), if asked for
+  dem/ausseabed_*.tif             Geoscience Australia's AusBathyTopo models and NSW's 5 m model
+                                  on LAT (CC BY 4.0, CC BY 3.0 AU), no data beyond them nor in deep
+                                  water (odc.lat_model), if asked for
   chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
                                   per LDS layer, band 0 the smallest scale (odc.chart), if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
@@ -47,6 +48,7 @@ import math
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -54,6 +56,7 @@ import time
 import urllib.error
 import urllib.parse
 import zipfile
+import zlib
 
 import numpy as np
 from osgeo import gdal, ogr, osr
@@ -226,60 +229,88 @@ ICGC_RELEASE = 'icgc'
 ICGC_BOUNDS = (0.513995, 40.406269, 3.335166, 42.440739)
 # The chart grid, so a channel a few cells wide survives.
 ICGC_GRID = lat_model.Grid(GRID_STEP, 1)
-# Geoscience Australia's AusBathyTopo models, 30 m, one Cloud Optimized
-# GeoTIFF per tile in WGS84, heights above approximate mean sea level,
-# negative under water (CC BY 4.0, with the Australian Hydrographic Office's
-# surveys in them under the same licence). Each zip is downloaded whole and
-# read in place, the later tile on top where tiles overlap. A tile names the
-# extent it reaches, so a region downloads only the zips it needs.
+# Depth models of Australian waters, heights above approximate mean sea
+# level (AHD for New South Wales), negative under water. Each is an archive,
+# the members its dataset needs, the first of them opened, and the extent it
+# reaches, so a region fetches only the members of the models it needs.
+# Later models lie on top where they overlap.
+# Geoscience Australia's AusBathyTopo models: 30 m, one Cloud Optimized
+# GeoTIFF per tile in WGS84 (CC BY 4.0, with the Australian Hydrographic
+# Office's surveys in them under the same licence).
 AUSSEABED = 'https://files.ausseabed.gov.au/survey/'
-# The newer Torres Strait model last, over the Great Barrier Reef one.
+# New South Wales' bathymetry from its 2018 marine lidar and multibeam
+# surveys: 5 m, an ArcInfo grid in a transverse Mercator projection (CC BY
+# 3.0 AU). The State's portal turns scripts away, so this repository's
+# release nsw-bathymetry holds an unchanged copy of the zip.
+NSW_ARCHIVE = (
+    'https://github.com/dirkwa/open-data-charts/releases/download/nsw-bathymetry/'
+    'bathymetrymosaic_marinelidar_mbes.zip.part-00'
+)
+NSW_MEMBERS = tuple(
+    f'BathymetryMosaic_MarineLidar_MBES/ml_mb_dem0/{name}.adf'
+    for name in ('hdr', 'w001001', 'w001001x', 'dblbnd', 'sta', 'prj')
+)
+# The newer Torres Strait model over the Great Barrier Reef one, and New
+# South Wales' 5 m over the Great Barrier Reef's southern tile.
 AUSSEABED_MODELS = (
     (
-        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
-        'Great_Barrier_Reef_A_2020_30m_MSL_cog.tif',
+        AUSSEABED + 'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        ('Great_Barrier_Reef_A_2020_30m_MSL_cog.tif',),
         (142.0, -17.0, 147.0, -10.0),
     ),
     (
-        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
-        'Great_Barrier_Reef_B_2020_30m_MSL_cog.tif',
+        AUSSEABED + 'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        ('Great_Barrier_Reef_B_2020_30m_MSL_cog.tif',),
         (144.0, -23.0, 149.0, -16.0),
     ),
     (
-        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
-        'Great_Barrier_Reef_C_2020_30m_MSL_cog.tif',
+        AUSSEABED + 'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        ('Great_Barrier_Reef_C_2020_30m_MSL_cog.tif',),
         (148.0, -24.0, 154.0, -18.0),
     ),
     (
-        'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
-        'Great_Barrier_Reef_D_2020_30m_MSL_cog.tif',
+        AUSSEABED + 'Great%20Barrier%20Reef%20Bathymetry%202020%2030m.zip',
+        ('Great_Barrier_Reef_D_2020_30m_MSL_cog.tif',),
         (150.0, -29.0, 156.0, -23.0),
     ),
     (
-        'North%20Australia%20Bathymetry%202018%2030m.zip',
-        'North_Australia_Bathymetry_A_2018_30m_cog.tif',
+        AUSSEABED + 'North%20Australia%20Bathymetry%202018%2030m.zip',
+        ('North_Australia_Bathymetry_A_2018_30m_cog.tif',),
         (121.0, -18.0, 124.0, -8.0),
     ),
     (
-        'North%20Australia%20Bathymetry%202018%2030m.zip',
-        'North_Australia_Bathymetry_B_2018_30m_cog.tif',
+        AUSSEABED + 'North%20Australia%20Bathymetry%202018%2030m.zip',
+        ('North_Australia_Bathymetry_B_2018_30m_cog.tif',),
         (123.0, -17.0, 127.0, -8.0),
     ),
     (
-        'North%20Australia%20Bathymetry%202018%2030m.zip',
-        'North_Australia_Bathymetry_C_2018_30m_cog.tif',
+        AUSSEABED + 'North%20Australia%20Bathymetry%202018%2030m.zip',
+        ('North_Australia_Bathymetry_C_2018_30m_cog.tif',),
         (126.0, -16.0, 130.0, -8.0),
     ),
     (
-        'North%20Australia%20Bathymetry%202018%2030m.zip',
-        'North_Australia_Bathymetry_D_2018_30m_cog.tif',
+        AUSSEABED + 'North%20Australia%20Bathymetry%202018%2030m.zip',
+        ('North_Australia_Bathymetry_D_2018_30m_cog.tif',),
         (129.0, -16.0, 133.0, -8.0),
     ),
     (
-        'Australian%20Bathymetry%20Topography%20(Torres%20Strait)%202023%2030m.zip',
-        'Australian_Bathymetry_Topography__Torres_Strait__2023_30m_MSL_cog.tif',
+        AUSSEABED + 'Bass%20Strait%20Bathymetry%202022%2030m.zip',
+        ('Bass_Strait_Bathymetry_2022_30m_Unknown_cog.tif',),
+        (143.0, -42.0, 150.0, -37.0),
+    ),
+    (
+        AUSSEABED + 'Australian%20Bathymetry%20Topography%20(Torres%20Strait)%202023%2030m.zip',
+        ('Australian_Bathymetry_Topography__Torres_Strait__2023_30m_MSL_cog.tif',),
         (139.0, -13.0, 146.0, -8.0),
     ),
+    (NSW_ARCHIVE, NSW_MEMBERS, (150.1, -37.6, 153.8, -28.1)),
+)
+# AusBathyTopo (Australia) 250m 2026, under the others for regions that ask
+# for it: where no finer model reaches, between the coast and deep water.
+AUSSEABED_NATIONAL = (
+    AUSSEABED + 'AusBathyTopo_Australia_2026_250m.zip',
+    ('AusBathyTopo_Australia_2026_250m/AusBathyTopo_Australia_2026_250m_MSL_cog.tif',),
+    (92.0, -60.0, 172.0, -8.0),
 )
 # On the chart grid, so the builder takes the chunks cell for cell and the
 # max resampling's one-cell shoals keep their depth.
@@ -331,9 +362,75 @@ def remote_size(url):
         return int(response.headers['Content-Range'].rsplit('/', 1)[1])
 
 
-def save_large(url, path):
-    """A download of gigabytes in ranges, each asked again on its own if the connection drops."""
-    shom.download(url, path, remote_size(url))
+class RemoteFile(io.RawIOBase):
+    """A file over HTTP, each read one range request: enough for zipfile to read a large archive's directory."""
+
+    def __init__(self, url):
+        self.url = url
+        self.size = remote_size(url)
+        self.position = 0
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return True
+
+    def tell(self):
+        return self.position
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        base = {io.SEEK_SET: 0, io.SEEK_CUR: self.position, io.SEEK_END: self.size}[whence]
+        self.position = base + offset
+        return self.position
+
+    def readinto(self, buffer):
+        end = min(self.position + len(buffer), self.size)
+        if end <= self.position:
+            return 0
+        with shom.get(self.url, headers={'Range': f'bytes={self.position}-{end - 1}'}) as response:
+            data = response.read()
+        buffer[: len(data)] = data
+        self.position += len(data)
+        return len(data)
+
+
+ZIP_LOCAL_HEADER = struct.Struct('<26xHH')
+
+
+def save_zip_members(url, members, folder):
+    """Members of a remote zip under `folder`, each fetched by its own byte
+    range in pieces retried on their own, so neither the rest of the archive
+    nor a dropped connection costs a download of gigabytes."""
+    remote = RemoteFile(url)
+    with zipfile.ZipFile(io.BufferedReader(remote, 1 << 16)) as archive:
+        infos = [archive.getinfo(member) for member in members]
+    for info in infos:
+        path = os.path.join(folder, info.filename)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        remote.seek(info.header_offset)
+        name_length, extra_length = ZIP_LOCAL_HEADER.unpack(remote.read(ZIP_LOCAL_HEADER.size))
+        packed = path + '.packed'
+        start = info.header_offset + ZIP_LOCAL_HEADER.size + name_length + extra_length
+        shom.download(url, packed, info.compress_size, offset=start)
+        if info.compress_type == zipfile.ZIP_STORED:
+            os.replace(packed, path)
+            continue
+        if info.compress_type != zipfile.ZIP_DEFLATED:
+            raise RuntimeError(f'{info.filename} in {url} is compressed with method {info.compress_type}')
+        inflate = zlib.decompressobj(-zlib.MAX_WBITS)
+        crc = 0
+        with open(packed, 'rb') as source, open(path, 'wb') as out:
+            for block in iter(lambda: source.read(CHUNK), b''):
+                data = inflate.decompress(block)
+                crc = zlib.crc32(data, crc)
+                out.write(data)
+            data = inflate.flush()
+            crc = zlib.crc32(data, crc)
+            out.write(data)
+        os.remove(packed)
+        if crc != info.CRC:
+            raise OSError(f'{info.filename} in {url} fails its CRC')
 
 
 def wfs_layers():
@@ -913,26 +1010,66 @@ def overlaps(a, b):
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def ausseabed_model(bounds, tmp):
-    """The tiles reaching `bounds` as one mosaic, or None."""
-    tiles = [(archive, member) for archive, member, extent in AUSSEABED_MODELS if overlaps(extent, bounds)]
-    if not tiles:
+def ausseabed_model(bounds, tmp, national=False):
+    """The models reaching `bounds` as one mosaic in WGS84, or None."""
+    models = [AUSSEABED_NATIONAL] if national else []
+    models += [model for model in AUSSEABED_MODELS if overlaps(model[2], bounds)]
+    if not models:
         return None
     layers = []
-    for archive in dict.fromkeys(archive for archive, _ in tiles):
-        local = os.path.join(tmp, urllib.parse.unquote(archive))
-        save_large(AUSSEABED + archive, local)
-    for archive, member in tiles:
-        layers.append(f'/vsizip/{os.path.join(tmp, urllib.parse.unquote(archive))}/{member}')
+    for i, (url, members, extent) in enumerate(models):
+        folder = os.path.join(tmp, f'ausseabed-{i}')
+        save_zip_members(url, members, folder)
+        path = os.path.join(folder, members[0])
+        if not is_wgs84(path):
+            path = onto_chart_grid(path, intersection(bounds, extent), folder)
+        layers.append(path)
     mosaic = os.path.join(tmp, 'ausseabed.vrt')
     gdal.BuildVRT(mosaic, layers, resolution='highest', VRTNodata=lat_model.NODATA)
     return mosaic
 
 
-def fetch_ausseabed(bounds, target, tmp):
+def is_wgs84(path):
+    srs = osr.SpatialReference(wkt=gdal.Open(path).GetProjection())
+    return srs.GetAuthorityCode(None) == '4326'
+
+
+def intersection(a, b):
+    return (max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3]))
+
+
+def onto_chart_grid(path, bounds, folder):
+    """A projected model in WGS84 on the chart grid over `bounds`, each cell
+    its shoalest sample, so the mosaic can stack it with the others."""
+    west, south, east, north = (
+        math.floor(bounds[0] / GRID_STEP) * GRID_STEP,
+        math.floor(bounds[1] / GRID_STEP) * GRID_STEP,
+        math.ceil(bounds[2] / GRID_STEP) * GRID_STEP,
+        math.ceil(bounds[3] / GRID_STEP) * GRID_STEP,
+    )
+    out = os.path.join(folder, 'chart-grid.tif')
+    gdal.Warp(
+        out,
+        path,
+        options=['-ovr', 'NONE'],
+        dstSRS='EPSG:4326',
+        outputBounds=(west, south, east, north),
+        xRes=GRID_STEP,
+        yRes=GRID_STEP,
+        resampleAlg='max',
+        dstNodata=lat_model.NODATA,
+        outputType=gdal.GDT_Float32,
+        creationOptions=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3', 'SPARSE_OK=TRUE', 'BIGTIFF=YES'],
+        multithread=True,
+        warpMemoryLimit=1024,
+    )
+    return out
+
+
+def fetch_ausseabed(bounds, target, tmp, national=False):
     """The models' shoalest value in each cell, on LAT, where a chunk reaches
     water shallower than AUSSEABED_DEEP_M."""
-    model = ausseabed_model(bounds, tmp)
+    model = ausseabed_model(bounds, tmp, national)
     written = set()
     if model:
         separation = ausseabed_separation(tmp)
@@ -1102,7 +1239,7 @@ def fetch_dem(region, out):
                 fetch_icgc(fetch_bounds(region), target, tmp)
                 continue
             if dem.get('source') == 'ausseabed':
-                fetch_ausseabed(fetch_bounds(region), target, tmp)
+                fetch_ausseabed(fetch_bounds(region), target, tmp, dem.get('national', False))
                 continue
             survey = {'group': dem['group'], 'name': dem['prepackage']}
             for item in shom.list_files(survey):

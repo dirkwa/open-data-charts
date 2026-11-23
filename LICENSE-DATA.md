@@ -207,6 +207,11 @@ model of the regions whose file asks for it (`"dem": [{"source": "icgc"}]`).
     (<http://pid.geoscience.gov.au/dataset/ga/121620>)
   - AusBathyTopo (Torres Strait) 30m 2023
     (<https://data.gov.au/data/dataset/16cc06d1-1962-477c-b738-8b4b5dcfcc8e>)
+  - AusBathyTopo (Bass Strait) 30m 2022
+    (<http://pid.geoscience.gov.au/dataset/ga/147043>)
+  - AusBathyTopo 250m (Australia) 2026 Grid
+    (<https://data.gov.au/data/dataset/ausbathytopo-250m-australia-2026-grid-a-national-scale-depth-and-elevation-dataset-and-derived->),
+    the national model, under the others where a region asks for it
 
   The catalogue records of the first two also carry a notice that material
   in them is reproduced by permission of the Australian Hydrographic
@@ -221,8 +226,24 @@ model of the regions whose file asks for it (`"dem": [{"source": "icgc"}]`).
   (Geoscience Australia) 2020, CC BY 4.0 (...); modified: moved from mean
   sea level to LAT and resampled onto the chart grid; not to be used for
   navigation". Used as the bathymetric model of the regions whose file asks
-  for it (`"dem": [{"source": "ausseabed"}]`), only in chunks that reach
-  water shallower than 300 m.
+  for it (`"dem": [{"source": "ausseabed"}]`, with `"national": true` for
+  the national model under the 30 m ones), only in chunks that reach water
+  shallower than 300 m.
+- **NSW bathymetry**: "NSW bathymetry sourced from multibeam and marine
+  lidar surveys", a 5 m model of the New South Wales coast and its
+  harbours on the Australian Height Datum (about mean sea level), by the
+  NSW Department of Climate Change, Energy, the Environment and Water
+  (<https://data.gov.au/data/dataset/nsw-nsw-bathymetry-sourced-from-multibeam-and-marine-lidar-surveys>),
+  © State of New South Wales, Creative Commons Attribution 3.0 Australia
+  (CC BY 3.0 AU). The portal's download is behind bot protection, so the
+  archive was downloaded by hand and is mirrored unchanged in this
+  repository's release `nsw-bathymetry`, from which the build reads it.
+  Attribution: "NSW Department of Climate Change, Energy, the Environment
+  and Water, NSW bathymetry sourced from multibeam and marine lidar surveys
+  (...): © State of New South Wales, CC BY 3.0 AU (...); modified: moved
+  from the Australian Height Datum to LAT and resampled onto the chart
+  grid; not to be used for navigation". Used with AusBathyTopo in the
+  regions whose extent it reaches.
 - **Tidal statistics for Australia**: the Australian Institute of Marine
   Science's Lowest Predicted Tide over 2021 to 2025 from the EOT20 tide
   model, standing for LAT, published on eAtlas
