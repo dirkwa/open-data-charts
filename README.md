@@ -1,132 +1,170 @@
 # Open Data Charts
 
-Vector nautical charts built from open data, for
-[Freeboard-SK](https://github.com/SignalK/freeboard-sk) and other Signal K
-chart plotters.
+Free nautical charts for your Signal K chart plotter, built from open data:
+depths, depth contours, soundings, buoys and lights, land and terrain, for
+coasts in Europe, the Mediterranean, New Zealand and the French overseas
+territories. You pick the areas you sail on a map, they are
+downloaded to your boat, and they work offline in
+[Freeboard-SK](https://github.com/SignalK/freeboard-sk).
 
+![Porquerolles in Freeboard-SK, charted from Shom's surveys](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/readme-freeboard-porquerolles.png)
+
+> [!WARNING]
 > **Not for navigation.** These charts are compiled automatically from open
-> data sets that their publishers themselves mark "not for navigation"
-> (Shom: *ne pas utiliser pour la navigation / product not certified for
-> navigation*). They are no substitute for official charts.
+> data that its publishers themselves mark "not for navigation". Depths,
+> dangers and aids to navigation may be missing, outdated or wrong. They are
+> no substitute for official charts.
 
-## What it is
+## What you get
 
-GitHub Actions turn open survey data, seamarks and coastlines into small
-S-57-shaped vector MBTiles, one per *unit* (a z9 Web-Mercator tile, about
-0.7° wide). The units are published as release assets and listed in an
-index on GitHub Pages, with their coverage, data quality, version and
-checksum. The "Open Data Charts" tab of
-[signalk-charts-provider-simple](https://github.com/dirkwa/signalk-charts-provider-simple)
-reads that index, lets the user pick units on a map, downloads only those
-units (and on updates only the units that changed) and assembles them into
-one chart on the boat.
+- **Vector charts** (S-57 style) that Freeboard-SK draws like an official
+  ENC: depth areas and contours, soundings, buoys, beacons and lights, wrecks
+  and rocks, land, harbours and place names, sharp at every zoom up to
+  harbour level.
+- **Terrain shading** of hills and mountains on land, as a second chart you
+  can switch on or off.
+- **Only the areas you need.** The coast is cut into areas of about 0.7°
+  (20 to 40 NM wide, depending on latitude). You download only the ones you sail, and an
+  area takes from a few MB to a few hundred MB.
+- **Small updates.** When an area is rebuilt from newer data, only that area
+  is downloaded again.
+- **Free.** No account, no subscription.
 
-The regions are mainland France (the Channel and North Sea coast, the
-Atlantic coast, the Mediterranean coast and Corsica) and the French overseas
-territories with Shom open data: New Caledonia, French Polynesia, Wallis and
-Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and
-Saint-Barthélemy, French Guiana and Saint-Pierre and Miquelon. Each is built
-from Shom's surveys, seamarks and, where Shom publishes one, its bathymetric
-model of the coast, together with OpenStreetMap and the Copernicus DEM.
-Every unit with land comes with terrain shading from the Copernicus DEM, a
-separate layer the plotter can show over the chart or leave off.
-Shom publishes Corsica's model on mean sea level rather than on the lowest
-astronomical tide; the tide there ranges over a few tens of centimetres.
-New Caledonia adds the Gouvernement de la Nouvelle-Calédonie's reef map and
-coastal structures, and the tropical regions the Allen Coral Atlas's reef
-map, which charts reef flats, crests and shallow lagoons where no finer reef
-map has them. In the units charted for their land or model, water that the
-atlas's satellite-derived bathymetry covers and no survey or model does is
-charted in coarse depth bands (0-2, 2-5 and over 5 m) without soundings or
-contours. The bands are set shallower than the satellite reads: against
-Shom's soundings in the Tuamotus its median reads 1 to 4 m too deep,
-depending on the depth, and single readings differ more. The index marks
-the water as satellite-derived.
+## Where
 
-The United Kingdom (the Isles of Scilly and Land's End, England and Wales
-with the Irish Sea, and Scotland with Northern Ireland and North East
-England) is built for coasts without Shom data: its depths come from the
-EMODnet Bathymetry DTM (a model at about 115 m). Ireland (its Atlantic
-coast from Kerry to Mayo, and Cork, the Shannon Estuary and Galway Bay; its
-east and north coasts lie in the two UK regions) and those UK regions take
-their depths in Irish waters from INFOMAR's surveys, gridded at 10 m inshore
-and 25 m beyond, on LAT. The Dutch Wadden
-Sea takes its depths from Rijkswaterstaat's coastal and Wadden surveys
-(the latest measured bed, gridded at 20 m), moved from NAP to LAT with
-NSGI's NLGEO2018 and NLLAT2018 surfaces, and from EMODnet beyond them. Southern Norway, from the Oslofjord to Stad, takes its depths from Kartverket's seabed terrain model (50 m) on sjøkartnull, the datum of Norway's own charts: LAT, except 0.2 m below LAT from the Swedish border to Utsira and 0.3 m below it in the inner Oslofjord, where depths read that much shallower than on LAT; EMODnet fills beyond it. England's south coast lies in the Channel region and
-takes its depths from Shom's model there. The rest of the Mediterranean, from Gibraltar to the Levant, is built the
-same way from the EMODnet DTM alone, in nine regions by sea area, and so
-are Atlantic Iberia (Galicia, Portugal and the Gulf of Cadiz to Huelva),
-the Canary Islands, Madeira and the Azores. In Portugal, Madeira and the
-Azores, the Instituto Hidrográfico's high-resolution models from EMODnet
-(surveys of ports and estuaries, and the coastal lidar, 14 to 29 m, on
-LAT) lie on top of the DTM where they reach. Along the Catalan coast, out to
-about 50 m, the western Mediterranean takes its depths from ICGC's
-topobathymetric model (lidar and multibeam, 1 m) instead, on mean sea level
-like EMODnet's Mediterranean, each chart cell keeping the model's shoalest
-value.
-Australian waters, from the Kimberley and the Top End to the Torres Strait
-and the Great Barrier Reef down to the Gold Coast, take their depths from
-Geoscience Australia's AusBathyTopo models (30 m, compiled from the
-Australian Hydrographic Office's multibeam, singlebeam and lidar surveys,
-research cruises and satellite-derived bathymetry: Northern Australia 2018,
-Great Barrier Reef 2020, Torres Strait 2023), moved from mean sea level to
-LAT with AIMS' lowest predicted tide from the EOT20 tide model. Chunks with
-no water shallower than 300 m are left to ETOPO.
-Outside Shom's waters, buoys,
-beacons, lights and other aids to navigation come from OpenStreetMap's
-seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
-lag behind changes at sea. New Zealand is charted from LINZ's chart data
-(the New Zealand Hydrographic Authority's Hydro layers, as of April 2023):
-its depth areas, contours, soundings, aids, hazards and areas come from the
-charts themselves, each chart scale from its own zoom, with land and
-buildings from OpenStreetMap. Each region is a file in `regions/`.
+| Area | Regions | Depths from |
+|------|---------|-------------|
+| France | Channel and North Sea coast (with England's south coast), Atlantic coast, Mediterranean coast, Corsica | Shom surveys and models |
+| French overseas | New Caledonia, French Polynesia, Wallis and Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana, Saint-Pierre and Miquelon | Shom surveys and models |
+| British Isles | Isles of Scilly and Land's End, England and Wales with the Irish Sea, Scotland with Northern Ireland and North East England, Ireland's Atlantic coast, Cork, the Shannon Estuary and Galway Bay | EMODnet, INFOMAR in Irish waters |
+| North Sea and Baltic | Dutch Wadden Sea, German North Sea, German Baltic, Denmark | Rijkswaterstaat, BSH and WSV, Danish Depth Model |
+| Norway | Southern Norway, Oslofjord to Stad | Kartverket |
+| Atlantic islands and Iberia | Galicia, Portugal and the Gulf of Cadiz, Canary Islands, Madeira | EMODnet, Instituto Hidrográfico |
+| Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea | EMODnet, ICGC on the Catalan coast |
+| New Zealand | North, South and Stewart Islands | LINZ chart data |
 
-Where no survey sounding is near, depth numbers come from the bathymetric
-model's own pixels, the shoalest of each area thinned per zoom like the
-surveys' soundings but at most one per zoom-14 square (about 230 m wide at
-55 degrees); each says in its INFORM that it is a model depth, not a
-surveyed sounding. Satellite bands and ETOPO's deep water carry none.
+New regions are added regularly. The Open Data Charts tab (below) always
+shows what is available right now. [docs/sources.md](docs/sources.md)
+describes each region's data in detail.
 
-Everywhere, deep water (200 m and more) that no survey or finer model
-covers takes its depths from NOAA's ETOPO 2022 global model (about 460 m),
-kept well clear of reefs and shores. The index marks it as a coarse model.
+## Getting the charts onto your boat
 
-## Using the charts
+You need a Signal K server and
+[Charts Provider Simple](https://github.com/dirkwa/signalk-charts-provider-simple),
+the plugin that downloads the charts and serves them to your plotter.
 
-Install signalk-charts-provider-simple on a Signal K server, open its
-"Open Data Charts" tab, select the units you want on the map and download
-them as a chart set. The tab checks the index for changed units and updates
-only those.
+1. In the Signal K admin page, open **Appstore**, search for **Charts
+   Provider Simple** and install it, then restart the server when asked.
+2. Open **Webapps → Charts Provider Simple** and go to the **Open Data
+   Charts** tab.
+3. Press **New** and give your chart set a name, for example the cruising
+   area or the season's plan.
+4. Tap the areas you want on the map, or drag across several to add them
+   all. Tapping an area in the set takes it out again, and so does dragging
+   across areas that are all in the set already. The set shows its download
+   size and the free space on the server.
+5. Press **Download**, and confirm once that these charts are not for
+   navigation. The plugin builds one chart from all the areas of the set.
 
-The index is public, so any other plotter can use it too:
+![Picking the areas of a chart set in the Open Data Charts tab](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/readme-tab-chart-set.png)
+
+The areas on the map are coloured by the best depth data they hold:
+
+| Colour | Depths come from |
+|--------|------------------|
+| Dark blue | Multibeam surveys, the most detailed |
+| Light blue | Surveys since 1990 |
+| Orange | Surveys before 1990 |
+| Red | A bathymetric model only (a depth grid, no individual soundings) |
+| Green | Satellite-derived depths, charted as rough bands (0-2, 2-5 and over 5 m) |
+| Purple | Deep water from a coarse global model |
+| Black | No depth data: water no survey or model covers, charted as unsurveyed |
+
+A newer kind of data the tab does not know yet shows as "Other" until you
+update the plugin.
+
+When an area has been rebuilt, the set shows **Update available**; press
+**Update** to download only the areas that changed. Nothing is downloaded
+until you press a button.
+
+## Showing them in Freeboard-SK
+
+Open Freeboard-SK, press the layers button (**Routes, Waypoints, Notes**),
+open **Charts** and tick your chart set. It is listed with "(not for
+navigation)" after its name. Tick the "terrain shading" chart too if you want
+hills on land shaded.
+
+## How good are the depths?
+
+As good as the data behind them, which differs a lot from place to place:
+
+- In French waters soundings come from Shom's surveys, and in New Zealand
+  from LINZ's charts.
+- Elsewhere depths come from a **model**, a grid of depths from a few metres
+  to about 115 m apart near the coast, and about 460 m in deep water far
+  offshore. Narrow channels, rocks and wrecks smaller than the grid may be
+  missing. Depth numbers taken from a model say so in their details.
+- Reef flats and lagoons in the tropics come from satellite images and are
+  charted only in rough bands, set on the shallow side.
+- Depths are on the lowest astronomical tide (LAT) or the local chart
+  datum, like official charts. Around Corsica and along the Catalan coast
+  they are on mean sea level, a decimetre or two above chart datum where
+  the tide is only a few tens of centimetres. Norway's are on its own chart
+  datum, at or up to 0.3 m below LAT.
+- Buoys, beacons and lights come from Shom in French waters, from LINZ's
+  charts in New Zealand and from OpenSeaMap volunteers elsewhere, and can lag
+  behind changes at sea.
+
+Always check against official charts and what you see.
+
+## More pictures
+
+| | |
+|---|---|
+| ![Papeete, Tahiti](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/pf-papeete.png) | ![Auckland, New Zealand](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/nz-auckland-z12.png) |
+| Papeete, Tahiti: Shom surveys | Auckland: LINZ chart data |
+| ![Toulon harbour](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/fr-toulon-port.png) | ![Bergen, Norway](https://raw.githubusercontent.com/dirkwa/open-data-charts/dcf773327b9ab7732e57cf4080dc6bc17bf43334/norway-bergen-z13.png) |
+| Toulon harbour: Shom seamarks and surveys | Bergen: Kartverket's seabed model |
+
+## For developers
+
+### Using the charts in another plotter
+
+The index of all published areas is public:
 
     https://dirkwa.github.io/open-data-charts/open-data-index.json
 
-Its format and compatibility policy are in
-[docs/index-format.md](docs/index-format.md), with a JSON Schema in
-[schema/](schema/open-data-index.schema.json).
+Each area is an MBTiles file with S-57 vector tiles. The index lists every
+area's coverage, data quality, version and checksum; its format and
+compatibility policy are in [docs/index-format.md](docs/index-format.md),
+with a JSON Schema in [schema/](schema/open-data-index.schema.json).
 
-## How it is built
+### How it is built
+
+GitHub Actions build the charts from the sources' own downloads:
 
 - Every week a workflow mirrors the regions' Shom surveys, each reduced to
   the shoalest sounding per cell of one global grid.
 - Every day another workflow takes one region in turn, works out which of
-  its units have new inputs, builds only those, uploads them to the
-  region's release and republishes the index. A unit's version is a hash of everything it is built from, so
-  an unchanged unit is never rebuilt or downloaded again.
+  its areas (units, z9 Web-Mercator tiles) have new inputs, builds only
+  those, uploads them to the region's release and republishes the index. A
+  unit's version is a hash of everything it is built from, so an unchanged
+  unit is never rebuilt or downloaded again.
 - Units are built on a shared grid with a margin around each one, so
   neighbouring units meet without seams.
 
-[docs/pipeline.md](docs/pipeline.md) has notes and measurements, and
+[docs/pipeline.md](docs/pipeline.md) has notes and measurements,
+[docs/sources.md](docs/sources.md) the data of each region, and
 [AGENTS.md](AGENTS.md) the code.
 
-## Contributing
+### Contributing
 
 New regions and open data sources are welcome; see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licences
 
-The code is Apache-2.0 (`LICENSE`). The published charts carry the licences
-and attribution of their sources, listed in `LICENSE-DATA.md`.
+The charts are published under the Open Database License (ODbL) 1.0 and
+carry the attribution of their sources, listed in
+[LICENSE-DATA.md](LICENSE-DATA.md). The code is Apache-2.0
+([LICENSE](LICENSE)).
