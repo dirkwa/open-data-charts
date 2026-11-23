@@ -564,7 +564,13 @@ def test_a_reef_flat_is_charted_under_water_where_the_depths_show_water():
     out = sorted((a['INFORM'], a['WATLEV'], round(g.GetArea() * 1e6, 3)) for g, a, _ in submerge_reefs(reefs, depare))
     assert out == [('patch reef', '3', 4.0), ('reef flat', '3', 2.0), ('reef flat', '4', 2.0)]
     assert submerge_reefs(reefs[:1], depare[:1]) == reefs[:1]
-    # A flat cut into slivers too small to draw is kept whole, still drying.
+    # A flat cut into pieces smaller than MIN_AREA_DEG2 keeps them all, and the
+    # flats after it still meet every depth area.
     small = ogr.CreateGeometryFromJson(json.dumps(square(166.38095, -22.2595, 0.0001)))
-    kept = submerge_reefs([(small, {'WATLEV': '4'}, None)], depare)
-    assert [(a['WATLEV'], round(g.GetArea() * 1e8, 3)) for g, a, _ in kept] == [('4', 1.0)]
+    kept = submerge_reefs([(small, {'WATLEV': '4'}, None), reefs[0]], depare)
+    assert sorted((a['WATLEV'], round(g.GetArea() * 1e8, 3)) for g, a, _ in kept) == [
+        ('3', 0.5),
+        ('3', 200.0),
+        ('4', 0.5),
+        ('4', 200.0),
+    ]
