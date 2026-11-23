@@ -62,7 +62,9 @@ the plugin that downloads the charts and serves them to your plotter.
 3. Press **New** and give your chart set a name, for example the cruising
    area or the season's plan.
 4. Tap the areas you want on the map, or drag across several to add them
-   all. The set shows its download size and the free space on the server.
+   all. Tapping an area in the set takes it out again, and so does dragging
+   across areas that are all in the set already. The set shows its download
+   size and the free space on the server.
 5. Press **Download**, and confirm once that these charts are not for
    navigation. The plugin builds one chart from all the areas of the set.
 
@@ -78,6 +80,10 @@ The areas on the map are coloured by the best depth data they hold:
 | Red | A bathymetric model only (a depth grid, no individual soundings) |
 | Green | Satellite-derived depths, charted as rough bands (0-2, 2-5 and over 5 m) |
 | Purple | Deep water from a coarse global model |
+| Black | No depth data: water no survey or model covers, charted as unsurveyed |
+
+A newer kind of data the tab does not know yet shows as "Other" until you
+update the plugin.
 
 When an area has been rebuilt, the set shows **Update available**; press
 **Update** to download only the areas that changed. Nothing is downloaded
@@ -94,18 +100,19 @@ hills on land shaded.
 
 As good as the data behind them, which differs a lot from place to place:
 
-- Where Shom, INFOMAR, Rijkswaterstaat or the other hydrographic offices
-  have surveyed, soundings come from those surveys.
+- In French waters soundings come from Shom's surveys, and in New Zealand
+  from LINZ's charts.
 - Elsewhere depths come from a **model**, a grid of depths from a few metres
-  to about 115 m apart. Narrow channels, rocks and wrecks smaller than the
-  grid may be missing. Depth numbers taken from a model say so in their
-  details.
+  to about 115 m apart near the coast, and about 460 m in deep water far
+  offshore. Narrow channels, rocks and wrecks smaller than the grid may be
+  missing. Depth numbers taken from a model say so in their details.
 - Reef flats and lagoons in the tropics come from satellite images and are
   charted only in rough bands, set on the shallow side.
-- Depths are on the lowest astronomical tide (LAT) in tidal waters, like
-  official charts. In the Mediterranean and around Corsica they are on mean
-  sea level, where the tide is only a few tens of centimetres. Norway's are
-  on its own chart datum.
+- Depths are on the lowest astronomical tide (LAT) or the local chart
+  datum, like official charts. Around Corsica and along the Catalan coast
+  they are on mean sea level, a decimetre or two above chart datum where
+  the tide is only a few tens of centimetres. Norway's are on its own chart
+  datum, at or up to 0.3 m below LAT.
 - Buoys, beacons and lights come from Shom in French waters, from LINZ's
   charts in New Zealand and from OpenSeaMap volunteers elsewhere, and can lag
   behind changes at sea.

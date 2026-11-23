@@ -36,7 +36,21 @@ their depths in Irish waters from INFOMAR's surveys, gridded at 10 m inshore
 and 25 m beyond, on LAT. The Dutch Wadden
 Sea takes its depths from Rijkswaterstaat's coastal and Wadden surveys
 (the latest measured bed, gridded at 20 m), moved from NAP to LAT with
-NSGI's NLGEO2018 and NLLAT2018 surfaces, and from EMODnet beyond them. Southern Norway, from the Oslofjord to Stad, takes its depths from Kartverket's seabed terrain model (50 m) on sjøkartnull, the datum of Norway's own charts: LAT, except 0.2 m below LAT from the Swedish border to Utsira and 0.3 m below it in the inner Oslofjord, where depths read that much shallower than on LAT; EMODnet fills beyond it. England's south coast lies in the Channel region and
+NSGI's NLGEO2018 and NLLAT2018 surfaces, and from EMODnet beyond them.
+Denmark takes its depths from the Danish Geodata Agency's Denmark's Depth
+Model (50 m), moved from mean sea level to LAT with the agency's DKMSL and
+DKLAT surfaces, and from EMODnet beyond it and where no LAT separation
+reaches. The German North Sea and Baltic, and the German waters inside the
+Denmark region, take theirs from BSH's seabed model (50 m), moved from NHN
+to LAT with BKG's GCG2016 and the Danish and Dutch LAT surfaces. In the
+German North Sea, BSH's model lies over Rijkswaterstaat's grid around the
+Ems, and WSV's models of the Ems, Jade, Weser and outer Elbe estuaries
+(DGM-W, 1 to 5 m) lie on top of both, kept to where LAT is the chart datum:
+seaward of Emden, Bremerhaven and Cuxhaven. EMODnet fills beyond them.
+Panama has no open national depth data: its reefs (San Blas, Bocas del Toro,
+Las Perlas) come from the Allen Coral Atlas, its coast and seamarks from
+OpenStreetMap and OpenSeaMap, and its deep water from ETOPO; the atlas's
+satellite-derived depths join once they are published for it. Southern Norway, from the Oslofjord to Stad, takes its depths from Kartverket's seabed terrain model (50 m) on sjøkartnull, the datum of Norway's own charts: LAT, except 0.2 m below LAT from the Swedish border to Utsira and 0.3 m below it in the inner Oslofjord, where depths read that much shallower than on LAT; EMODnet fills beyond it. England's south coast lies in the Channel region and
 takes its depths from Shom's model there. The rest of the Mediterranean, from Gibraltar to the Levant, is built the
 same way from the EMODnet DTM alone, in nine regions by sea area, and so
 are Atlantic Iberia (Galicia, Portugal and the Gulf of Cadiz to Huelva),
@@ -45,9 +59,10 @@ Azores, the Instituto Hidrográfico's high-resolution models from EMODnet
 (surveys of ports and estuaries, and the coastal lidar, 14 to 29 m, on
 LAT) lie on top of the DTM where they reach. Along the Catalan coast, out to
 about 50 m, the western Mediterranean takes its depths from ICGC's
-topobathymetric model (lidar and multibeam, 1 m) instead, on mean sea level
-like EMODnet's Mediterranean, each chart cell keeping the model's shoalest
-value.
+topobathymetric model (lidar and multibeam, 1 m) instead, each chart cell
+keeping the model's shoalest value. ICGC's model is on mean sea level, which
+lies a decimetre or two above the chart datum that EMODnet's Mediterranean
+depths are on.
 Australian waters, from the Kimberley and the Top End to the Torres Strait
 and the Great Barrier Reef down to the Gold Coast, take their depths from
 Geoscience Australia's AusBathyTopo models (30 m, compiled from the
@@ -56,7 +71,7 @@ research cruises and satellite-derived bathymetry: Northern Australia 2018,
 Great Barrier Reef 2020, Torres Strait 2023), moved from mean sea level to
 LAT with AIMS' lowest predicted tide from the EOT20 tide model. Chunks with
 no water shallower than 300 m are left to ETOPO.
-Outside Shom's waters, buoys,
+Outside Shom's waters and New Zealand, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
 lag behind changes at sea. New Zealand is charted from LINZ's chart data
