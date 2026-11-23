@@ -1017,15 +1017,19 @@ def ausseabed_model(bounds, tmp, national=False):
     if not models:
         return None
     layers = []
+    grid = {'resolution': 'highest'}
     for i, (url, members, extent) in enumerate(models):
         folder = os.path.join(tmp, f'ausseabed-{i}')
         save_zip_members(url, members, folder)
         path = os.path.join(folder, members[0])
         if not is_wgs84(path):
             path = onto_chart_grid(path, intersection(bounds, extent), folder)
+            # The mosaic's origin otherwise comes from the union of its layers and would
+            # sample the chart-grid layer off its own cells.
+            grid = {'resolution': 'user', 'xRes': GRID_STEP, 'yRes': GRID_STEP, 'targetAlignedPixels': True}
         layers.append(path)
     mosaic = os.path.join(tmp, 'ausseabed.vrt')
-    gdal.BuildVRT(mosaic, layers, resolution='highest', VRTNodata=lat_model.NODATA)
+    gdal.BuildVRT(mosaic, layers, VRTNodata=lat_model.NODATA, **grid)
     return mosaic
 
 
@@ -1057,6 +1061,8 @@ def onto_chart_grid(path, bounds, folder):
         xRes=GRID_STEP,
         yRes=GRID_STEP,
         resampleAlg='max',
+        # Exact transforms, so a cell's footprint does not move with the warp's chunking.
+        errorThreshold=0,
         dstNodata=lat_model.NODATA,
         outputType=gdal.GDT_Float32,
         creationOptions=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3', 'SPARSE_OK=TRUE', 'BIGTIFF=YES'],

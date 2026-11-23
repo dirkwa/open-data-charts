@@ -589,7 +589,9 @@ def test_a_projected_ausseabed_model_lies_on_the_national_one_by_its_shoalest_sa
         os.makedirs(folder, exist_ok=True)
         path = os.path.join(folder, members[0])
         if url == 'national.zip':
-            raster(path, 4326, (150.0, 0.01, 0, -33.0, 0, -0.01), np.full((100, 100), -40.0, 'float32'), -9999.0)
+            # Off the chart grid by a quarter of a cell.
+            off = (150.00003, 0.01, 0, -32.99997, 0, -0.01)
+            raster(path, 4326, off, np.full((100, 100), -40.0, 'float32'), -9999.0)
         else:
             # 5 m cells in UTM zone 56 south, 12 m deep with one 2 m shoal.
             cells = np.full((400, 400), -12.0, 'float32')
@@ -605,6 +607,8 @@ def test_a_projected_ausseabed_model_lies_on_the_national_one_by_its_shoalest_sa
     ds = gdal.Open(mosaic)
     x0, xstep, _, y0, _, ystep = ds.GetGeoTransform()
     assert xstep == pytest.approx(GRID_STEP)
+    assert x0 / GRID_STEP == pytest.approx(round(x0 / GRID_STEP), abs=1e-6)
+    assert y0 / GRID_STEP == pytest.approx(round(y0 / GRID_STEP), abs=1e-6)
     heights = ds.ReadAsArray()
     assert heights.max() == pytest.approx(-2.0)
     assert (heights == -40.0).any()
