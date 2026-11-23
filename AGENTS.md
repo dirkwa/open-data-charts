@@ -86,8 +86,8 @@ the index and the docs say so.
 - `build-units.yml` (daily, one region a day in turn, once all of the
   region's surveys are mirrored): plans the units whose version changed, builds
   them in a matrix and, when publishing is on (`ODC_PUBLISH` or a manual
-  run with `publish`), uploads them to `units-<region>` and deploys the
-  index to Pages.
+  run with `publish`), uploads them to `units-<region>-<0-f>` (by the
+  version's first hex digit) and deploys the index to Pages.
 - `aca-depth.yml` (manual, with the link of an Allen Coral Atlas download
   package): adds the package's satellite depths to the `aca-depth` release.
 - `builder-image.yml`: builds the builder image. `ci.yml`: lint and tests.
