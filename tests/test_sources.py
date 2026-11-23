@@ -553,6 +553,7 @@ def test_ausseabed_models_go_on_lat_newer_on_top_and_deep_chunks_left_to_etopo(m
             raise AssertionError(url)
 
     monkeypatch.setattr(sources, 'save_url', save_url)
+    monkeypatch.setattr(sources, 'save_large', save_url)
     monkeypatch.setattr(
         sources,
         'AUSSEABED_MODELS',

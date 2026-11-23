@@ -128,8 +128,8 @@ def md5_of(path):
     return digest.hexdigest()
 
 
-def download(url, dst, size, md5, connections=CONNECTIONS):
-    """Fetch url into dst in parallel ranges and check its md5."""
+def download(url, dst, size, md5=None, connections=CONNECTIONS):
+    """Fetch url into dst in parallel ranges and check its md5, if given."""
     part = dst + '.part'
     with open(part, 'wb') as fh:
         fh.truncate(size)
@@ -161,7 +161,7 @@ def download(url, dst, size, md5, connections=CONNECTIONS):
         list(pool.map(fetch, range(0, size, PIECE)))
     if failed:
         raise failed[0]
-    if md5_of(part) != md5:
+    if md5 and md5_of(part) != md5:
         os.remove(part)
         raise OSError(f'md5 mismatch for {url}')
     os.replace(part, dst)

@@ -196,18 +196,33 @@ model of the regions whose file asks for it (`"dem": [{"source": "icgc"}]`).
 
 ## Geoscience Australia and AIMS (Australia)
 
-- **AusBathyTopo (Torres Strait) 30m 2023**: Geoscience Australia's depth
-  model of the Torres Strait, heights above approximate mean sea level,
-  with the Australian Hydrographic Office's surveys in it, from
-  `https://files.ausseabed.gov.au/survey/`, Creative Commons Attribution 4.0
-  International (CC BY 4.0), "not to be used for navigation". Attribution,
-  with a change note: "Australian Hydrographic Office, Geoscience
-  Australia: © Commonwealth of Australia 2023, AusBathyTopo (Torres Strait)
-  30m 2023 (...), CC BY 4.0 (...); modified: moved from mean sea level to
-  LAT and resampled onto the chart grid; not to be used for navigation".
-  Used as the bathymetric model of the regions whose file asks for it
-  (`"dem": [{"source": "ausseabed"}]`), only where it reaches water
-  shallower than 300 m.
+- **AusBathyTopo**: Geoscience Australia's depth models, heights above
+  approximate mean sea level, with the Australian Hydrographic Office's
+  surveys in them, from `https://files.ausseabed.gov.au/survey/`, Creative
+  Commons Attribution 4.0 International (CC BY 4.0), "not to be used for
+  navigation":
+  - AusBathyTopo (Great Barrier Reef) 30m 2020
+    (<http://pid.geoscience.gov.au/dataset/ga/115066>)
+  - AusBathyTopo (Northern Australia) 30m 2018
+    (<http://pid.geoscience.gov.au/dataset/ga/121620>)
+  - AusBathyTopo (Torres Strait) 30m 2023
+    (<https://data.gov.au/data/dataset/16cc06d1-1962-477c-b738-8b4b5dcfcc8e>)
+
+  The catalogue records of the first two also carry a notice that material
+  in them is reproduced by permission of the Australian Hydrographic
+  Service. Geoscience Australia confirmed by e-mail on 23 November 2026
+  that this lineage section is there for attribution only and does not
+  affect the CC BY 4.0 licence, which applies to the entire product and
+  allows derivative works, commercial ones included, with attribution to
+  Geoscience Australia. Attribution follows Geoscience Australia's citation
+  guide, with a change note, for example: "Geoscience Australia (2020),
+  AusBathyTopo (Great Barrier Reef) 30m 2020 - A High-resolution Depth
+  Model, Geoscience Australia, Canberra, (...): © Commonwealth of Australia
+  (Geoscience Australia) 2020, CC BY 4.0 (...); modified: moved from mean
+  sea level to LAT and resampled onto the chart grid; not to be used for
+  navigation". Used as the bathymetric model of the regions whose file asks
+  for it (`"dem": [{"source": "ausseabed"}]`), only in chunks that reach
+  water shallower than 300 m.
 - **Tidal statistics for Australia**: the Australian Institute of Marine
   Science's Lowest Predicted Tide over 2021 to 2025 from the EOT20 tide
   model, standing for LAT, published on eAtlas
