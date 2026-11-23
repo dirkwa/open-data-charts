@@ -1262,12 +1262,14 @@ def submerge_reefs(reefs, depare):
         if under is None or under.IsEmpty():
             out.append((geom, attrs, extra))
             continue
-        for part, watlev in ((geom.Difference(under), '4'), (under, '3')):
-            out += [
-                (p, {**attrs, 'WATLEV': watlev}, extra)
-                for p in polygon_parts(part.MakeValid())
-                if p.GetArea() >= MIN_AREA_DEG2
-            ]
+        # Slivers too small to draw stay with the drying part, so no reef area is lost.
+        wet = [p for p in polygon_parts(under.MakeValid()) if p.GetArea() >= MIN_AREA_DEG2]
+        if not wet:
+            out.append((geom, attrs, extra))
+            continue
+        dry = geom.Difference(multipolygon(wet).UnionCascaded()).MakeValid()
+        out += [(p, {**attrs, 'WATLEV': '4'}, extra) for p in polygon_parts(dry)]
+        out += [(p, {**attrs, 'WATLEV': '3'}, extra) for p in wet]
     return out
 
 

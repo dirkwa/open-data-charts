@@ -559,8 +559,12 @@ def test_a_reef_flat_is_charted_under_water_where_the_depths_show_water():
     depare = [
         depth_area(166.38, 0.0),  # shallow water over the reef's western half stays drying
         depth_area(166.381, 2.0),
-        depth_area(166.381, 2.0, INFORM='satellite'),
+        depth_area(166.38, 2.0, INFORM='satellite'),  # satellite depths do not count
     ]
     out = sorted((a['INFORM'], a['WATLEV'], round(g.GetArea() * 1e6, 3)) for g, a, _ in submerge_reefs(reefs, depare))
     assert out == [('patch reef', '3', 4.0), ('reef flat', '3', 2.0), ('reef flat', '4', 2.0)]
     assert submerge_reefs(reefs[:1], depare[:1]) == reefs[:1]
+    # A flat cut into slivers too small to draw is kept whole, still drying.
+    small = ogr.CreateGeometryFromJson(json.dumps(square(166.38095, -22.2595, 0.0001)))
+    kept = submerge_reefs([(small, {'WATLEV': '4'}, None)], depare)
+    assert [(a['WATLEV'], round(g.GetArea() * 1e8, 3)) for g, a, _ in kept] == [('4', 1.0)]
