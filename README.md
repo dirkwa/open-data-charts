@@ -2,8 +2,8 @@
 
 Free nautical charts for your Signal K chart plotter, built from open data:
 depths, depth contours, soundings, buoys and lights, land and terrain, for
-coasts in Europe, the Mediterranean, the Pacific, Australia and the French
-overseas territories. You pick the areas you sail on a map, they are
+coasts in Europe, the Mediterranean, New Zealand and the French overseas
+territories. You pick the areas you sail on a map, they are
 downloaded to your boat, and they work offline in
 [Freeboard-SK](https://github.com/SignalK/freeboard-sk).
 
@@ -39,11 +39,9 @@ downloaded to your boat, and they work offline in
 | British Isles | Isles of Scilly and Land's End, England and Wales with the Irish Sea, Scotland with Northern Ireland and North East England, Ireland's Atlantic coast, Cork, the Shannon Estuary and Galway Bay | EMODnet, INFOMAR in Irish waters |
 | North Sea and Baltic | Dutch Wadden Sea, German North Sea, German Baltic, Denmark | Rijkswaterstaat, BSH and WSV, Danish Depth Model |
 | Norway | Southern Norway, Oslofjord to Stad | Kartverket |
-| Atlantic islands and Iberia | Galicia, Portugal and the Gulf of Cadiz, Canary Islands, Madeira, Azores | EMODnet, Instituto Hidrográfico |
-| Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea; the Aegean; southern Turkey, Cyprus and the Levant; Tunisia, Libya and Egypt | EMODnet, ICGC on the Catalan coast |
+| Atlantic islands and Iberia | Galicia, Portugal and the Gulf of Cadiz, Canary Islands, Madeira | EMODnet, Instituto Hidrográfico |
+| Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea | EMODnet, ICGC on the Catalan coast |
 | New Zealand | North, South and Stewart Islands | LINZ chart data |
-| Australia | The Kimberley and the Top End, the Torres Strait, the Great Barrier Reef down to the Gold Coast | Geoscience Australia |
-| Central America | Panama | Satellite-derived depths and reef maps |
 
 New regions are added regularly. The Open Data Charts tab (below) always
 shows what is available right now. [docs/sources.md](docs/sources.md)
