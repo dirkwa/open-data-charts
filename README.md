@@ -2,8 +2,8 @@
 
 Free nautical charts for your Signal K chart plotter, built from open data:
 depths, depth contours, soundings, buoys and lights, land and terrain, for
-coasts in Europe, the Mediterranean, New Zealand and the French overseas
-territories. You pick the areas you sail on a map, they are
+coasts in Europe, the Mediterranean, Australia, New Zealand and the French
+overseas territories. You pick the areas you sail on a map, they are
 downloaded to your boat, and they work offline in
 [Freeboard-SK](https://github.com/SignalK/freeboard-sk).
 
@@ -41,6 +41,7 @@ downloaded to your boat, and they work offline in
 | Norway | Southern Norway, Oslofjord to Stad | Kartverket |
 | Atlantic islands and Iberia | Galicia, Portugal and the Gulf of Cadiz, Canary Islands, Madeira | EMODnet, Instituto Hidrográfico |
 | Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea | EMODnet, ICGC on the Catalan coast |
+| Australia | Kimberley and Top End, Torres Strait, Great Barrier Reef, New South Wales, Victoria and Tasmania | Geoscience Australia, NSW marine lidar and multibeam |
 | New Zealand | North, South and Stewart Islands | LINZ chart data |
 
 New regions are added regularly. The Open Data Charts tab (below) always
@@ -101,8 +102,8 @@ As good as the data behind them, which differs a lot from place to place:
 - In French waters soundings come from Shom's surveys, and in New Zealand
   from LINZ's charts.
 - Elsewhere depths come from a **model**, a grid of depths from a few metres
-  to about 115 m apart near the coast, and about 460 m in deep water far
-  offshore. Narrow channels, rocks and wrecks smaller than the grid may be
+  to about 115 m apart near the coast (250 m in places off south-east
+  Australia), and about 460 m in deep water far offshore. Narrow channels, rocks and wrecks smaller than the grid may be
   missing. Depth numbers taken from a model say so in their details.
 - Reef flats and lagoons in the tropics come from satellite images and are
   charted only in rough bands, set on the shallow side.

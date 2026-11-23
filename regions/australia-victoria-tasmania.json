@@ -1,0 +1,42 @@
+{
+  "id": "australia-victoria-tasmania",
+  "name": "Victoria and Tasmania",
+  "bbox": [
+    140.7,
+    -44.0,
+    150.4,
+    -37.75
+  ],
+  "sources": [
+    "ausseabed",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "ausseabed",
+      "national": true
+    }
+  ],
+  "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/australia/victoria-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/australia/tasmania-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/oceania/australia/south_australia-latest.osm.pbf",
+      "https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Geoscience Australia (2022), AusBathyTopo (Bass Strait) 30m 2022 - A regional-scale depth model, Geoscience Australia, Canberra, https://pid.geoscience.gov.au/dataset/ga/147043: © Commonwealth of Australia (Geoscience Australia) 2022, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
+    "Geoscience Australia (2026), AusBathyTopo 250m (Australia) 2026 Grid - A national-scale depth and elevation dataset and derived terrain variables, Geoscience Australia, Canberra, https://data.gov.au/data/dataset/ausbathytopo-250m-australia-2026-grid-a-national-scale-depth-and-elevation-dataset-and-derived-: © Commonwealth of Australia (Geoscience Australia) 2026, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
+    "AIMS, Tidal Statistics for Australia derived from the EOT20 tidal model (NESP MaC 3.17), doi:10.26274/z8b6-zx94, CC BY 4.0",
+    "Hart-Davis et al. (2021), EOT20 – A global Empirical Ocean Tide model from multi-mission satellite altimetry, SEANOE, doi:10.17882/79489, CC BY 4.0"
+  ]
+}
