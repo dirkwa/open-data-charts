@@ -107,6 +107,16 @@ more, away from anything shallower) that no survey or finer model covers.
   chart grid; not suitable for navigation". Moved to LAT with GCG2016,
   DKLAT(2023) and NLLAT2018. Used as the bathymetric model of the regions whose file asks
   for it (`"dem": [..., {"source": "bsh"}]`).
+- **SVDB surveys**: Bundesamt für Seeschifffahrt und Hydrographie (BSH),
+  the surveys of its Seevermessungsdatenbank (1 m multibeam grids and
+  single-beam lines since 2012, depths below NHN), through the SVDB portal
+  <https://svdb-portal.bsh.de>, Creative Commons Zero (CC0 1.0). BSH states
+  the data is not suitable for navigation. No attribution is required; the
+  units name it: "Bundesamt für Seeschifffahrt und Hydrographie (BSH),
+  Seevermessungsdatenbank (SVDB, ...), CC0 1.0; modified: moved from NHN to
+  LAT and reduced to the shoalest sounding per chart grid cell; not suitable
+  for navigation". Moved to LAT as BSH's model is, for the regions whose
+  file lists `bsh-surveys` in its sources.
 - **DGM-W**: Wasserstraßen- und Schifffahrtsverwaltung des Bundes (WSV),
   the digital terrain models of the Ems (2015, 5 m), Jade (2018, 5 m), Weser
   (2021, 2 m) and outer Elbe (2024, 1 m) estuaries, heights above NHN, from

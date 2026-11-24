@@ -38,7 +38,11 @@ the index and the docs say so.
   downloads over a few connections).
 - `odc/reduce_survey.py`: one survey's XYZ (streamed out of its 7z) to the
   shoalest sounding per grid cell.
-- `odc/mirror.py`: the survey mirror, one reduced `.npz` per survey,
+- `odc/svdb.py`: BSH's survey database (SVDB) through its public portal,
+  for regions listing `bsh-surveys`: each dataset (1 m multibeam grid or
+  single-beam lines, CC0) packed by the portal's download service, moved
+  from NHN to LAT and reduced like a Shom survey.
+- `odc/mirror.py`: the survey mirror (Shom's and SVDB's), one reduced `.npz` per survey,
   named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
   `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
   release); the draft release `mirror` holds the index.
@@ -81,8 +85,8 @@ the index and the docs say so.
 
 ## Workflows
 
-- `mirror-surveys.yml` (weekly): reduces new or changed Shom surveys into
-  the `mirror` release.
+- `mirror-surveys.yml` (weekly): reduces new or changed Shom and SVDB
+  surveys into the `mirror` release.
 - `build-units.yml` (daily, one region a day in turn, once all of the
   region's surveys are mirrored): plans the units whose version changed, builds
   them in a matrix and, when publishing is on (`ODC_PUBLISH` or a manual

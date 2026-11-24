@@ -50,6 +50,9 @@ German North Sea, BSH's model lies over Rijkswaterstaat's grid around the
 Ems, and WSV's models of the Ems, Jade, Weser and outer Elbe estuaries
 (DGM-W, 1 to 5 m) lie on top of both, kept to where LAT is the chart datum:
 seaward of Emden, Bremerhaven and Cuxhaven. EMODnet fills beyond them.
+Over these models, BSH's surveys from its survey database (SVDB, CC0,
+2012 on: 1 m multibeam grids and single-beam lines) are charted like Shom's
+surveys, newest on top, moved from NHN to LAT the same way.
 Panama has no open national depth data: its reefs (San Blas, Bocas del Toro,
 Las Perlas) come from the Allen Coral Atlas, its coast and seamarks from
 OpenStreetMap and OpenSeaMap, and its deep water from ETOPO; the atlas's

@@ -672,13 +672,20 @@ def build_soundings(entries, rank, land_cells, box, unit, maxzoom, model=None):
     return feats
 
 
+def survey_inform(name, meta):
+    year = str(meta['end'])[:4]
+    if meta.get('provider') == 'bsh-svdb':
+        return f'BSH survey {meta["title"]} ({year}), SVDB, CC0'
+    return f'Shom survey {name} ({year}), doi:10.17183/{name}'
+
+
 def survey_attributes(entry, z, minzoom):
-    meta, name = entry[4], entry[2]
+    meta = entry[4]
     # Round towards the shallow side (S-4: soundings are truncated).
     attrs = {
         'DEPTH': math.floor(float(z) * 10) / 10,
         'SORDAT': str(meta['end']),
-        'INFORM': f'Shom survey {name} ({str(meta["end"])[:4]}), doi:10.17183/{name}',
+        'INFORM': survey_inform(entry[2], meta),
         '_minzoom': int(minzoom),
     }
     tech = tecsou(meta.get('tecsou'))
@@ -1584,7 +1591,8 @@ def write_unit_info(out_dir, unit, quality, surveys):
         'unit': unit.id,
         'quality': quality,
         'surveys': [
-            {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou'), 'doi': f'10.17183/{name}'}
+            {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou')}
+            | ({} if meta.get('provider') == 'bsh-svdb' else {'doi': f'10.17183/{name}'})
             for _, _, name, _, meta in surveys
         ],
     }
