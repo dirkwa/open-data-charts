@@ -676,6 +676,8 @@ def survey_inform(name, meta):
     year = str(meta['end'])[:4]
     if meta.get('provider') == 'bsh-svdb':
         return f'BSH survey {meta["title"]} ({year}), SVDB, CC0'
+    if meta.get('provider') == 'ausseabed':
+        return f'Geoscience Australia survey {meta["title"]}, AusSeabed, CC BY 4.0'
     if meta.get('provider') == 'shom-litto3d':
         cited = f'doi:10.17183/{meta["doi"]}' if 'doi' in meta else 'Licence Ouverte 2.0'
         return f'Shom - IGN Litto3D {meta["product"]} ({year}), {cited}'
@@ -1592,7 +1594,7 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
 def survey_doi(name, meta):
     if meta.get('provider') == 'shom-litto3d':
         return {'doi': f'10.17183/{meta["doi"]}'} if 'doi' in meta else {}
-    if meta.get('provider') == 'bsh-svdb':
+    if meta.get('provider') in ('bsh-svdb', 'ausseabed'):
         return {}
     return {'doi': f'10.17183/{name}'}
 

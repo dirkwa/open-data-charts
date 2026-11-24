@@ -405,8 +405,11 @@ def save_zip_members(url, members, folder):
     remote = RemoteFile(url)
     with zipfile.ZipFile(io.BufferedReader(remote, 1 << 16)) as archive:
         infos = [archive.getinfo(member) for member in members]
+    root = os.path.realpath(folder)
     for info in infos:
-        path = os.path.join(folder, info.filename)
+        path = os.path.realpath(os.path.join(root, info.filename))
+        if os.path.commonpath([root, path]) != root:
+            raise RuntimeError(f'{info.filename} in {url} lies outside the archive')
         os.makedirs(os.path.dirname(path), exist_ok=True)
         remote.seek(info.header_offset)
         name_length, extra_length = ZIP_LOCAL_HEADER.unpack(remote.read(ZIP_LOCAL_HEADER.size))
