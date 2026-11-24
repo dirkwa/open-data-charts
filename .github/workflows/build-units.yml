@@ -89,7 +89,7 @@ jobs:
           else
             counts=$(jq -c --arg r "$REGION" '.regions[$r] // {}' mirror/mirror-index.json)
             echo "$REGION in the mirror: $counts"
-            ready=$(echo "$counts" | jq '.surveys > 0 and .mirrored == .surveys')
+            ready=$(echo "$counts" | jq '(.surveys > 0 or .held > 0) and .mirrored == .surveys')
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
       - name: Download the region's inputs

@@ -145,6 +145,12 @@ def test_a_held_survey_keeps_its_reduction_and_counts_only_when_it_has_one(tmp_p
     held = [{'name': s['name'], 'held': True, 'regions': ['r'], 'geometry': s['geometry']} for s in (kept, unknown)]
     changed, index = index_after(tmp_path / 'b', held, assets, old_index)
     assert index['surveys'] == old_index['surveys']
-    assert index['regions'] == {'r': {'surveys': 1, 'mirrored': 1}}
-    assert not changed
+    assert index['regions'] == {'r': {'surveys': 1, 'mirrored': 1, 'held': 1}}
+    assert changed
     assert json.loads((tmp_path / 'b' / 'out' / 'stale-assets.json').read_text()) == []
+
+
+def test_a_region_whose_surveys_are_all_held_unreduced_is_listed(tmp_path):
+    held = {'name': 'S1', 'held': True, 'regions': ['r'], 'geometry': survey('S1')['geometry']}
+    _, index = index_after(tmp_path, [held], [], {'surveys': {}})
+    assert index['regions'] == {'r': {'surveys': 0, 'mirrored': 0, 'held': 1}}

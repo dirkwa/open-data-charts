@@ -238,12 +238,14 @@ def region_counts(surveys, entries):
     region is built only once the two agree."""
     counts = {}
     for survey in surveys:
-        # A survey held without a reduction is unknown to the mirror; it must
-        # not keep its region from being built.
-        if survey.get('held') and survey['name'] not in entries:
-            continue
+        held = survey.get('held') and survey['name'] not in entries
         for region in survey['regions']:
             count = counts.setdefault(region, {'surveys': 0, 'mirrored': 0})
+            # A survey held without a reduction has nothing to wait for; it is
+            # counted apart, so a region with nothing else is still listed.
+            if held:
+                count['held'] = count.get('held', 0) + 1
+                continue
             count['surveys'] += 1
             count['mirrored'] += survey['name'] in entries
     return counts
