@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import tempfile
+import urllib.error
 import urllib.parse
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -49,6 +50,7 @@ PACKAGE_KM = 5
 PACKAGE_MARGIN_KM = 1
 LAMBERT93 = 2154
 LISTING_THREADS = 4
+HTTP_NOT_FOUND = 404
 
 # Shom's BathyElli v2.1: ZH and PHMA above the GRS80 ellipsoid (RGF93) as
 # scattered points, one file each for the Channel and Atlantic and for the
@@ -201,12 +203,20 @@ def discover(regions):
                 surveys[s['name']] = {**s, 'regions': sorted(meets)}
 
     def with_files(s):
-        files = shom.list_files({'group': s['group'], 'name': s['package']})
+        try:
+            files = shom.list_files({'group': s['group'], 'name': s['package']})
+        except urllib.error.HTTPError as error:
+            # The catalogue lists a few packages the download service does not have.
+            if error.code != HTTP_NOT_FOUND:
+                raise
+            return None
         return {**s, 'files': files, 'size': sum(f['fileSize'] for f in files)}
 
     with ThreadPoolExecutor(LISTING_THREADS) as pool:
-        found = list(pool.map(with_files, surveys.values()))
-    print(f'litto3d: {len(found)} packages in the regions', flush=True)
+        listed = list(pool.map(with_files, surveys.values()))
+    found = [s for s in listed if s]
+    missing = sorted(name for name, s in zip(surveys, listed, strict=True) if s is None)
+    print(f'litto3d: {len(found)} packages in the regions, {len(missing)} not downloadable: {missing}', flush=True)
     return found
 
 

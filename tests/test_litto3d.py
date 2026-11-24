@@ -1,5 +1,6 @@
 import json
 import os
+import urllib.error
 
 import numpy as np
 import pytest
@@ -173,3 +174,16 @@ def test_the_datums_are_built_once_per_run(tmp_path, monkeypatch):
     (tmp_path / 'litto3d-datums.json').write_text(json.dumps({'IGN69': {'ZH': 'a', 'PHMA': 'b'}}))
     monkeypatch.setattr(litto3d, 'bathyelli', lambda level, tmp: pytest.fail('fetched again'))
     assert litto3d.datums(str(tmp_path)) == {'IGN69': {'ZH': 'a', 'PHMA': 'b'}}
+
+
+def test_a_package_the_download_service_does_not_have_is_left_out(monkeypatch):
+    def list_files(package):
+        if package['name'] == '0335_6855':
+            raise urllib.error.HTTPError('u', 404, 'Not Found', {}, None)
+        return FILES
+
+    monkeypatch.setattr(litto3d, 'product_doi', lambda product: None)
+    monkeypatch.setattr(litto3d, 'packages', lambda product: ['0330_6855', '0335_6855'])
+    monkeypatch.setattr(litto3d.shom, 'list_files', list_files)
+    region = {'id': 'france-channel', 'bbox': [-5.3, 48.46, 2.6, 51.15], 'litto3d': ['LITTO3D_BZH_2018_2021']}
+    assert [s['package'] for s in litto3d.discover([region])] == ['0330_6855']
