@@ -97,7 +97,10 @@ def discover(regions_dir):
         surveys += svdb.discover({region['id']: region['bbox'] for region in bsh})
     lidar = load_regions(regions_dir, 'shom-litto3d')
     if lidar:
-        surveys += [{**s, 'md5': source_md5(s['files'])} for s in litto3d.discover(lidar)]
+        surveys += [
+            s if s.get('held') else {**s, 'md5': litto3d.identity(source_md5(s['files']))}
+            for s in litto3d.discover(lidar)
+        ]
     names = [s['name'] for s in surveys]
     if len(names) != len(set(names)):
         raise SystemExit('two surveys share a name')
@@ -238,7 +241,7 @@ def index_entry(survey, asset):
             'source': {
                 'files': [f['fileName'] for f in survey['files']],
                 'bytes': survey['size'],
-                'md5': survey['md5'],
+                'md5': source_md5(survey['files']),
             },
         }
     elif survey.get('provider') == 'bsh-svdb':

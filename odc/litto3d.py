@@ -20,6 +20,7 @@ the highest tide are land, left out.
 """
 
 import glob
+import hashlib
 import json
 import os
 import re
@@ -68,6 +69,9 @@ GEOIDS = {
     'IGN69': 'https://cdn.proj.org/fr_ign_RAF20.tif',
     'IGN78': 'https://cdn.proj.org/fr_ign_RAC23.tif',
 }
+# A reduction depends on the datum surfaces as much as on its package: a
+# change of either is a new reduction.
+DATUMS_ID = ' '.join([BATHYELLI_GROUP, *GEOIDS.values()])
 
 # The 1 m model's masks (Litto3D's Descriptif de contenu, 4.1.4): sources
 # that are no measurement, and interpolation distances beyond what a chart
@@ -76,6 +80,10 @@ NO_DATA_SOURCE = 0
 FICTITIOUS_SOURCE = 69  # water surfaces of ports, estuaries and ponds, made flat
 MAX_INTERPOLATION_M = 10  # 253-255 are other models, seams and nodes without height
 MODEL_DIRS = ('MNT1m', 'MNT', 'MNT5m', 'MNS')
+
+
+def identity(files_md5):
+    return hashlib.md5(f'{files_md5} {DATUMS_ID}'.encode()).hexdigest()
 
 
 def get_xml(params):
@@ -206,16 +214,16 @@ def discover(regions):
         try:
             files = shom.list_files({'group': s['group'], 'name': s['package']})
         except urllib.error.HTTPError as error:
-            # The catalogue lists a few packages the download service does not have.
+            # The catalogue lists a few packages the download service does not
+            # have; each keeps what the mirror holds for it until it has it again.
             if error.code != HTTP_NOT_FOUND:
                 raise
-            return None
+            return {**s, 'held': True}
         return {**s, 'files': files, 'size': sum(f['fileSize'] for f in files)}
 
     with ThreadPoolExecutor(LISTING_THREADS) as pool:
-        listed = list(pool.map(with_files, surveys.values()))
-    found = [s for s in listed if s]
-    missing = sorted(name for name, s in zip(surveys, listed, strict=True) if s is None)
+        found = list(pool.map(with_files, surveys.values()))
+    missing = sorted(s['name'] for s in found if s.get('held'))
     print(f'litto3d: {len(found)} packages in the regions, {len(missing)} not downloadable: {missing}', flush=True)
     return found
 
@@ -246,7 +254,7 @@ def grid_points(lines, path):
         path,
         vrt,
         format='GTiff',
-        algorithm=f'linear:radius=-1:nodata={SURFACE_NODATA}',
+        algorithm=f'linear:radius=0:nodata={SURFACE_NODATA}',
         outputBounds=[w, n, e, s],
         width=round((e - w) / SURFACE_STEP),
         height=round((n - s) / SURFACE_STEP),

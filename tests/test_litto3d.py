@@ -176,7 +176,7 @@ def test_the_datums_are_built_once_per_run(tmp_path, monkeypatch):
     assert litto3d.datums(str(tmp_path)) == {'IGN69': {'ZH': 'a', 'PHMA': 'b'}}
 
 
-def test_a_package_the_download_service_does_not_have_is_left_out(monkeypatch):
+def test_a_package_the_download_service_does_not_have_is_held(monkeypatch):
     def list_files(package):
         if package['name'] == '0335_6855':
             raise urllib.error.HTTPError('u', 404, 'Not Found', {}, None)
@@ -186,4 +186,12 @@ def test_a_package_the_download_service_does_not_have_is_left_out(monkeypatch):
     monkeypatch.setattr(litto3d, 'packages', lambda product: ['0330_6855', '0335_6855'])
     monkeypatch.setattr(litto3d.shom, 'list_files', list_files)
     region = {'id': 'france-channel', 'bbox': [-5.3, 48.46, 2.6, 51.15], 'litto3d': ['LITTO3D_BZH_2018_2021']}
-    assert [s['package'] for s in litto3d.discover([region])] == ['0330_6855']
+    found = {s['package']: s for s in litto3d.discover([region])}
+    assert 'files' in found['0330_6855'] and not found['0330_6855'].get('held')
+    assert found['0335_6855']['held'] and found['0335_6855']['regions'] == ['france-channel']
+
+
+def test_a_reduction_changes_with_its_datum_surfaces(monkeypatch):
+    before = litto3d.identity('b' * 32)
+    monkeypatch.setattr(litto3d, 'DATUMS_ID', litto3d.DATUMS_ID.replace('2_1', '3_0'))
+    assert litto3d.identity('b' * 32) != before != 'b' * 32
