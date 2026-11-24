@@ -97,8 +97,9 @@ def discover(regions_dir):
         surveys += svdb.discover({region['id']: region['bbox'] for region in bsh})
     lidar = load_regions(regions_dir, 'shom-litto3d')
     if lidar:
+        datums = litto3d.datums_id()
         surveys += [
-            s if s.get('held') else {**s, 'md5': litto3d.identity(source_md5(s['files']))}
+            s if s.get('held') else {**s, 'md5': litto3d.identity(source_md5(s['files']), datums)}
             for s in litto3d.discover(lidar)
         ]
     names = [s['name'] for s in surveys]

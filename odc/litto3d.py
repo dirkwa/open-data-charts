@@ -69,9 +69,6 @@ GEOIDS = {
     'IGN69': 'https://cdn.proj.org/fr_ign_RAF20.tif',
     'IGN78': 'https://cdn.proj.org/fr_ign_RAC23.tif',
 }
-# A reduction depends on the datum surfaces as much as on its package: a
-# change of either is a new reduction.
-DATUMS_ID = ' '.join([BATHYELLI_GROUP, *GEOIDS.values()])
 
 # The 1 m model's masks (Litto3D's Descriptif de contenu, 4.1.4): sources
 # that are no measurement, and interpolation distances beyond what a chart
@@ -82,8 +79,21 @@ MAX_INTERPOLATION_M = 10  # 253-255 are other models, seams and nodes without he
 MODEL_DIRS = ('MNT1m', 'MNT', 'MNT5m', 'MNS')
 
 
-def identity(files_md5):
-    return hashlib.md5(f'{files_md5} {DATUMS_ID}'.encode()).hexdigest()
+def bathyelli_package(level):
+    return {'group': BATHYELLI_GROUP, 'name': f'BATHYELLI_{level}_ell_V2_1'}
+
+
+def datums_id():
+    """What a reduction is moved with: the BathyElli files' md5s as Shom
+    lists them, and the geoid grids, which PROJ never changes in place (a
+    corrected grid gets a new name)."""
+    bathyelli = [f['fileMd5'] for level in BATHYELLI_LEVELS for f in shom.list_files(bathyelli_package(level))]
+    return ' '.join([*bathyelli, *GEOIDS.values()])
+
+
+def identity(files_md5, datums):
+    """A reduction depends on its datum surfaces as much as on its package."""
+    return hashlib.md5(f'{files_md5} {datums}'.encode()).hexdigest()
 
 
 def get_xml(params):
@@ -276,7 +286,7 @@ def grid_points(lines, path):
 
 def bathyelli(level, tmp):
     """A BathyElli surface's points, every file of its package."""
-    package = {'group': BATHYELLI_GROUP, 'name': f'BATHYELLI_{level}_ell_V2_1'}
+    package = bathyelli_package(level)
     lines = []
     for item in shom.list_files(package):
         archive = os.path.join(tmp, item['fileName'])

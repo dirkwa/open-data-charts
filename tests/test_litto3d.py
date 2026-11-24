@@ -192,6 +192,10 @@ def test_a_package_the_download_service_does_not_have_is_held(monkeypatch):
 
 
 def test_a_reduction_changes_with_its_datum_surfaces(monkeypatch):
-    before = litto3d.identity('b' * 32)
-    monkeypatch.setattr(litto3d, 'DATUMS_ID', litto3d.DATUMS_ID.replace('2_1', '3_0'))
-    assert litto3d.identity('b' * 32) != before != 'b' * 32
+    def listed(md5):
+        monkeypatch.setattr(litto3d.shom, 'list_files', lambda package: [{'fileName': 'x.7z', 'fileMd5': md5}])
+        return litto3d.identity('b' * 32, litto3d.datums_id())
+
+    # A BathyElli file Shom replaces under the same package name is a new reduction.
+    assert listed('c' * 32) != listed('d' * 32) != 'b' * 32
+    assert listed('c' * 32) == listed('c' * 32)
