@@ -104,7 +104,7 @@ ETOPO_MIN_DEPTH_M = 200.0
 ETOPO_CLEAR_PIXELS = 2
 ETOPO_MARGIN_DEG = (ETOPO_CLEAR_PIXELS + 2) * ETOPO_PIXEL_DEG
 SURVEY_CATEGORIES = QUALITY_ORDER[:3]
-TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'))
+TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'), ('lidar', '7'))
 
 # Harbour structures. OSM man_made -> S-57 CATSLC (shoreline construction).
 OSM_CATSLC = {'breakwater': '1', 'groyne': '2', 'pier': '4', 'quay': '6'}
@@ -678,6 +678,9 @@ def survey_inform(name, meta):
         return f'BSH survey {meta["title"]} ({year}), SVDB, CC0'
     if meta.get('provider') == 'ausseabed':
         return f'Geoscience Australia survey {meta["title"]}, AusSeabed, CC BY 4.0'
+    if meta.get('provider') == 'shom-litto3d':
+        cited = f'doi:10.17183/{meta["doi"]}' if 'doi' in meta else 'Licence Ouverte 2.0'
+        return f'Shom - IGN Litto3D {meta["product"]} ({year}), {cited}'
     return f'Shom survey {name} ({year}), doi:10.17183/{name}'
 
 
@@ -1588,13 +1591,20 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
     return {'best': best, 'share': share}, used
 
 
+def survey_doi(name, meta):
+    if meta.get('provider') == 'shom-litto3d':
+        return {'doi': f'10.17183/{meta["doi"]}'} if 'doi' in meta else {}
+    if meta.get('provider') in ('bsh-svdb', 'ausseabed'):
+        return {}
+    return {'doi': f'10.17183/{name}'}
+
+
 def write_unit_info(out_dir, unit, quality, surveys):
     info = {
         'unit': unit.id,
         'quality': quality,
         'surveys': [
-            {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou')}
-            | ({} if meta.get('provider') else {'doi': f'10.17183/{name}'})
+            {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou')} | survey_doi(name, meta)
             for _, _, name, _, meta in surveys
         ],
     }

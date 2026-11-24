@@ -9,7 +9,10 @@ draft releases `mirror-0` to `mirror-f` by the first digit of their source
 md5, and the index records each survey's release. The draft release `mirror`
 holds the index, the footprints and the surveys reduced before the split,
 until a new source replaces them. Only new surveys, or those whose source
-md5 changed, are downloaded and reduced again.
+md5 changed, are downloaded and reduced again. A run takes at most
+`MAX_SHARDS` shards (about 290 GB) and leaves the rest to the next run, so a
+large first fill, such as Litto3D's, does not hold the unit builds back for
+days; the regions it reaches build once their surveys are all mirrored.
 
 ### Measured: New Caledonia, first full mirror (2026-11-16)
 

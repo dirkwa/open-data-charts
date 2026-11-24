@@ -1,6 +1,6 @@
 name: Mirror surveys
 
-# Keeps every Shom, BSH (SVDB) and AusSeabed survey of the configured regions
+# Keeps every Shom, BSH (SVDB) and AusSeabed survey and Litto3D package of the configured regions
 # reduced to the global grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
 # by CI, not listed publicly; odc.mirror says why there are sixteen). The
 # draft release "mirror" holds the index. Only surveys that are new, or whose source md5 changed, are
@@ -71,6 +71,9 @@ jobs:
         with:
           name: mirror-plan
           path: work
+      # A Litto3D package is up to 9 GB, and one is reduced per CPU at once.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Build the builder image
         run: docker build -f builder/Dockerfile -t odc-builder .
       - name: Download and reduce
