@@ -176,8 +176,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REGION: ${{ needs.plan.outputs.region }}
-    environment:
-      name: github-pages
+    outputs:
+      changed: ${{ steps.index.outputs.changed }}
+      pages-artifact: ${{ steps.index.outputs.pages-artifact }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -219,15 +220,30 @@ jobs:
             cmp -s "site/$f" "old/$f" || changed=true
           done
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          # A re-run attempt uploads its own artifact: deploy-pages refuses a run with two of one name.
+          echo "pages-artifact=github-pages-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - if: steps.index.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
-      - if: steps.index.outputs.changed == 'true'
-        uses: actions/deploy-pages@v5
+          name: ${{ steps.index.outputs.pages-artifact }}
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
             release=$(jq -r --arg name "$name" 'map(select(.name == $name))[0].release // empty' region-assets.json)
             [ -n "$release" ] && gh release delete-asset "$release" "$name" --yes || true
           done
+
+  # Its own job: deploy-pages may list the run's artifacts before one uploaded
+  # moments ago in the same job shows up, and a failed deployment can be
+  # re-run alone.
+  deploy:
+    needs: publish
+    if: always() && needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.publish.outputs.pages-artifact }}
