@@ -119,7 +119,7 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
     os.makedirs(os.path.join(work, 'shards'), exist_ok=True)
     surveys = discover(regions_dir)
     have = {a['name'] for a in json.load(open(assets_path, encoding='utf-8'))}
-    todo = [s for s in surveys if asset_name(s) not in have]
+    todo = [s for s in surveys if not s.get('held') and asset_name(s) not in have]
     with open(os.path.join(work, 'discovery.json'), 'w', encoding='utf-8') as fh:
         json.dump(surveys, fh)
     shards = shard(todo, max_bytes)
@@ -238,6 +238,10 @@ def region_counts(surveys, entries):
     region is built only once the two agree."""
     counts = {}
     for survey in surveys:
+        # A survey held without a reduction is unknown to the mirror; it must
+        # not keep its region from being built.
+        if survey.get('held') and survey['name'] not in entries:
+            continue
         for region in survey['regions']:
             count = counts.setdefault(region, {'surveys': 0, 'mirrored': 0})
             count['surveys'] += 1
@@ -253,14 +257,15 @@ def build_index(work, assets_path, old_index_path, out_dir):
         raise SystemExit(f'discovery found {len(surveys)} surveys, the mirror has {len(old["surveys"])}: not replacing')
     entries, missing = {}, []
     for survey in surveys:
-        asset = assets.get(asset_name(survey))
+        asset = None if survey.get('held') else assets.get(asset_name(survey))
         if asset:
             entries[survey['name']] = index_entry(survey, asset)
             continue
-        missing.append(survey['name'])
+        if not survey.get('held'):
+            missing.append(survey['name'])
         previous = old['surveys'].get(survey['name'])
-        # A survey whose new source failed to reduce keeps its last reduction
-        # until a run brings the replacement.
+        # A survey whose new source failed to reduce, or that discovery could
+        # only hold, keeps its last reduction until a run brings a new one.
         if previous and previous['reduced']['asset'] in assets:
             release = assets[previous['reduced']['asset']]['release']
             entries[survey['name']] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}

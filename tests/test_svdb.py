@@ -113,3 +113,20 @@ def test_a_layer_on_another_datum_is_refused(tmp_path):
     sep = svdb.Separation(separation_tif(tmp_path / 'sep.tif', 0.4))
     with pytest.raises(ValueError, match='vertical datum'):
         svdb.reduce_zip(layer_zip(tmp_path / 'layer.zip', vertdat='5783'), sep)
+
+
+def test_a_layer_missing_from_the_search_is_held(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return CAPABILITIES
+
+    monkeypatch.setattr(svdb, 'get', lambda url, **kw: Response())
+    monkeypatch.setattr(svdb, 'search', lambda: {})
+    [survey] = svdb.discover({'germany-baltic': [10, 54, 11, 55]})
+    assert survey['held'] and survey['name'] == 'BSH-202260103_T' and survey['regions'] == ['germany-baltic']

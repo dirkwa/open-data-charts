@@ -162,21 +162,34 @@ def discover(bboxes):
     with get(f'{PORTAL}/wms?version=1.3.0&request=GetCapabilities&service=WMS') as response:
         found = layers(response.read())
     records = search()
-    surveys, unsearched = [], 0
+    surveys = []
     for layer in found:
         regions = sorted(r for r, box in bboxes.items() if shom.intersects(layer['bbox'], box))
         if not regions:
             continue
-        if layer['id'] not in records:
-            unsearched += 1
+        record = records.get(layer['id'])
+        if record is None:
+            # Without its search record a layer has no technique to chart it
+            # by: it keeps what the mirror holds for it until the search lists
+            # it again, and is not mirrored anew.
+            surveys.append(held(layer, regions))
             continue
-        surveys.append({**survey_from_layer(layer, records[layer['id']]), 'regions': regions})
-    # A layer the search does not list has no technique to chart it by; the
-    # next run takes it up once the search does.
+        surveys.append({**survey_from_layer(layer, record), 'regions': regions})
+    unsearched = sum(1 for s in surveys if s.get('held'))
     print(
         f'svdb: {len(found)} layers, {len(surveys)} surveys in the regions, {unsearched} not in the search', flush=True
     )
     return surveys
+
+
+def held(layer, regions):
+    return {
+        'provider': 'bsh-svdb',
+        'name': survey_name(layer['title']),
+        'held': True,
+        'regions': regions,
+        'geometry': polygon(layer['bbox']),
+    }
 
 
 def prepare(layer_id):

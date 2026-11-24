@@ -136,3 +136,15 @@ def test_an_entry_from_before_the_split_learns_its_release(tmp_path):
     )
     assert changed
     assert index['surveys']['S1']['reduced']['release'] == 'mirror'
+
+
+def test_a_held_survey_keeps_its_reduction_and_counts_only_when_it_has_one(tmp_path):
+    kept, unknown = survey('S1'), survey('S2')
+    assets = [asset(asset_name(kept))]
+    _, old_index = index_after(tmp_path / 'a', [kept], assets, {'surveys': {}})
+    held = [{'name': s['name'], 'held': True, 'regions': ['r'], 'geometry': s['geometry']} for s in (kept, unknown)]
+    changed, index = index_after(tmp_path / 'b', held, assets, old_index)
+    assert index['surveys'] == old_index['surveys']
+    assert index['regions'] == {'r': {'surveys': 1, 'mirrored': 1}}
+    assert not changed
+    assert json.loads((tmp_path / 'b' / 'out' / 'stale-assets.json').read_text()) == []
