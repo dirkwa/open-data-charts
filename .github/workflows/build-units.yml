@@ -176,8 +176,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REGION: ${{ needs.plan.outputs.region }}
+    # The branch policy of github-pages also gates the release uploads and deletions below.
     environment:
       name: github-pages
+    outputs:
+      changed: ${{ steps.index.outputs.changed }}
+      pages-artifact: ${{ steps.index.outputs.pages-artifact }}
+      baseline: ${{ steps.index.outputs.baseline }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -219,15 +224,64 @@ jobs:
             cmp -s "site/$f" "old/$f" || changed=true
           done
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          # A re-run attempt uploads its own artifact: deploy-pages refuses a run with two of one name.
+          echo "pages-artifact=github-pages-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+          # The served index this one was built on, for the deploy job to check.
+          if [ -f old/open-data-index.json ]; then
+            echo "baseline=$(sha256sum old/open-data-index.json | cut -c1-64)" >> "$GITHUB_OUTPUT"
+          else
+            echo "baseline=none" >> "$GITHUB_OUTPUT"
+          fi
       - if: steps.index.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
-      - if: steps.index.outputs.changed == 'true'
-        uses: actions/deploy-pages@v5
+          name: ${{ steps.index.outputs.pages-artifact }}
+          # Long enough to re-run only the deploy job after a failure.
+          retention-days: 14
+      # A retry that starts from a baseline another run has since replaced may
+      # retire an asset that run brought back: delete nothing then.
+      - name: Check that the served index is still the one this run started from
+        env:
+          BASELINE: ${{ steps.index.outputs.baseline }}
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
             release=$(jq -r --arg name "$name" 'map(select(.name == $name))[0].release // empty' region-assets.json)
             [ -n "$release" ] && gh release delete-asset "$release" "$name" --yes || true
           done
+
+  # Its own job: deploy-pages may list the run's artifacts before one uploaded
+  # moments ago in the same job shows up, and a failed deployment can be
+  # re-run alone.
+  deploy:
+    needs: [plan, publish]
+    if: always() && needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      # A deploy-only re-run must not put back an index older than the one a
+      # later run has deployed since: that one may list fewer assets.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Check that the served index is still the one this artifact was built on
+        env:
+          BASELINE: ${{ needs.publish.outputs.baseline }}
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
+      # Nor one listing an asset a later run deleted while the served index stayed the same.
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.publish.outputs.pages-artifact }}
+          path: pages
+      - name: Check that the release still holds every asset this index lists
+        env:
+          REGION: ${{ needs.plan.outputs.region }}
+        run: |
+          tar -xf pages/artifact.tar -C pages --wildcards '*open-data-index.json'
+          bash .github/scripts/check-index-assets.sh pages/open-data-index.json "$REGION"
+      - uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.publish.outputs.pages-artifact }}
