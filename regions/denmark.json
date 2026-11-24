@@ -10,6 +10,7 @@
   "sources": [
     "ddm",
     "bsh",
+    "bsh-surveys",
     "emodnet-dtm",
     "osm",
     "openseamap",
@@ -41,6 +42,7 @@
     "Contains data from the Danish Geodata Agency, Denmark's Depth Model, 50 m resolution, obtained {ddm}; model and data are not suitable for navigation; terms: https://eng.gst.dk/danish-hydrographic-office/denmark-depth-model",
     "Agency for Data Supply and Infrastructure, DKMSL(2022) and DKLAT(2023), CC BY 4.0",
     "Quelle: Bundesamt für Seeschifffahrt und Hydrographie (BSH), Meeresboden-DGM 50 m (https://www.geoseaportal.de/geoserver/ELC_INSPIRE/ows), Datenlizenz Deutschland – Namensnennung – Version 2.0 (https://www.govdata.de/dl-de/by-2-0); modified: moved from NHN to LAT and resampled onto the chart grid; not suitable for navigation",
+    "Bundesamt für Seeschifffahrt und Hydrographie (BSH), Seevermessungsdatenbank (SVDB, https://svdb-portal.bsh.de), CC0 1.0; modified: moved from NHN to LAT and reduced to the shoalest sounding per chart grid cell; not suitable for navigation",
     "© Bundesamt für Kartographie und Geodäsie (BKG), GCG2016, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
     "NSGI, NLLAT2018, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
     "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"

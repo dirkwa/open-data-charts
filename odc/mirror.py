@@ -1,8 +1,9 @@
-"""The survey mirror: every Shom survey of the configured regions, reduced
-once to the global grid and kept as a release asset.
+"""The survey mirror: every survey of the configured regions, from Shom
+(`shom-surveys` in a region's sources) and from BSH's SVDB (`bsh-surveys`,
+odc.svdb), reduced once to the global grid and kept as a release asset.
 
 A reduced survey's asset is named after the survey and the md5 of its
-source files, `<survey>.<md5-12>.npz`, so the asset list alone tells which
+source files (for SVDB, of its metadata), `<survey>.<md5-12>.npz`, so the asset list alone tells which
 surveys are current. A run that stops halfway loses nothing: the next one
 finds the assets it already uploaded.
 
@@ -31,7 +32,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
-from odc import shom
+from odc import shom, svdb
 from odc.reduce_survey import reduce_stream, save
 
 INDEX_SCHEMA_VERSION = 1
@@ -45,10 +46,10 @@ CONNECTIONS_PER_SURVEY = 2
 MIN_KEPT_SHARE = 0.9
 
 
-def load_regions(regions_dir):
-    """The regions built from Shom surveys."""
+def load_regions(regions_dir, source='shom-surveys'):
+    """The regions built from one provider's surveys."""
     regions = [json.load(open(p, encoding='utf-8')) for p in sorted(glob.glob(os.path.join(regions_dir, '*.json')))]
-    return [region for region in regions if 'shom-surveys' in region.get('sources', [])]
+    return [region for region in regions if source in region.get('sources', [])]
 
 
 def source_md5(files):
@@ -69,7 +70,7 @@ def asset_release(name):
     return f'{MIRROR_TAG}-{name.split(".")[1][0]}'
 
 
-def discover(regions):
+def discover_shom(regions):
     surveys = {}
     for region in regions:
         for survey in shom.discover_surveys(region['bbox']):
@@ -81,7 +82,18 @@ def discover(regions):
         return {**survey, 'files': files, 'size': sum(f['fileSize'] for f in files), 'md5': source_md5(files)}
 
     with ThreadPoolExecutor(LISTING_THREADS) as pool:
-        return sorted(pool.map(with_files, surveys.values()), key=lambda s: s['name'])
+        return list(pool.map(with_files, surveys.values()))
+
+
+def discover(regions_dir):
+    surveys = discover_shom(load_regions(regions_dir, 'shom-surveys'))
+    bsh = load_regions(regions_dir, 'bsh-surveys')
+    if bsh:
+        surveys += svdb.discover({region['id']: region['bbox'] for region in bsh})
+    names = [s['name'] for s in surveys]
+    if len(names) != len(set(names)):
+        raise SystemExit('two surveys share a name')
+    return sorted(surveys, key=lambda s: s['name'])
 
 
 def shard(todo, max_bytes):
@@ -105,9 +117,9 @@ def shard(todo, max_bytes):
 
 def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
     os.makedirs(os.path.join(work, 'shards'), exist_ok=True)
-    surveys = discover(load_regions(regions_dir))
+    surveys = discover(regions_dir)
     have = {a['name'] for a in json.load(open(assets_path, encoding='utf-8'))}
-    todo = [s for s in surveys if asset_name(s) not in have]
+    todo = [s for s in surveys if not s.get('held') and asset_name(s) not in have]
     with open(os.path.join(work, 'discovery.json'), 'w', encoding='utf-8') as fh:
         json.dump(surveys, fh)
     shards = shard(todo, max_bytes)
@@ -122,7 +134,21 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
     return len(shards)
 
 
-def reduce_survey(survey, out_dir):
+def reduce_survey(survey, out_dir, separation=None):
+    if survey.get('provider') == 'bsh-svdb':
+        started = time.monotonic()
+        path = os.path.join(out_dir, asset_name(survey))
+        result = svdb.reduce_survey(survey, path, svdb.Separation(separation))
+        return {
+            'name': survey['name'],
+            **result,
+            'bytes': os.path.getsize(path),
+            'seconds': round(time.monotonic() - started),
+        }
+    return reduce_shom_survey(survey, out_dir)
+
+
+def reduce_shom_survey(survey, out_dir):
     started = time.monotonic()
     with tempfile.TemporaryDirectory(dir=out_dir) as tmp:
         for f in survey['files']:
@@ -150,9 +176,15 @@ def reduce_shard(shard_path, out_dir):
     """Reduce a shard's surveys, one per CPU: parsing the XYZ is the slow part."""
     os.makedirs(out_dir, exist_ok=True)
     surveys = json.load(open(shard_path, encoding='utf-8'))
+    separation = None
+    if any(s.get('provider') == 'bsh-svdb' for s in surveys):
+        from odc.sources import german_separation  # GDAL and the datum grids only where SVDB needs them
+
+        os.makedirs(os.path.join(out_dir, 'datum'), exist_ok=True)
+        separation = german_separation(os.path.join(out_dir, 'datum'))
     results, failed = [], []
     with ProcessPoolExecutor(os.cpu_count()) as pool:
-        futures = {pool.submit(reduce_survey, survey, out_dir): survey['name'] for survey in surveys}
+        futures = {pool.submit(reduce_survey, survey, out_dir, separation): survey['name'] for survey in surveys}
         for future in as_completed(futures):
             try:
                 result = future.result()
@@ -169,14 +201,29 @@ def reduce_shard(shard_path, out_dir):
 
 
 def index_entry(survey, asset):
+    if survey.get('provider') == 'bsh-svdb':
+        provider = {
+            'provider': 'bsh-svdb',
+            'title': survey['title'],
+            'kind': survey['kind'],
+            'source': {'layer': survey['layer'], 'md5': survey['md5']},
+        }
+    else:
+        provider = {
+            'group': survey['group'],
+            'source': {
+                'files': [f['fileName'] for f in survey['files']],
+                'bytes': survey['size'],
+                'md5': survey['md5'],
+            },
+        }
     return {
-        'group': survey['group'],
+        **provider,
         'start': survey['start'],
         'end': survey['end'],
         'tecsou': survey['tecsou'],
         'bbox': survey['bbox'],
         'regions': survey['regions'],
-        'source': {'files': [f['fileName'] for f in survey['files']], 'bytes': survey['size'], 'md5': survey['md5']},
         'reduced': {
             'release': asset['release'],
             'asset': asset['name'],
@@ -191,8 +238,14 @@ def region_counts(surveys, entries):
     region is built only once the two agree."""
     counts = {}
     for survey in surveys:
+        held = survey.get('held') and survey['name'] not in entries
         for region in survey['regions']:
             count = counts.setdefault(region, {'surveys': 0, 'mirrored': 0})
+            # A survey held without a reduction has nothing to wait for; it is
+            # counted apart, so a region with nothing else is still listed.
+            if held:
+                count['held'] = count.get('held', 0) + 1
+                continue
             count['surveys'] += 1
             count['mirrored'] += survey['name'] in entries
     return counts
@@ -206,14 +259,15 @@ def build_index(work, assets_path, old_index_path, out_dir):
         raise SystemExit(f'discovery found {len(surveys)} surveys, the mirror has {len(old["surveys"])}: not replacing')
     entries, missing = {}, []
     for survey in surveys:
-        asset = assets.get(asset_name(survey))
+        asset = None if survey.get('held') else assets.get(asset_name(survey))
         if asset:
             entries[survey['name']] = index_entry(survey, asset)
             continue
-        missing.append(survey['name'])
+        if not survey.get('held'):
+            missing.append(survey['name'])
         previous = old['surveys'].get(survey['name'])
-        # A survey whose new source failed to reduce keeps its last reduction
-        # until a run brings the replacement.
+        # A survey whose new source failed to reduce, or that discovery could
+        # only hold, keeps its last reduction until a run brings a new one.
         if previous and previous['reduced']['asset'] in assets:
             release = assets[previous['reduced']['asset']]['release']
             entries[survey['name']] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}

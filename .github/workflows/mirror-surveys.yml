@@ -1,7 +1,7 @@
 name: Mirror surveys
 
-# Keeps every Shom survey of the configured regions reduced to the global
-# grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
+# Keeps every Shom and BSH (SVDB) survey of the configured regions reduced to
+# the global grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
 # by CI, not listed publicly; odc.mirror says why there are sixteen). The
 # draft release "mirror" holds the index. Only surveys that are new, or whose source md5 changed, are
 # downloaded; a run that stops halfway keeps the assets it uploaded.
@@ -39,7 +39,7 @@ jobs:
           for tag in "$MIRROR_TAG" "$MIRROR_TAG"-{0..9} "$MIRROR_TAG"-{a..f}; do
             gh release view "$tag" >/dev/null 2>&1 ||
               gh release create "$tag" --draft --title "Survey mirror (internal, $tag)" \
-                --notes 'Reduced Shom surveys for the unit builds. Not a chart release.'
+                --notes 'Reduced surveys for the unit builds. Not a chart release.'
           done
       - name: List mirrored assets
         run: bash .github/scripts/mirror-assets.sh > assets.json

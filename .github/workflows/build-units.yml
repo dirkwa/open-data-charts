@@ -83,13 +83,13 @@ jobs:
       - name: Check that the region's surveys are mirrored
         id: ready
         run: |
-          if ! jq -e '.sources | index("shom-surveys")' "regions/$REGION.json" >/dev/null; then
-            echo "$REGION is built without Shom surveys"
+          if ! jq -e '.sources | (index("shom-surveys") or index("bsh-surveys"))' "regions/$REGION.json" >/dev/null; then
+            echo "$REGION is built without mirrored surveys"
             ready=true
           else
             counts=$(jq -c --arg r "$REGION" '.regions[$r] // {}' mirror/mirror-index.json)
             echo "$REGION in the mirror: $counts"
-            ready=$(echo "$counts" | jq '.surveys > 0 and .mirrored == .surveys')
+            ready=$(echo "$counts" | jq '(.surveys > 0 or .held > 0) and .mirrored == .surveys')
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
       - name: Download the region's inputs
