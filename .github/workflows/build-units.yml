@@ -239,6 +239,12 @@ jobs:
           name: ${{ steps.index.outputs.pages-artifact }}
           # Long enough to re-run only the deploy job after a failure.
           retention-days: 14
+      # A retry that starts from a baseline another run has since replaced may
+      # retire an asset that run brought back: delete nothing then.
+      - name: Check that the served index is still the one this run started from
+        env:
+          BASELINE: ${{ steps.index.outputs.baseline }}
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
@@ -258,20 +264,13 @@ jobs:
     steps:
       # A deploy-only re-run must not put back an index older than the one a
       # later run has deployed since: that one may list fewer assets.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
       - name: Check that the served index is still the one this artifact was built on
         env:
           BASELINE: ${{ needs.publish.outputs.baseline }}
-        run: |
-          status=$(curl -sSL --retry 3 -o served.json -w '%{http_code}' "$PAGES_URL/open-data-index.json?run=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
-          case "$status" in
-            200) served=$(sha256sum served.json | cut -c1-64) ;;
-            404) served=none ;;
-            *) echo "::error::$PAGES_URL/open-data-index.json answered $status"; exit 1 ;;
-          esac
-          if [ "$served" != "$BASELINE" ]; then
-            echo "::error::The served index changed after this artifact was built. Re-run the whole workflow, not only this job."
-            exit 1
-          fi
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
       - uses: actions/deploy-pages@v5
         with:
           artifact_name: ${{ needs.publish.outputs.pages-artifact }}
