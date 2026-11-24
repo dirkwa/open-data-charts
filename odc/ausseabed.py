@@ -57,6 +57,8 @@ NOT_DEPTHS = re.compile(r'backscatter|intensity|_hs\.|hillshade', re.IGNORECASE)
 LABELLED_LAT = re.compile(r'_LAT_')
 HEAD_THREADS = 8
 HEAD_ATTEMPTS = 4
+# Request timeout and rate limit: the archive is there, the server is busy.
+RETRIED_CLIENT_ERRORS = {408, 429}
 # Larger values are nodata markers a grid does not declare.
 MAX_ABS_HEIGHT_M = 9000.0
 MERGE_ROWS = 10_000_000
@@ -160,7 +162,7 @@ def head(url):
             with urllib.request.urlopen(request, timeout=120) as response:
                 return int(response.headers['Content-Length']), response.headers.get('ETag', '')
         except urllib.error.HTTPError as error:
-            if 400 <= error.code < 500 and error.code != 429:
+            if 400 <= error.code < 500 and error.code not in RETRIED_CLIENT_ERRORS:
                 print(f'ausseabed: {url}: {error}', flush=True)
                 return None
             failure = error

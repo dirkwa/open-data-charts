@@ -117,11 +117,12 @@ def test_a_broken_link_is_left_out_but_a_failing_server_stops_discovery(monkeypa
     assert ausseabed.head('https://x/a.zip') == (12, '"e"')
     monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(403))
     assert ausseabed.head('https://x/a.zip') is None
-    calls.clear()
-    monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(503))
-    with pytest.raises(SystemExit):
-        ausseabed.head('https://x/a.zip')
-    assert len(calls) == ausseabed.HEAD_ATTEMPTS
+    for code in (503, 429, 408):
+        calls.clear()
+        monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(code))
+        with pytest.raises(SystemExit):
+            ausseabed.head('https://x/a.zip')
+        assert len(calls) == ausseabed.HEAD_ATTEMPTS
 
 
 def test_a_survey_changes_its_asset_only_when_its_archive_changes():
