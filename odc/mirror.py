@@ -1,6 +1,8 @@
 """The survey mirror: every survey of the configured regions, from Shom
-(`shom-surveys` in a region's sources) and from BSH's SVDB (`bsh-surveys`,
-odc.svdb), reduced once to the global grid and kept as a release asset.
+(`shom-surveys` in a region's sources), from BSH's SVDB (`bsh-surveys`,
+odc.svdb) and the packages of Shom and IGN's Litto3D lidar models
+(`shom-litto3d`, odc.litto3d), reduced once to the global grid and kept as a
+release asset.
 
 A reduced survey's asset is named after the survey and the md5 of its
 source files (for SVDB, of its metadata), `<survey>.<md5-12>.npz`, so the asset list alone tells which
@@ -32,11 +34,14 @@ import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
-from odc import shom, svdb
+from odc import litto3d, shom, svdb
 from odc.reduce_survey import reduce_stream, save
 
 INDEX_SCHEMA_VERSION = 1
 SHARD_BYTES = 12 << 30  # about 1.5 h of downloads per job at Shom's rate
+# A run holds the unit builds back while it mirrors, so a large first fill
+# (Litto3D's hundreds of gigabytes) spreads over several runs.
+MAX_SHARDS = 24
 LISTING_THREADS = 4
 # Shom gives each connection ~400 KB/s; with one survey per CPU this keeps
 # a job at about eight connections.
@@ -90,6 +95,9 @@ def discover(regions_dir):
     bsh = load_regions(regions_dir, 'bsh-surveys')
     if bsh:
         surveys += svdb.discover({region['id']: region['bbox'] for region in bsh})
+    lidar = load_regions(regions_dir, 'shom-litto3d')
+    if lidar:
+        surveys += [{**s, 'md5': source_md5(s['files'])} for s in litto3d.discover(lidar)]
     names = [s['name'] for s in surveys]
     if len(names) != len(set(names)):
         raise SystemExit('two surveys share a name')
@@ -115,7 +123,7 @@ def shard(todo, max_bytes):
     return shards
 
 
-def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
+def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES, max_shards=MAX_SHARDS):
     os.makedirs(os.path.join(work, 'shards'), exist_ok=True)
     surveys = discover(regions_dir)
     have = {a['name'] for a in json.load(open(assets_path, encoding='utf-8'))}
@@ -123,6 +131,8 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
     with open(os.path.join(work, 'discovery.json'), 'w', encoding='utf-8') as fh:
         json.dump(surveys, fh)
     shards = shard(todo, max_bytes)
+    later = shards[max_shards:]
+    shards = shards[:max_shards]
     for i, s in enumerate(shards):
         with open(os.path.join(work, 'shards', f'{i}.json'), 'w', encoding='utf-8') as fh:
             json.dump([{k: v for k, v in survey.items() if k != 'geometry'} for survey in s['surveys']], fh)
@@ -131,10 +141,22 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
         f'({sum(s["size"] for s in todo) / 1e9:.1f} GB) in {len(shards)} shards',
         flush=True,
     )
+    if later:
+        print(f'{sum(len(s["surveys"]) for s in later)} surveys in {len(later)} more shards wait for a later run')
     return len(shards)
 
 
-def reduce_survey(survey, out_dir, separation=None):
+def reduce_survey(survey, out_dir, separation=None, datums=None):
+    if survey.get('provider') == 'shom-litto3d':
+        started = time.monotonic()
+        path = os.path.join(out_dir, asset_name(survey))
+        result = litto3d.reduce_survey(survey, path, datums)
+        return {
+            'name': survey['name'],
+            **result,
+            'bytes': os.path.getsize(path),
+            'seconds': round(time.monotonic() - started),
+        }
     if survey.get('provider') == 'bsh-svdb':
         started = time.monotonic()
         path = os.path.join(out_dir, asset_name(survey))
@@ -182,9 +204,15 @@ def reduce_shard(shard_path, out_dir):
 
         os.makedirs(os.path.join(out_dir, 'datum'), exist_ok=True)
         separation = german_separation(os.path.join(out_dir, 'datum'))
+    datums = None
+    if any(s.get('provider') == 'shom-litto3d' for s in surveys):
+        os.makedirs(os.path.join(out_dir, 'datum'), exist_ok=True)
+        datums = litto3d.datums(os.path.join(out_dir, 'datum'))
     results, failed = [], []
     with ProcessPoolExecutor(os.cpu_count()) as pool:
-        futures = {pool.submit(reduce_survey, survey, out_dir, separation): survey['name'] for survey in surveys}
+        futures = {
+            pool.submit(reduce_survey, survey, out_dir, separation, datums): survey['name'] for survey in surveys
+        }
         for future in as_completed(futures):
             try:
                 result = future.result()
@@ -201,7 +229,19 @@ def reduce_shard(shard_path, out_dir):
 
 
 def index_entry(survey, asset):
-    if survey.get('provider') == 'bsh-svdb':
+    if survey.get('provider') == 'shom-litto3d':
+        provider = {
+            'provider': 'shom-litto3d',
+            'product': survey['product'],
+            **({'doi': survey['doi']} if 'doi' in survey else {}),
+            'group': survey['group'],
+            'source': {
+                'files': [f['fileName'] for f in survey['files']],
+                'bytes': survey['size'],
+                'md5': survey['md5'],
+            },
+        }
+    elif survey.get('provider') == 'bsh-svdb':
         provider = {
             'provider': 'bsh-svdb',
             'title': survey['title'],

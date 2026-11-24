@@ -25,7 +25,7 @@ the index and the docs say so.
   `{"source": "kartverket"}` for Kartverket's Norwegian seabed model, kept on sjøkartnull (Norway's chart datum, LAT or up to 0.3 m below), with EMODnet beyond it, or
   `{"source": "infomar"}` for INFOMAR's Irish bathymetry on LAT, its 25 m and 10 m grids on top of the region's EMODnet, or
   `{"source": "icgc"}` for ICGC's 1 m topobathymetric model of the Catalan coast, mirrored in the release `icgc` and kept on mean sea level, beside the region's EMODnet, or
-  `{"source": "ausseabed"}` for Geoscience Australia's 30 m AusBathyTopo models of northern Australia, the Torres Strait, the Great Barrier Reef and Bass Strait and the NSW 5 m marine lidar and multibeam model (mirrored in the release `nsw-bathymetry`), each read by range out of its zip and, if projected, warped onto the chart grid, with `"national": true` the 250 m national model under them, moved from mean sea level to LAT with AIMS' lowest predicted tide, only where they reach water shallower than 300 m), its OpenStreetMap extracts (`osm`, each a
+  `{"source": "ausseabed"}` for Geoscience Australia's 30 m AusBathyTopo models of northern Australia, the Torres Strait, the Great Barrier Reef and Bass Strait and the NSW 5 m marine lidar and multibeam model (mirrored in the release `nsw-bathymetry`), each read by range out of its zip and, if projected, warped onto the chart grid, with `"national": true` the 250 m national model under them, moved from mean sea level to LAT with AIMS' lowest predicted tide, only where they reach water shallower than 300 m), the Litto3D products charted over them (`litto3d`, with `shom-litto3d` in its sources), its OpenStreetMap extracts (`osm`, each a
   list of alternative URLs; their water areas are cut out of the land, and with `openseamap` in its sources their seamarks are charted too) and the attribution of its own sources. Adding a
   region starts here; no unit may belong to two regions (tested).
 - `odc/attribution.py`: the shared attribution, Shom's for regions built
@@ -42,7 +42,13 @@ the index and the docs say so.
   for regions listing `bsh-surveys`: each dataset (1 m multibeam grid or
   single-beam lines, CC0) packed by the portal's download service, moved
   from NHN to LAT and reduced like a Shom survey.
-- `odc/mirror.py`: the survey mirror (Shom's and SVDB's), one reduced `.npz` per survey,
+- `odc/litto3d.py`: Shom and IGN's Litto3D lidar models, for regions
+  listing `shom-litto3d` and their products in `litto3d`: each 5 km
+  package's finest model, measured nodes only (its source and distance
+  masks), moved from NGF to chart datum with Shom's BathyElli surfaces and
+  IGN's geoid grids, land above the highest tide left out, reduced like a
+  survey.
+- `odc/mirror.py`: the survey mirror (Shom's, SVDB's and Litto3D's), one reduced `.npz` per survey,
   named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
   `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
   release); the draft release `mirror` holds the index.
@@ -86,7 +92,8 @@ the index and the docs say so.
 ## Workflows
 
 - `mirror-surveys.yml` (weekly): reduces new or changed Shom and SVDB
-  surveys into the `mirror` release.
+  surveys and Litto3D packages into the `mirror` release, at most
+  `MAX_SHARDS` shards a run.
 - `build-units.yml` (daily, one region a day in turn, once all of the
   region's surveys are mirrored): plans the units whose version changed, builds
   them in a matrix and, when publishing is on (`ODC_PUBLISH` or a manual

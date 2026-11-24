@@ -217,8 +217,9 @@ def add_squares(digests, label, paths):
 def add_surveys(digests, mirror_index):
     for name, survey in mirror_index['surveys'].items():
         # start, end and tecsou set the survey's priority and quality category,
-        # provider and title its soundings' INFORM (Shom entries have neither).
-        keys = ('start', 'end', 'tecsou') + tuple(k for k in ('provider', 'title') if k in survey)
+        # provider, title, product and doi its soundings' INFORM (Shom entries
+        # have none of them).
+        keys = ('start', 'end', 'tecsou') + tuple(k for k in ('provider', 'title', 'product', 'doi') if k in survey)
         meta = canonical({k: survey.get(k) for k in keys})
         digests.add(survey['bbox'], f'survey {name} {survey["reduced"]["sha256"]} {meta}')
 

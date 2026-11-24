@@ -119,10 +119,16 @@ def read_xyz(stream):
 def reduce_stream(stream, to_lon_lat=None):
     """to_lon_lat turns a chunk's rows into lon, lat, depth (LAT) when the
     stream holds other coordinates or another datum."""
+    return reduce_rows(to_lon_lat(xyz) if to_lon_lat else xyz for xyz in read_xyz(stream))
+
+
+def reduce_rows(chunks):
+    """Chunks of lon, lat, depth (LAT) rows to the shoalest per cell, and the
+    number of rows read."""
     parts, total = [], 0
-    for xyz in read_xyz(stream):
+    for xyz in chunks:
         total += len(xyz)
-        parts.append(reduce_chunk(to_lon_lat(xyz) if to_lon_lat else xyz))
+        parts.append(reduce_chunk(xyz))
     if parts:
         key, lon, lat, z = shoalest_per_cell(*(np.concatenate([p[i] for p in parts]) for i in range(4)))
     else:

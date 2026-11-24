@@ -10,11 +10,18 @@
   "sources": [
     "shom-wfs",
     "shom-surveys",
+    "shom-litto3d",
     "shom-dem",
     "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
+  ],
+  "litto3d": [
+    "LITTO3D_BZH_2018_2021",
+    "LITTO3D_FINISTR_2014",
+    "L3D_MAR_PNMI_2012",
+    "L3D_MAR_NHDF_2016_2018"
   ],
   "dem": [
     {
@@ -63,6 +70,9 @@
   ],
   "attribution": [
     "Shom 2015, MNT bathymetrique de facade Atlantique (Projet Homonim), doi:10.17183/MNT_ATL100m_HOMONIM_WGS84",
-    "OceanWise, Mount's Bay composite DTM from EMODnet Bathymetry (https://emodnet.ec.europa.eu)"
+    "OceanWise, Mount's Bay composite DTM from EMODnet Bathymetry (https://emodnet.ec.europa.eu)",
+    "Shom - IGN, Litto3D® lidar models (Licence Ouverte 2.0; see INFORM of each sounding); modified: moved from NGF to chart datum (ZH) and reduced to the shoalest node per chart grid cell; not suitable for navigation",
+    "Shom, 2023. Surfaces BATHYELLI 2.1 (Licence Ouverte 2.0)",
+    "IGN, RAF20 (Licence Ouverte 2.0)"
   ]
 }

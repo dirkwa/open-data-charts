@@ -11,6 +11,13 @@ Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and
 Saint-Barthélemy, French Guiana and Saint-Pierre and Miquelon. Each is built
 from Shom's surveys, seamarks and, where Shom publishes one, its bathymetric
 model of the coast, together with OpenStreetMap and the Copernicus DEM.
+Over the mainland and Corsican coast, Shom and IGN's Litto3D lidar models
+(1 m, from the foreshore to about 20 m deep where the water is clear) are
+charted like a survey, newest on top: each 5 km package is moved from the
+NGF levelling datum to chart datum with Shom's BathyElli surfaces, keeps
+only measured nodes below the highest astronomical tide (not the flattened
+water surfaces of ports and estuaries) and gives the shoalest node per chart
+cell, so a rock between soundings shows.
 Every unit with land comes with terrain shading from the Copernicus DEM, a
 separate layer the plotter can show over the chart or leave off.
 Shom publishes Corsica's model on mean sea level rather than on the lowest

@@ -1,5 +1,6 @@
 import json
 
+from odc import mirror
 from odc.mirror import BUCKET_RELEASES, asset_name, asset_release, build_index, shard
 
 
@@ -154,3 +155,14 @@ def test_a_region_whose_surveys_are_all_held_unreduced_is_listed(tmp_path):
     held = {'name': 'S1', 'held': True, 'regions': ['r'], 'geometry': survey('S1')['geometry']}
     _, index = index_after(tmp_path, [held], [], {'surveys': {}})
     assert index['regions'] == {'r': {'surveys': 0, 'mirrored': 0, 'held': 1}}
+
+
+def test_shards_beyond_a_runs_share_wait_for_the_next_run(tmp_path, monkeypatch):
+    surveys = [survey(f'S{i}', 15, md5=f'{i:x}' * 32) for i in range(5)]
+    monkeypatch.setattr(mirror, 'discover', lambda regions_dir: surveys)
+    assets = write(tmp_path, 'assets.json', [])
+    work = tmp_path / 'work'
+    assert mirror.plan('regions', assets, str(work), max_bytes=20, max_shards=3) == 3
+    planned = [json.loads((work / 'shards' / f'{i}.json').read_text()) for i in range(3)]
+    assert len({s['name'] for shard in planned for s in shard}) == 3
+    assert len(json.loads((work / 'discovery.json').read_text())) == 5
