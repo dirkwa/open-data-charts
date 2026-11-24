@@ -32,7 +32,14 @@ the water as satellite-derived.
 The United Kingdom (the Isles of Scilly and Land's End, England and Wales
 with the Irish Sea, and Scotland with Northern Ireland and North East
 England) is built for coasts without Shom data: its depths come from the
-EMODnet Bathymetry DTM (a model at about 115 m). Ireland (its Atlantic
+EMODnet Bathymetry DTM (a model at about 115 m), with the British
+Geological Survey's multibeam DTMs (about 14 m, on chart datum) on top
+where it surveyed: Scottish sea lochs and firths, Shetland, Arran, Tiree,
+Lewis and the Northumberland coast. Mount's Bay in Cornwall takes its
+depths from OceanWise's composite DTM there (about 29 m, on LAT), in the
+units of both the Land's End and the Channel regions. Both come from
+EMODnet's high-resolution DTMs, which lie on top of every other model of a
+region. Ireland (its Atlantic
 coast from Kerry to Mayo, and Cork, the Shannon Estuary and Galway Bay; its
 east and north coasts lie in the two UK regions) and those UK regions take
 their depths in Irish waters from INFOMAR's surveys, gridded at 10 m inshore

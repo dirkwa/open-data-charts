@@ -11,6 +11,7 @@
     "shom-wfs",
     "shom-surveys",
     "shom-dem",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -19,6 +20,15 @@
     {
       "group": "MNT_ATL100m_HOMONIM_PBMA_4326_PACK_DL",
       "prepackage": "MNT_FACADE_ATLANTIQUE_HOMONIM_PBMA"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "2607_cDTM_SaintMountsBay",
+          "cells_per_degree": 3840
+        }
+      ]
     }
   ],
   "osm": [
@@ -52,6 +62,7 @@
     ]
   ],
   "attribution": [
-    "Shom 2015, MNT bathymetrique de facade Atlantique (Projet Homonim), doi:10.17183/MNT_ATL100m_HOMONIM_WGS84"
+    "Shom 2015, MNT bathymetrique de facade Atlantique (Projet Homonim), doi:10.17183/MNT_ATL100m_HOMONIM_WGS84",
+    "OceanWise, Mount's Bay composite DTM from EMODnet Bathymetry (https://emodnet.ec.europa.eu)"
   ]
 }
