@@ -16,7 +16,7 @@ the index and the docs say so.
 
 - `regions/<id>.json`: a region's bbox, its sources, its bathymetric
   models (`dem`, none or several: Shom prepackages, or
-  `{"source": "emodnet-hr", "dtms": [...]}` for EMODnet's high-resolution DTMs (each an `id` and its `cells_per_degree`) on top of it, the later on top, or
+  `{"source": "emodnet-hr", "dtms": [...]}` for EMODnet's high-resolution DTMs (each an `id` and its `cells_per_degree`) on top of every other model, the later on top, or
   `{"source": "emodnet"}` for the EMODnet DTM over the region (`"microtidal": true` charts its shore cells, ports included, as unknown depth where no drying bank can be), or
   `{"source": "ddm"}` for Denmark's Depth Model on LAT with EMODnet beyond it and where no LAT separation reaches it, or
   `{"source": "vaklodingen"}` for Rijkswaterstaat's Dutch coastal bathymetry the same way, or

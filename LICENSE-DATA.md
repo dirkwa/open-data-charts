@@ -191,6 +191,20 @@ CC BY 4.0", naming APA and IGeo where the lidar models are used. Used as
 the bathymetric models of the regions whose file lists them
 (`"dem": [..., {"source": "emodnet-hr", "dtms": [...]}]`).
 
+## EMODnet high-resolution DTMs (United Kingdom)
+
+The British Geological Survey's (BGS) multibeam DTMs of Scottish and North
+East English waters (sea lochs, firths, Shetland, Arran, Tiree, Lewis and
+others, on Admiralty chart datum) and OceanWise's composite DTM of Mount's
+Bay, Cornwall (on LAT), downloaded from EMODnet Bathymetry
+(`https://downloads.emodnet-bathymetry.eu/high_resolution/`). Their records
+publish them for public access marked "do not use for navigation", without
+naming a further licence. Attribution: "British Geological Survey (BGS),
+high-resolution multibeam DTMs from EMODnet Bathymetry
+(https://emodnet.ec.europa.eu)" and "OceanWise, Mount's Bay composite DTM
+from EMODnet Bathymetry (https://emodnet.ec.europa.eu)". Used as the
+bathymetric models of the regions whose file lists them, as above.
+
 ## ICGC (Catalonia)
 
 Batimetria de la costa de Catalunya v2.1: the Institut Cartogràfic i

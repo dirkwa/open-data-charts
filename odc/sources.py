@@ -4,7 +4,7 @@
   dem/*.asc                       Shom bathymetric DEMs of the region's coasts, if any
   dem/emodnet_*.tif               EMODnet Bathymetry DTM over the region (CC BY 4.0), if asked for
   dem/emodnethr_*.tif             EMODnet Bathymetry high-resolution DTMs the region lists, on top
-                                  of the DTM, the later in the list on top, if asked for
+                                  of every other model, the later in the list on top, if asked for
   dem/ddm_*.tif                   Denmark's Depth Model on LAT, EMODnet beyond it (odc.lat_model), if asked for
   dem/vaklodingen_*.tif           Rijkswaterstaat's Dutch coastal bathymetry on LAT, EMODnet beyond it
                                   (odc.lat_model), if asked for
@@ -605,7 +605,6 @@ def dem_grids(inputs):
     dem = os.path.join(inputs, 'dem')
     return (
         sorted(glob.glob(os.path.join(dem, 'emodnet_*.tif')))
-        + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'icgc_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ausseabed_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'ddm_*.tif')))
@@ -616,6 +615,8 @@ def dem_grids(inputs):
         + sorted(glob.glob(os.path.join(dem, 'infomar_25m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_10m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, '*.asc')))
+        # A survey's own DTM is finer than any model it lies in.
+        + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
     )
 
 

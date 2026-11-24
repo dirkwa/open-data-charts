@@ -10,6 +10,7 @@
   "sources": [
     "emodnet-dtm",
     "infomar",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -20,6 +21,207 @@
     },
     {
       "source": "infomar"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "42_BGS_2005_4_SummerIsles",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2007_4_FirthOfClyde",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2010_6_LochEriboll",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2010_8_SWLittleCumbrae",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_2_FirthOfLornNorthArea1",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_2_FirthOfLornNorthArea2",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_7_CANNA",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_8_NossHead",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_8_SouthernTrench",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2011_9_LEWIS",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_10_Stanton_Banks_AreaA",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_10_Stanton_Banks_AreaB",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_1_BEAULYFIRTH",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_1_CROMARTYFIRTH",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_1_MORAYFIRTH",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_1_MUNLOCHYBAY",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_3_Shetland_AreaA",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_3_Shetland_AreaB",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_3_Shetland_AreaC",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_5_ArdmucknishBay",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_6_DEFRA_IsleOfMay",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_7_ArdmucknishBay",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_8_GruinardBay",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_8_LochBroom",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_9_Tiree_CableNorth",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_9_Tiree_CableSouth",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2012_9_Tiree_PriorityArea",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_3_KyleRhea",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_3_LochAlsh",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_3_LochDuich",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_3_LochLong",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_5_IsleOfMay",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_5_MiddleForth",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2013_5_NorthEastAnstruther",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2014_4_EastCoast",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_1_LochLong",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_2_All_Sullom_Voe",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_4_Belhaven",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D1",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D2",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D3",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D4",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D5",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_D6",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_Otter",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_T1plus",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_T2",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_T3",
+          "cells_per_degree": 7680
+        },
+        {
+          "id": "42_BGS_2015_9_SNH_T4",
+          "cells_per_degree": 7680
+        }
+      ]
     }
   ],
   "osm": [
@@ -34,6 +236,7 @@
   ],
   "attribution": [
     "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
-    "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry"
+    "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry",
+    "British Geological Survey (BGS), high-resolution multibeam DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu)"
   ]
 }
