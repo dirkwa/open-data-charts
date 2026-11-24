@@ -85,10 +85,13 @@ def bathyelli_package(level):
 
 def datums_id():
     """What a reduction is moved with: the BathyElli files' md5s as Shom
-    lists them, and the geoid grids, which PROJ never changes in place (a
-    corrected grid gets a new name)."""
+    lists them, and the geoid grids' ETags (the CDN's content md5)."""
     bathyelli = [f['fileMd5'] for level in BATHYELLI_LEVELS for f in shom.list_files(bathyelli_package(level))]
-    return ' '.join([*bathyelli, *GEOIDS.values()])
+    geoids = []
+    for url in GEOIDS.values():
+        with shom.get(url, method='HEAD') as response:
+            geoids.append(f'{url} {response.headers["ETag"]}')
+    return ' '.join([*bathyelli, *geoids])
 
 
 def identity(files_md5, datums):

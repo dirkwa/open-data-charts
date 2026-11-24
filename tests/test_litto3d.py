@@ -192,10 +192,22 @@ def test_a_package_the_download_service_does_not_have_is_held(monkeypatch):
 
 
 def test_a_reduction_changes_with_its_datum_surfaces(monkeypatch):
-    def listed(md5):
+    class Head:
+        def __init__(self, etag):
+            self.headers = {'ETag': etag}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def identity(md5, etag):
         monkeypatch.setattr(litto3d.shom, 'list_files', lambda package: [{'fileName': 'x.7z', 'fileMd5': md5}])
+        monkeypatch.setattr(litto3d.shom, 'get', lambda url, method=None: Head(etag))
         return litto3d.identity('b' * 32, litto3d.datums_id())
 
-    # A BathyElli file Shom replaces under the same package name is a new reduction.
-    assert listed('c' * 32) != listed('d' * 32) != 'b' * 32
-    assert listed('c' * 32) == listed('c' * 32)
+    # A BathyElli file or a geoid grid replaced under the same name is a new reduction.
+    assert identity('c' * 32, '"e"') != identity('d' * 32, '"e"') != 'b' * 32
+    assert identity('c' * 32, '"e"') != identity('c' * 32, '"f"')
+    assert identity('c' * 32, '"e"') == identity('c' * 32, '"e"')
