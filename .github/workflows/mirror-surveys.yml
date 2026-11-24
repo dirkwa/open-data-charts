@@ -1,7 +1,7 @@
 name: Mirror surveys
 
-# Keeps every Shom and BSH (SVDB) survey of the configured regions reduced to
-# the global grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
+# Keeps every Shom, BSH (SVDB) and AusSeabed survey of the configured regions
+# reduced to the global grid, as assets of the draft releases "mirror-0" to "mirror-f" (reachable
 # by CI, not listed publicly; odc.mirror says why there are sixteen). The
 # draft release "mirror" holds the index. Only surveys that are new, or whose source md5 changed, are
 # downloaded; a run that stops halfway keeps the assets it uploaded.

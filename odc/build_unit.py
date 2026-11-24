@@ -676,6 +676,8 @@ def survey_inform(name, meta):
     year = str(meta['end'])[:4]
     if meta.get('provider') == 'bsh-svdb':
         return f'BSH survey {meta["title"]} ({year}), SVDB, CC0'
+    if meta.get('provider') == 'ausseabed':
+        return f'Geoscience Australia survey {meta["title"]}, AusSeabed, CC BY 4.0'
     return f'Shom survey {name} ({year}), doi:10.17183/{name}'
 
 
@@ -1592,7 +1594,7 @@ def write_unit_info(out_dir, unit, quality, surveys):
         'quality': quality,
         'surveys': [
             {'name': name, 'end': str(meta['end']), 'tecsou': meta.get('tecsou')}
-            | ({} if meta.get('provider') == 'bsh-svdb' else {'doi': f'10.17183/{name}'})
+            | ({} if meta.get('provider') else {'doi': f'10.17183/{name}'})
             for _, _, name, _, meta in surveys
         ],
     }

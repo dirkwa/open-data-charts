@@ -9,6 +9,7 @@
   ],
   "sources": [
     "ausseabed",
+    "ausseabed-surveys",
     "allen-coral-atlas",
     "osm",
     "openseamap",
@@ -31,6 +32,7 @@
   ],
   "attribution": [
     "Australian Hydrographic Office, Geoscience Australia: © Commonwealth of Australia 2023, AusBathyTopo (Torres Strait) 30m 2023 (https://data.gov.au/data/dataset/16cc06d1-1962-477c-b738-8b4b5dcfcc8e), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
+    "Geoscience Australia, AusSeabed survey grids (https://www.ausseabed.gov.au): © Commonwealth of Australia, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and reduced to the shoalest value per chart grid cell; not to be used for navigation",
     "Geoscience Australia (2020), AusBathyTopo (Great Barrier Reef) 30m 2020 - A High-resolution Depth Model, Geoscience Australia, Canberra, http://pid.geoscience.gov.au/dataset/ga/115066: © Commonwealth of Australia (Geoscience Australia) 2020, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: moved from mean sea level to LAT and resampled onto the chart grid; not to be used for navigation",
     "AIMS, Tidal Statistics for Australia derived from the EOT20 tidal model (NESP MaC 3.17), doi:10.26274/z8b6-zx94, CC BY 4.0",
     "Hart-Davis et al. (2021), EOT20 – A global Empirical Ocean Tide model from multi-mission satellite altimetry, SEANOE, doi:10.17882/79489, CC BY 4.0",

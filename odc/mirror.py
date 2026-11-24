@@ -1,9 +1,11 @@
 """The survey mirror: every survey of the configured regions, from Shom
-(`shom-surveys` in a region's sources) and from BSH's SVDB (`bsh-surveys`,
-odc.svdb), reduced once to the global grid and kept as a release asset.
+(`shom-surveys` in a region's sources), from BSH's SVDB (`bsh-surveys`,
+odc.svdb) and from Geoscience Australia's AusSeabed (`ausseabed-surveys`,
+odc.ausseabed), reduced once to the global grid and kept as a release asset.
 
 A reduced survey's asset is named after the survey and the md5 of its
-source files (for SVDB, of its metadata), `<survey>.<md5-12>.npz`, so the asset list alone tells which
+source files (for SVDB, of its metadata; for AusSeabed, of its archive's
+link, size and ETag), `<survey>.<md5-12>.npz`, so the asset list alone tells which
 surveys are current. A run that stops halfway loses nothing: the next one
 finds the assets it already uploaded.
 
@@ -32,7 +34,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 
-from odc import shom, svdb
+from odc import ausseabed, shom, svdb
 from odc.reduce_survey import reduce_stream, save
 
 INDEX_SCHEMA_VERSION = 1
@@ -90,6 +92,9 @@ def discover(regions_dir):
     bsh = load_regions(regions_dir, 'bsh-surveys')
     if bsh:
         surveys += svdb.discover({region['id']: region['bbox'] for region in bsh})
+    australian = load_regions(regions_dir, 'ausseabed-surveys')
+    if australian:
+        surveys += ausseabed.discover({region['id']: region['bbox'] for region in australian})
     names = [s['name'] for s in surveys]
     if len(names) != len(set(names)):
         raise SystemExit('two surveys share a name')
@@ -134,11 +139,15 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES):
     return len(shards)
 
 
-def reduce_survey(survey, out_dir, separation=None):
-    if survey.get('provider') == 'bsh-svdb':
+PROVIDERS = {'bsh-svdb': svdb, 'ausseabed': ausseabed}
+
+
+def reduce_survey(survey, out_dir, separations=None):
+    provider = PROVIDERS.get(survey.get('provider'))
+    if provider:
         started = time.monotonic()
         path = os.path.join(out_dir, asset_name(survey))
-        result = svdb.reduce_survey(survey, path, svdb.Separation(separation))
+        result = provider.reduce_survey(survey, path, svdb.Separation(separations[survey['provider']]))
         return {
             'name': survey['name'],
             **result,
@@ -176,15 +185,21 @@ def reduce_shard(shard_path, out_dir):
     """Reduce a shard's surveys, one per CPU: parsing the XYZ is the slow part."""
     os.makedirs(out_dir, exist_ok=True)
     surveys = json.load(open(shard_path, encoding='utf-8'))
-    separation = None
-    if any(s.get('provider') == 'bsh-svdb' for s in surveys):
-        from odc.sources import german_separation  # GDAL and the datum grids only where SVDB needs them
+    separations = {}
+    providers = {s.get('provider') for s in surveys}
+    if providers & set(PROVIDERS):
+        # GDAL and the datum grids only where a provider needs them.
+        from odc.sources import ausseabed_separation, german_separation
 
-        os.makedirs(os.path.join(out_dir, 'datum'), exist_ok=True)
-        separation = german_separation(os.path.join(out_dir, 'datum'))
+        datum = os.path.join(out_dir, 'datum')
+        os.makedirs(datum, exist_ok=True)
+        if 'bsh-svdb' in providers:
+            separations['bsh-svdb'] = german_separation(datum)
+        if 'ausseabed' in providers:
+            separations['ausseabed'] = ausseabed_separation(datum)
     results, failed = [], []
     with ProcessPoolExecutor(os.cpu_count()) as pool:
-        futures = {pool.submit(reduce_survey, survey, out_dir, separation): survey['name'] for survey in surveys}
+        futures = {pool.submit(reduce_survey, survey, out_dir, separations): survey['name'] for survey in surveys}
         for future in as_completed(futures):
             try:
                 result = future.result()
@@ -207,6 +222,13 @@ def index_entry(survey, asset):
             'title': survey['title'],
             'kind': survey['kind'],
             'source': {'layer': survey['layer'], 'md5': survey['md5']},
+        }
+    elif survey.get('provider') == 'ausseabed':
+        provider = {
+            'provider': 'ausseabed',
+            'title': survey['title'],
+            'kind': survey['kind'],
+            'source': {'url': survey['url'], 'bytes': survey['size'], 'md5': survey['md5']},
         }
     else:
         provider = {

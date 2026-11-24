@@ -268,6 +268,20 @@ model of the regions whose file asks for it (`"dem": [{"source": "icgc"}]`).
   from the Australian Height Datum to LAT and resampled onto the chart
   grid; not to be used for navigation". Used with AusBathyTopo in the
   regions whose extent it reaches.
+- **AusSeabed surveys**: the survey grids Geoscience Australia publishes
+  through AusSeabed (<https://www.ausseabed.gov.au>), listed with their
+  licence in AusSeabed's marine data register; only those under Creative
+  Commons Attribution 4.0 International (CC BY 4.0) are used, the
+  restricted ones of state agencies and ports are not. © Commonwealth of
+  Australia (Geoscience Australia, the Australian Hydrographic Office and
+  the other custodians the register names). Heights above mean sea level
+  (EGM2008 or AHD), or on LAT where a survey publishes that grid; the units
+  name each survey in its soundings' INFORM. Attribution: "Geoscience
+  Australia, AusSeabed survey grids (https://www.ausseabed.gov.au): ©
+  Commonwealth of Australia, CC BY 4.0 (...); modified: moved from mean sea
+  level to LAT and reduced to the shoalest value per chart grid cell; not
+  to be used for navigation". For the regions whose file lists
+  `ausseabed-surveys` in its sources.
 - **Tidal statistics for Australia**: the Australian Institute of Marine
   Science's Lowest Predicted Tide over 2021 to 2025 from the EOT20 tide
   model, standing for LAT, published on eAtlas

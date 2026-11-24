@@ -83,7 +83,7 @@ jobs:
       - name: Check that the region's surveys are mirrored
         id: ready
         run: |
-          if ! jq -e '.sources | (index("shom-surveys") or index("bsh-surveys"))' "regions/$REGION.json" >/dev/null; then
+          if ! jq -e '.sources | (index("shom-surveys") or index("bsh-surveys") or index("ausseabed-surveys"))' "regions/$REGION.json" >/dev/null; then
             echo "$REGION is built without mirrored surveys"
             ready=true
           else

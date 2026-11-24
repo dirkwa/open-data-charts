@@ -89,7 +89,12 @@ the shore, the harbours and estuaries and the first few kilometres out. New
 South Wales, Victoria and Tasmania lay these over Geoscience Australia's
 national 250 m model of 2026, which fills the water between the coastal
 models and the shelf edge. Chunks with no water shallower than 300 m are
-left to ETOPO.
+left to ETOPO. Over these models, the surveys Geoscience Australia
+publishes through AusSeabed under CC BY 4.0 (multibeam and lidar grids of
+0.25 to 20 m: harbours such as Darwin, Sydney and Jervis Bay, Port Phillip,
+Tasmania's coasts, marine parks and the reefs of the Great Barrier Reef and
+the Coral Sea) are charted like Shom's surveys, newest on top, each cell
+its shoalest value, moved from mean sea level to LAT the same way.
 Outside Shom's waters and New Zealand, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
