@@ -176,6 +176,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       REGION: ${{ needs.plan.outputs.region }}
+    # The branch policy of github-pages also gates the release uploads and deletions below.
+    environment:
+      name: github-pages
     outputs:
       changed: ${{ steps.index.outputs.changed }}
       pages-artifact: ${{ steps.index.outputs.pages-artifact }}
@@ -227,6 +230,8 @@ jobs:
         with:
           path: site
           name: ${{ steps.index.outputs.pages-artifact }}
+          # Long enough to re-run only the deploy job after a failure.
+          retention-days: 14
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
