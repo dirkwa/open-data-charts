@@ -79,6 +79,51 @@ def test_an_archive_shared_by_several_register_entries_is_mirrored_once():
     assert [e['regions'] for e in found] == [['australia-north']]
 
 
+def test_an_archive_listed_in_two_regions_keeps_both():
+    regions = {'west': [129.0, -16.0, 131.0, -10.0], 'east': [133.0, -16.0, 137.0, -10.0]}
+    [entry] = ausseabed.entries(
+        [feature(bbox=(130.0, -13.0, 130.5, -12.5)), feature(bbox=(134.0, -13.0, 134.5, -12.0))], regions
+    )
+    assert entry['regions'] == ['east', 'west']
+    assert entry['bbox'] == [130.0, -13.0, 134.5, -12.0]
+
+
+class Response:
+    headers = {'Content-Length': '12', 'ETag': '"e"'}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_a_broken_link_is_left_out_but_a_failing_server_stops_discovery(monkeypatch):
+    import urllib.error
+
+    monkeypatch.setattr(ausseabed.time, 'sleep', lambda s: None)
+    calls = []
+
+    def answer(code):
+        def urlopen(request, timeout):
+            calls.append(code)
+            if code:
+                raise urllib.error.HTTPError(request.full_url, code, 'x', {}, None)
+            return Response()
+
+        return urlopen
+
+    monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(0))
+    assert ausseabed.head('https://x/a.zip') == (12, '"e"')
+    monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(403))
+    assert ausseabed.head('https://x/a.zip') is None
+    calls.clear()
+    monkeypatch.setattr(ausseabed.urllib.request, 'urlopen', answer(503))
+    with pytest.raises(SystemExit):
+        ausseabed.head('https://x/a.zip')
+    assert len(calls) == ausseabed.HEAD_ATTEMPTS
+
+
 def test_a_survey_changes_its_asset_only_when_its_archive_changes():
     [entry] = ausseabed.entries([feature()], {'australia-north': [129.0, -16.0, 137.0, -10.0]})
     survey = ausseabed.survey(entry, 780332079, '"2560e62e-149"')
@@ -143,21 +188,26 @@ def test_a_grid_is_reduced_to_its_shoalest_value_per_chart_cell_on_lat(tmp_path)
     assert float(reduced['step']) == GRID_STEP
 
 
-def test_deep_water_is_left_out(tmp_path):
+def test_deep_water_is_left_out_by_its_depth_below_lat(tmp_path):
     heights = np.full((40, 40), -350.0, np.float32)
     heights[10:20, 10:20] = -8.0
+    heights[25:30, 25:30] = -301.0
     path = utm_grid(tmp_path / 'g.tif', heights)
-    reduced = ausseabed.reduce_grids([path], Flat(1.5))
-    assert set(np.round(reduced['z'], 3)) == {6.5}
+    reduced = ausseabed.reduce_grids([path], Flat(2.0))
+    assert set(np.round(reduced['z'], 3)) == {6.0, 299.0}
 
 
 def test_a_grid_coarser_than_the_chart_grid_is_left_out(tmp_path, monkeypatch):
     utm_grid(tmp_path / 'fine.tif', np.full((20, 20), -8.0, np.float32), res=16.2)
     utm_grid(tmp_path / 'coarse.tif', np.full((20, 20), -8.0, np.float32), res=30.0)
+    ds = gdal.Open(utm_grid(tmp_path / 'tall.tif', np.full((20, 20), -8.0, np.float32), res=10.0), gdal.GA_Update)
+    ds.SetGeoTransform((700000.0, 10.0, 0, 8610000.0, 0, -30.0))
+    ds = None
     local = gdal.Open
     monkeypatch.setattr(ausseabed.gdal, 'Open', lambda path: local(str(tmp_path / path.rsplit('/', 1)[1])))
     assert ausseabed.fine_enough('https://x/a.zip', 'fine.tif')
     assert not ausseabed.fine_enough('https://x/a.zip', 'coarse.tif')
+    assert not ausseabed.fine_enough('https://x/a.zip', 'tall.tif')
 
 
 def test_blocks_merged_on_the_way_keep_the_shoalest(tmp_path, monkeypatch):
@@ -168,6 +218,24 @@ def test_blocks_merged_on_the_way_keep_the_shoalest(tmp_path, monkeypatch):
     reduced = ausseabed.reduce_grids([utm_grid(tmp_path / 'g.tif', heights)], Flat(1.5))
     keys = reduced['iy'].astype(np.int64) * 10**8 + reduced['ix']
     assert len(np.unique(keys)) == len(keys) and reduced['z'].min() == pytest.approx(3.0)
+
+
+def test_a_cell_split_across_a_flush_keeps_its_shoalest_sample(tmp_path, monkeypatch):
+    monkeypatch.setattr(ausseabed, 'MERGE_ROWS', 1)
+    monkeypatch.setattr(ausseabed, 'BLOCK', 4)
+    heights = np.full((8, 8), -12.0, np.float32)
+    # 1 m pixels in a ~14 m chart cell: rows 3 and 4 fall in different
+    # blocks, flushed apart, yet share their chart cells.
+    heights[4, 2] = -4.5
+    path = utm_grid(tmp_path / 'g.tif', heights, x0=700000.0, y0=8610004.0)
+    whole = ausseabed.reduce_grids([path], Flat(1.5))
+    monkeypatch.setattr(ausseabed, 'MERGE_ROWS', 10**9)
+    once = ausseabed.reduce_grids([path], Flat(1.5))
+    assert len(whole['z']) == len(once['z'])
+    for k in ('ix', 'iy', 'z'):
+        assert np.array_equal(np.sort(whole[k]), np.sort(once[k]))
+    assert sorted(whole['z'])[:1] == [pytest.approx(3.0)]
+    assert sum(np.isclose(whole['z'], 3.0)) == 1
 
 
 def test_ausseabed_surveys_chart_with_their_title_and_no_doi():

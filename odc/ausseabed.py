@@ -22,6 +22,8 @@ import json
 import os
 import re
 import tempfile
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -47,10 +49,14 @@ MAX_RESOLUTION_M = 20.0
 METRES_PER_DEGREE = 111_320.0
 # The models' limit (odc.sources.AUSSEABED_DEEP_M): deeper water is left to ETOPO.
 DEEP_M = 300.0
+# More than MSL stands above LAT anywhere in Australian waters, so a sample
+# deeper than DEEP_M plus this below MSL is deeper than DEEP_M below LAT.
+MAX_SEPARATION_M = 20.0
 TECSOU = {'multibeam': 'multi-beam', 'singlebeam': 'single-beam'}
 NOT_DEPTHS = re.compile(r'backscatter|intensity|_hs\.|hillshade', re.IGNORECASE)
 LABELLED_LAT = re.compile(r'_LAT_')
 HEAD_THREADS = 8
+HEAD_ATTEMPTS = 4
 # Larger values are nodata markers a grid does not declare.
 MAX_ABS_HEIGHT_M = 9000.0
 MERGE_ROWS = 10_000_000
@@ -135,26 +141,42 @@ def entries(features, bboxes):
             continue
         url = properties['DATA_URL']
         if url in found:
+            first = found[url]
+            box = first['bbox']
+            first['bbox'] = [min(box[0], bbox[0]), min(box[1], bbox[1]), max(box[2], bbox[2]), max(box[3], bbox[3])]
+            first['regions'] = sorted({*first['regions'], *regions})
             continue
         found[url] = {'properties': properties, 'bbox': bbox, 'regions': regions}
     return list(found.values())
 
 
 def head(url):
-    """The archive's size and ETag, or None where the register's link is broken."""
-    try:
-        request = urllib.request.Request(url, method='HEAD', headers={'User-Agent': shom.USER_AGENT})
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return int(response.headers['Content-Length']), response.headers.get('ETag', '')
-    except Exception as error:
-        print(f'ausseabed: {url}: {error}', flush=True)
-        return None
+    """The archive's size and ETag, or None where the register's link is
+    broken. Any other failure stops discovery: a survey it left out would
+    lose its mirrored reduction."""
+    request = urllib.request.Request(url, method='HEAD', headers={'User-Agent': shom.USER_AGENT})
+    for attempt in range(HEAD_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return int(response.headers['Content-Length']), response.headers.get('ETag', '')
+        except urllib.error.HTTPError as error:
+            if 400 <= error.code < 500 and error.code != 429:
+                print(f'ausseabed: {url}: {error}', flush=True)
+                return None
+            failure = error
+        except OSError as error:
+            failure = error
+        time.sleep(2**attempt)
+    raise SystemExit(f'ausseabed: {url}: {failure}')
 
 
 def survey(entry, size, etag):
     p = entry['properties']
     url = p['DATA_URL']
-    identity = {'url': url, 'size': size, 'etag': etag}
+    from odc.sources import AUSSEABED_LPT, AUSSEABED_SEPARATION_FILL_CELLS
+
+    # The reduction is on LAT, so it changes with the separation too.
+    identity = {'url': url, 'size': size, 'etag': etag, 'separation': [AUSSEABED_LPT, AUSSEABED_SEPARATION_FILL_CELLS]}
     w, s, e, n = entry['bbox']
     return {
         'provider': 'ausseabed',
@@ -198,7 +220,7 @@ def discover(bboxes):
         raise SystemExit('ausseabed: two archives share a survey name')
     print(
         f'ausseabed: {len(features)} CC BY register entries, {len(found)} archives in the regions, '
-        f'{len(found) - len(surveys)} unreachable',
+        f'{len(found) - len(surveys)} broken links',
         flush=True,
     )
     return surveys
@@ -233,7 +255,8 @@ def to_wgs84(ds):
 
 def resolution_m(ds):
     srs = osr.SpatialReference(wkt=ds.GetProjection())
-    size = abs(ds.GetGeoTransform()[1])
+    _, dx, rx, _, ry, dy = ds.GetGeoTransform()
+    size = max(np.hypot(dx, ry), np.hypot(rx, dy))
     return size * METRES_PER_DEGREE if srs.IsGeographic() else size * srs.GetLinearUnits()
 
 
@@ -252,8 +275,7 @@ def soundings(path):
         for col in range(0, ds.RasterXSize, BLOCK):
             cols = min(BLOCK, ds.RasterXSize - col)
             h = band.ReadAsArray(col, row, cols, rows)
-            # Water deeper than DEEP_M below MSL is deeper still below LAT.
-            valid = np.isfinite(h) & (h > -DEEP_M) & (h < MAX_ABS_HEIGHT_M)
+            valid = np.isfinite(h) & (h > -(DEEP_M + MAX_SEPARATION_M)) & (h < MAX_ABS_HEIGHT_M)
             if nodata is not None:
                 valid &= h != nodata
             y, x = np.nonzero(valid)
@@ -298,7 +320,8 @@ def merge(parts):
 def fine_enough(url, member):
     """Whether a grid is finer than MAX_RESOLUTION_M, read from its header
     without fetching the grid."""
-    ds = gdal.Open(f'/vsizip/{{/vsicurl/{url}}}/{member}')
+    with gdal.config_options({'GDAL_HTTP_USERAGENT': shom.USER_AGENT}):
+        ds = gdal.Open(f'/vsizip/{{/vsicurl/{url}}}/{member}')
     if resolution_m(ds) <= MAX_RESOLUTION_M:
         return True
     print(f'{member}: coarser than {MAX_RESOLUTION_M:g} m, left out', flush=True)
