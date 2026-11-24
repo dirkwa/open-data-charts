@@ -232,8 +232,11 @@ def test_a_cell_split_across_a_flush_keeps_its_shoalest_sample(tmp_path, monkeyp
     monkeypatch.setattr(ausseabed, 'MERGE_ROWS', 10**9)
     once = ausseabed.reduce_grids([path], Flat(1.5))
     assert len(whole['z']) == len(once['z'])
-    for k in ('ix', 'iy', 'z'):
-        assert np.array_equal(np.sort(whole[k]), np.sort(once[k]))
+
+    def cells(r):
+        return sorted(zip(r['ix'].tolist(), r['iy'].tolist(), r['z'].tolist(), strict=True))
+
+    assert cells(whole) == cells(once)
     assert sorted(whole['z'])[:1] == [pytest.approx(3.0)]
     assert sum(np.isclose(whole['z'], 3.0)) == 1
 
