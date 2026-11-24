@@ -169,7 +169,7 @@ def test_the_index_lists_a_unit_s_shading_only_when_it_has_one(tmp_path):
     built_unit(tmp_path, B, 'bbbb', shaded=False)
     shaded = index.unit_entry(region, A.id, 'aaaa', str(tmp_path), '2026-11-20')
     plain = index.unit_entry(region, B.id, 'bbbb', str(tmp_path), '2026-11-20')
-    assert shaded['hillshade']['url'].endswith('/units-test/z9-492-288.aaaa.hillshade.mbtiles')
+    assert shaded['hillshade']['url'].endswith('/units-test-a/z9-492-288.aaaa.hillshade.mbtiles')
     assert shaded['hillshade']['size'] == 5
     assert (shaded['hillshade']['minzoom'], shaded['hillshade']['maxzoom']) == (9, 12)
     assert 'hillshade' not in plain

@@ -77,6 +77,12 @@ def asset_name(unit_id, version):
     return f'{unit_id}.{version}.mbtiles'
 
 
+def release_tag(region_id, version):
+    # GitHub allows 1000 assets per release: a region's units spread over 16
+    # releases by the first hex digit of their version.
+    return f'units-{region_id}-{version[0]}'
+
+
 def unit_entry(region, unit_id, version, built_dir, today):
     unit = Unit.parse(unit_id)
     path = os.path.join(built_dir, asset_name(unit_id, version))
@@ -89,7 +95,7 @@ def unit_entry(region, unit_id, version, built_dir, today):
         'y': unit.y,
         'bbox': [round(v, 6) for v in unit.bounds],
         'version': version,
-        'url': f'{REPO}/releases/download/units-{region["id"]}/{asset_name(unit_id, version)}',
+        'url': f'{REPO}/releases/download/{release_tag(region["id"], version)}/{asset_name(unit_id, version)}',
         'size': os.path.getsize(path),
         'sha256': sha256_of(path),
         'minzoom': UNIT_ZOOM,
@@ -103,7 +109,7 @@ def unit_entry(region, unit_id, version, built_dir, today):
     shaded_path = os.path.join(built_dir, shaded)
     if os.path.exists(shaded_path):  # a unit without land has no terrain to shade
         entry['hillshade'] = {
-            'url': f'{REPO}/releases/download/units-{region["id"]}/{shaded}',
+            'url': f'{REPO}/releases/download/{release_tag(region["id"], version)}/{shaded}',
             'size': os.path.getsize(shaded_path),
             'sha256': sha256_of(shaded_path),
             'minzoom': hillshade.MINZOOM,

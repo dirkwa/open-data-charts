@@ -130,8 +130,11 @@ optional map overlay. It can be large; fetch it only when shown.
 
 ## Assets and versions
 
-Unit files are assets of one long-lived release per region
-(`units-<region>`), named `<unit id>.<version>.mbtiles`, and their terrain
-shading `<unit id>.<version>.hillshade.mbtiles`. A new version is
+Unit files are assets of a region's long-lived releases
+`units-<region>-<digit>`, by the first hex digit of the version (GitHub allows
+1000 assets per release), named `<unit id>.<version>.mbtiles`, and their
+terrain shading `<unit id>.<version>.hillshade.mbtiles`. Units published
+before that split stay in `units-<region>` until they are replaced; read each
+unit's `url` rather than building it. A new version is
 uploaded before the index points to it; the old asset stays at least 14 days,
 so a download that started before an update still completes.

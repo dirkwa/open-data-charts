@@ -1,7 +1,7 @@
 name: Build units
 
 # Rebuilds the units of a region whose inputs changed (odc.units), uploads
-# them to the release units-<region> and republishes the index on Pages.
+# them to the releases units-<region>-<0-f> and republishes the index on Pages.
 # The daily run takes the regions in turn, one a day. Runs share one index,
 # and the mirror run deletes superseded survey assets a build may be about
 # to download, so builds and mirror runs never overlap (concurrency below). A region whose surveys are not
@@ -193,19 +193,24 @@ jobs:
         run: docker build -f builder/Dockerfile -t odc-builder .
       - name: Upload the new units
         run: |
-          tag="units-$REGION"
-          gh release view "$tag" >/dev/null 2>&1 ||
-            gh release create "$tag" --latest=false --title "Open Data Charts units: $REGION" \
-              --notes 'Chart units built from open data. NOT FOR NAVIGATION. Licence: ODbL 1.0 (see LICENSE-DATA.md).'
           shopt -s nullglob
-          files=(built/*.mbtiles)
-          if [ ${#files[@]} -gt 0 ]; then gh release upload "$tag" "${files[@]}" --clobber; fi
+          # A unit's release is units-<region>-<first hex digit of its version> (odc.index.release_tag).
+          for digit in 0 1 2 3 4 5 6 7 8 9 a b c d e f; do
+            files=(built/*."$digit"*.mbtiles)
+            [ ${#files[@]} -gt 0 ] || continue
+            tag="units-$REGION-$digit"
+            gh release view "$tag" >/dev/null 2>&1 ||
+              gh release create "$tag" --latest=false --title "Open Data Charts units: $REGION ($digit)" \
+                --notes 'Chart units built from open data. NOT FOR NAVIGATION. Licence: ODbL 1.0 (see LICENSE-DATA.md).'
+            gh release upload "$tag" "${files[@]}" --clobber
+          done
       # Runs without changed units too: retired units still come due.
       - name: Write the index
         id: index
         run: |
           mkdir -p site built && chmod 777 site
-          bash .github/scripts/mirror-assets.sh "units-$REGION" | jq '[.[].name]' > released.json
+          bash .github/scripts/mirror-assets.sh "units-$REGION" > region-assets.json
+          jq '[.[].name]' region-assets.json > released.json
           docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
             odc-builder python3 -m odc.index "regions/$REGION.json" plan.json built old mirror released.json site
           cp schema/open-data-index.schema.json site/
@@ -223,5 +228,6 @@ jobs:
       - name: Remove units past their grace period
         run: |
           for name in $(jq -r '.[]' site/delete-assets.json); do
-            gh release delete-asset "units-$REGION" "$name" --yes || true
+            release=$(jq -r --arg name "$name" 'map(select(.name == $name))[0].release // empty' region-assets.json)
+            [ -n "$release" ] && gh release delete-asset "$release" "$name" --yes || true
           done
