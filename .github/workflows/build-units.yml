@@ -256,7 +256,7 @@ jobs:
   # moments ago in the same job shows up, and a failed deployment can be
   # re-run alone.
   deploy:
-    needs: publish
+    needs: [plan, publish]
     if: always() && needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
     runs-on: ubuntu-latest
     environment:
@@ -271,6 +271,17 @@ jobs:
         env:
           BASELINE: ${{ needs.publish.outputs.baseline }}
         run: bash .github/scripts/check-served-index.sh "$BASELINE"
+      # Nor one listing an asset a later run deleted while the served index stayed the same.
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.publish.outputs.pages-artifact }}
+          path: pages
+      - name: Check that the release still holds every asset this index lists
+        env:
+          REGION: ${{ needs.plan.outputs.region }}
+        run: |
+          tar -xf pages/artifact.tar -C pages --wildcards '*open-data-index.json'
+          bash .github/scripts/check-index-assets.sh pages/open-data-index.json "$REGION"
       - uses: actions/deploy-pages@v5
         with:
           artifact_name: ${{ needs.publish.outputs.pages-artifact }}
