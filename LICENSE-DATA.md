@@ -39,6 +39,25 @@ and neither are the charts built from them.
   the models of its region. Corsica's model is the one Shom publishes on
   mean sea level (`_NM`); its lowest-astronomical-tide version comes only
   as BAG, which the builder cannot read.
+- **Litto3D®**: Shom and IGN's coastal lidar models of mainland France and
+  Corsica (Bretagne 2018-2021, Finistère 2014, Iroise 2012, Morbihan 2015,
+  Normandie and Hauts-de-France 2016-2018, Nouvelle-Aquitaine 2020-2022,
+  Languedoc-Roussillon 2009, 2011 and 2014-2015, PACA 2015, Corse 2017-2018),
+  heights on NGF-IGN69 (NGF-IGN78 in Corsica). Licence Ouverte Etalab 2.0.
+  Attribution per product: "Shom - IGN, Litto3D <product>", with the
+  product's DOI where Shom gives one (for example
+  doi:10.17183/L3D_BZH_2018_2021); every sounding names its product in
+  `INFORM`. Use limitation: not for navigation. Modified: moved from the
+  levelling datum to chart datum (zéro hydrographique), land above the
+  highest astronomical tide left out, reduced to the shoalest node per chart
+  grid cell. Used for the regions whose file lists `shom-litto3d` in its
+  sources.
+- **BathyElli v2.1**: Shom's surfaces of chart datum (ZH) and the highest
+  astronomical tide (PHMA) above the ellipsoid, mainland France and Corsica.
+  Licence Ouverte Etalab 2.0. Attribution: "Shom, 2023. Surfaces BATHYELLI
+  2.1". Used with IGN's RAF20 (NGF-IGN69) and RAC23 (NGF-IGN78) geoid grids,
+  Licence Ouverte Etalab 2.0, from the PROJ data CDN, to move Litto3D to
+  chart datum.
 
 The scanned Shom paper charts (RasterMarine) are under a commercial licence
 and are not used.

@@ -33,10 +33,10 @@ def is_client_error(error):
     return isinstance(error, urllib.error.HTTPError) and 400 <= error.code < 500 and error.code != 429
 
 
-def get(url, timeout=120, tries=4, headers=None):
+def get(url, timeout=120, tries=4, headers=None, method=None):
     for attempt in range(tries):
         try:
-            request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT, **(headers or {})})
+            request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT, **(headers or {})}, method=method)
             return urllib.request.urlopen(request, timeout=timeout)
         except Exception as error:
             if is_client_error(error) or attempt == tries - 1:
