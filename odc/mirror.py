@@ -248,8 +248,9 @@ def reduce_shard(shard_path, out_dir, budget_s=REDUCE_BUDGET_S):
     results, failed = [], []
     jobs = [(survey['name'], (reduce_survey, survey, out_dir, separations, datums)) for survey in surveys]
     deadline = time.monotonic() + budget_s
-    with ProcessPoolExecutor(os.cpu_count()) as pool:
-        finished = run_until(pool, jobs, os.cpu_count(), deadline)
+    workers = os.cpu_count() or 1
+    with ProcessPoolExecutor(workers) as pool:
+        finished = run_until(pool, jobs, workers, deadline)
         for name, future in finished:
             try:
                 result = future.result()
