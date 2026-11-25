@@ -5,8 +5,8 @@ The portal is a WMS whose layers are the datasets (a short id, the survey
 title, its dates and extent) plus the download service its viewer uses: a
 session is opened for a layer, the server packs the layer as XYZ with a CSV
 of its metadata, and the zip is fetched from the portal's files. The XYZ is
-in ETRS89 / UTM (the CSV's srid), depths in metres below NHN (DHHN2016),
-down positive; they are moved to LAT with the German separation surface
+in ETRS89 / UTM (the CSV's srid), depths in metres below NHN (DHHN2016, or
+DHHN92 for surveys from before it), down positive; they are moved to LAT with the German separation surface
 (odc.sources.german_separation), as BSH's model is.
 
 The server leaves out the intermediate certificate of its TLS chain; it is
@@ -40,7 +40,10 @@ WMS_NS = {'w': 'http://www.opengis.net/wms'}
 CERT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs', 'geant-tls-rsa-1.pem')
 # Groups of the layer tree, not datasets.
 GROUP_LAYERS = {'Layers', 'SVDB', 'svdb_public'}
-NHN_DHHN2016 = '7837'
+# NHN in DHHN2016 and in DHHN92, which surveys before 2016 are on. The two
+# differ by a few centimetres at most along the German coasts, less than a
+# sounding's accuracy, so both take the same separation to LAT.
+NHN_DATUMS = {'7837', '5783'}
 # What the survey's technique says, in the words of the Shom metadata that
 # build_unit's TECSOU and quality categories read.
 TECSOU = {'Fächerecholot': 'multi-beam', 'Echolot': 'single-beam'}
@@ -53,6 +56,9 @@ PREPARE_POLL_S = 5
 # Short enough that a survey started at odc.mirror.REDUCE_BUDGET_S still ends
 # within the reduce job's limit.
 PREPARE_TIMEOUT_S = 90 * 60
+# The portal now and then packs a layer as an empty zip; packing it again
+# gives the data.
+PACK_ATTEMPTS = 3
 CHUNK = 1 << 20
 
 
@@ -211,14 +217,21 @@ def prepare(layer_id):
 
 
 def fetch(layer_id, path):
-    filename = prepare(layer_id)
-    with (
-        get(f'{PORTAL}/files/{urllib.parse.quote(filename)}', timeout=1800) as response,
-        open(path + '.part', 'wb') as fh,
-    ):
-        while block := response.read(CHUNK):
-            fh.write(block)
-    os.replace(path + '.part', path)
+    for _ in range(PACK_ATTEMPTS):
+        filename = prepare(layer_id)
+        with (
+            get(f'{PORTAL}/files/{urllib.parse.quote(filename)}', timeout=1800) as response,
+            open(path + '.part', 'wb') as fh,
+        ):
+            while block := response.read(CHUNK):
+                fh.write(block)
+        with zipfile.ZipFile(path + '.part') as archive:
+            packed = any(n.lower().endswith('.xyz') for n in archive.namelist())
+        if packed:
+            os.replace(path + '.part', path)
+            return
+    os.remove(path + '.part')
+    raise OSError(f'SVDB packed layer {layer_id} without its XYZ {PACK_ATTEMPTS} times')
 
 
 def read_metadata(text):
@@ -283,8 +296,8 @@ def reduce_zip(path, separation):
         [csv_name] = [n for n in names if n.lower().endswith('.csv')]
         [xyz_name] = [n for n in names if n.lower().endswith('.xyz')]
         meta = read_metadata(archive.read(csv_name).decode('utf-8-sig'))
-        if meta.get('vertdat') != NHN_DHHN2016:
-            raise ValueError(f'{path}: vertical datum {meta.get("vertdat")}, not NHN (DHHN2016)')
+        if meta.get('vertdat') not in NHN_DATUMS:
+            raise ValueError(f'{path}: vertical datum {meta.get("vertdat")}, not NHN')
         with archive.open(xyz_name) as stream:
             reduced, soundings = reduce_stream(stream, to_lat_lon_lat(meta['srid'], separation))
     return reduced, soundings, meta
