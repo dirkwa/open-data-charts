@@ -88,7 +88,13 @@ def discover_shom(regions):
             surveys[survey['name']] = survey
 
     def with_files(survey):
-        files = shom.list_files(survey)
+        try:
+            files = shom.list_files(survey)
+        except (OSError, ValueError) as error:
+            # Shom's listing service refuses a request now and then (403 too):
+            # the survey keeps what the mirror holds until a later run lists it.
+            print(f'{survey["name"]}: listing failed ({error}); held', flush=True)
+            return {'name': survey['name'], 'held': True, 'regions': survey['regions'], 'geometry': survey['geometry']}
         return {**survey, 'files': files, 'size': sum(f['fileSize'] for f in files), 'md5': source_md5(files)}
 
     with ThreadPoolExecutor(LISTING_THREADS) as pool:

@@ -1,4 +1,5 @@
 import json
+import urllib.error
 
 from odc import mirror
 from odc.mirror import BUCKET_RELEASES, asset_name, asset_release, build_index, shard
@@ -201,3 +202,19 @@ def test_every_job_runs_before_the_deadline():
     with ThreadPoolExecutor(2) as pool:
         results = {name: future.result() for name, future in run_until(pool, jobs, 2, time.monotonic() + 60)}
     assert results == {f's{i}': str(i) for i in range(5)}
+
+
+def test_a_shom_survey_whose_listing_fails_is_held(monkeypatch):
+    survey = {'name': 'S1', 'group': 'g', 'geometry': {'type': 'Point', 'coordinates': [0, 0]}, 'bbox': [0, 0, 0, 0]}
+    other = {**survey, 'name': 'S2'}
+    monkeypatch.setattr(mirror.shom, 'discover_surveys', lambda bbox: [dict(survey), dict(other)])
+
+    def list_files(s):
+        if s['name'] == 'S1':
+            raise urllib.error.HTTPError('https://example.org', 403, 'Forbidden', {}, None)
+        return [{'fileName': 'a.7z', 'fileSize': 5, 'fileMd5': 'abc'}]
+
+    monkeypatch.setattr(mirror.shom, 'list_files', list_files)
+    held, listed = sorted(mirror.discover_shom([{'id': 'r', 'bbox': [0, 0, 1, 1]}]), key=lambda s: s['name'])
+    assert held == {'name': 'S1', 'held': True, 'regions': ['r'], 'geometry': survey['geometry']}
+    assert listed['size'] == 5 and listed['md5'] == 'abc'
