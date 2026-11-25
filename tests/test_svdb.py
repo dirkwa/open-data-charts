@@ -109,10 +109,16 @@ def test_a_layer_reduces_to_lat_on_the_chart_grid(tmp_path):
     assert ((lon > 10.83) & (lon < 10.85) & (lat > 54.48) & (lat < 54.50)).all()
 
 
+def test_a_layer_on_dhhn92_reduces_like_one_on_dhhn2016(tmp_path):
+    sep = svdb.Separation(separation_tif(tmp_path / 'sep.tif', 0.4))
+    reduced, _, _ = svdb.reduce_zip(layer_zip(tmp_path / 'layer.zip', vertdat='5783'), sep)
+    assert sorted(np.round(reduced['z'], 2)) == [13.1, 13.6]
+
+
 def test_a_layer_on_another_datum_is_refused(tmp_path):
     sep = svdb.Separation(separation_tif(tmp_path / 'sep.tif', 0.4))
     with pytest.raises(ValueError, match='vertical datum'):
-        svdb.reduce_zip(layer_zip(tmp_path / 'layer.zip', vertdat='5783'), sep)
+        svdb.reduce_zip(layer_zip(tmp_path / 'layer.zip', vertdat='5705'), sep)
 
 
 def test_a_layer_missing_from_the_search_is_held(monkeypatch):
