@@ -113,16 +113,26 @@ def available(props):
 
 def coverage(chart_dir, bbox_geom):
     """Per band, the area its charts cover within bbox_geom (None if none)."""
-    areas = [None] * len(BAND_MINZOOM)
+    # One union per band: thousands of depth areas merged one by one take minutes.
+    parts = [ogr.Geometry(ogr.wkbGeometryCollection) for _ in BAND_MINZOOM]
     for path in chart_files(chart_dir, geometry_bounds(bbox_geom)):
         band, objl, layer_id = parse_file_name(path)
         if objl != COVERAGE and not depth_coverage(objl, layer_id):
             continue
         for geom, props, _ in read_features(path, bbox_geom):
-            if not covering(objl, layer_id, props):
-                continue
-            areas[band] = geom if areas[band] is None else areas[band].Union(geom)
-    return areas
+            if covering(objl, layer_id, props):
+                for part in polygons(geom):
+                    parts[band].AddGeometry(part)
+    return [collection.UnaryUnion() if collection.GetGeometryCount() else None for collection in parts]
+
+
+def polygons(geom):
+    """The polygons of a geometry: a cut along an edge also leaves lines and points."""
+    if ogr.GT_Flatten(geom.GetGeometryType()) == ogr.wkbPolygon:
+        yield geom
+    elif ogr.GT_Flatten(geom.GetGeometryType()) in (ogr.wkbMultiPolygon, ogr.wkbGeometryCollection):
+        for i in range(geom.GetGeometryCount()):
+            yield from polygons(geom.GetGeometryRef(i))
 
 
 def zoom_parts(geom, band, areas):
