@@ -166,3 +166,38 @@ def test_shards_beyond_a_runs_share_wait_for_the_next_run(tmp_path, monkeypatch)
     planned = [json.loads((work / 'shards' / f'{i}.json').read_text()) for i in range(3)]
     assert len({s['name'] for shard in planned for s in shard}) == 3
     assert len(json.loads((work / 'discovery.json').read_text())) == 5
+
+
+def test_no_survey_starts_after_the_deadline(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from odc import mirror
+
+    clock = [0.0]
+    monkeypatch.setattr(mirror.time, 'monotonic', lambda: clock[0])
+    started = []
+
+    def job(name):
+        started.append(name)
+        return name
+
+    jobs = [(f's{i}', (job, f's{i}')) for i in range(6)]
+    finished = []
+    with ThreadPoolExecutor(2) as pool:
+        for name, _ in mirror.run_until(pool, jobs, 2, deadline=1.0):
+            finished.append(name)
+            clock[0] = 2.0
+    assert sorted(started) == ['s0', 's1']
+    assert sorted(finished) == ['s0', 's1']
+
+
+def test_every_job_runs_before_the_deadline():
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from odc.mirror import run_until
+
+    jobs = [(f's{i}', (str, i)) for i in range(5)]
+    with ThreadPoolExecutor(2) as pool:
+        results = {name: future.result() for name, future in run_until(pool, jobs, 2, time.monotonic() + 60)}
+    assert results == {f's{i}': str(i) for i in range(5)}

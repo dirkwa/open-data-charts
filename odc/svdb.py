@@ -50,7 +50,9 @@ ESTIMATED_BYTES_PER_POINT = 3.5
 SEARCH_PAGE = 1000
 SEARCH_SINCE = '1900-01-01'
 PREPARE_POLL_S = 5
-PREPARE_TIMEOUT_S = 3 * 3600
+# Short enough that a survey started at odc.mirror.REDUCE_BUDGET_S still ends
+# within the reduce job's limit.
+PREPARE_TIMEOUT_S = 90 * 60
 CHUNK = 1 << 20
 
 

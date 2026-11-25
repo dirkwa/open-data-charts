@@ -723,15 +723,18 @@ def fetch_emodnet_hr(dtms, target, tmp):
     for i, dtm in enumerate(dtms):
         archive = os.path.join(tmp, f'{dtm["id"]}.zip')
         save_url(EMODNET_HR.format(id=dtm['id']), archive, timeout=1800)
+        # A DTM finer than the chart grid is first taken to the shoalest
+        # depth in each chart cell, so no shoal between two chart cells is lost.
+        cells_per_degree = min(dtm['cells_per_degree'], round(1 / GRID_STEP))
         try:
             with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
-                result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), dtm['cells_per_degree'])
+                result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), cells_per_degree)
         except (OSError, zipfile.BadZipFile, zlib.error, EOFError) as e:
             raise RuntimeError(f'{dtm["id"]}: broken archive ({e})') from e
         os.remove(archive)
         if result is None:
             raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
-        heights, west, north = smooth_on_chart_grid(*result, dtm['cells_per_degree'])
+        heights, west, north = smooth_on_chart_grid(*result, cells_per_degree)
         path = os.path.join(target, f'emodnethr_{i:02d}_{dtm["id"]}.tif')
         out = gdal.GetDriverByName('GTiff').Create(
             path + '.part', heights.shape[1], heights.shape[0], 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3']
