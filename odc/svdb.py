@@ -56,6 +56,9 @@ PREPARE_POLL_S = 5
 # Short enough that a survey started at odc.mirror.REDUCE_BUDGET_S still ends
 # within the reduce job's limit.
 PREPARE_TIMEOUT_S = 90 * 60
+# The portal now and then packs a layer as an empty zip; packing it again
+# gives the data.
+PACK_ATTEMPTS = 3
 CHUNK = 1 << 20
 
 
@@ -214,14 +217,21 @@ def prepare(layer_id):
 
 
 def fetch(layer_id, path):
-    filename = prepare(layer_id)
-    with (
-        get(f'{PORTAL}/files/{urllib.parse.quote(filename)}', timeout=1800) as response,
-        open(path + '.part', 'wb') as fh,
-    ):
-        while block := response.read(CHUNK):
-            fh.write(block)
-    os.replace(path + '.part', path)
+    for _ in range(PACK_ATTEMPTS):
+        filename = prepare(layer_id)
+        with (
+            get(f'{PORTAL}/files/{urllib.parse.quote(filename)}', timeout=1800) as response,
+            open(path + '.part', 'wb') as fh,
+        ):
+            while block := response.read(CHUNK):
+                fh.write(block)
+        with zipfile.ZipFile(path + '.part') as archive:
+            packed = any(n.lower().endswith('.xyz') for n in archive.namelist())
+        if packed:
+            os.replace(path + '.part', path)
+            return
+    os.remove(path + '.part')
+    raise OSError(f'SVDB packed layer {layer_id} without its XYZ {PACK_ATTEMPTS} times')
 
 
 def read_metadata(text):
