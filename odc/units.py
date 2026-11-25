@@ -88,7 +88,8 @@ def discover(region, inputs):
             if water.IsEmpty():
                 break
         layer.ResetReading()
-        if water.IsEmpty():
+        # OSM's land polygons hold the lakes, which a chart's depth areas reach.
+        if water.IsEmpty() and not chart.charted(charts, unit.bounds, depth_only=True):
             continue
         if has_land or dem_has_data(dems, unit.bounds) or chart.charted(charts, unit.bounds):
             units.append(unit)

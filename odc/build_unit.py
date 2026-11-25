@@ -579,6 +579,33 @@ def thin_soundings(lon, lat, z, maxzoom, model=None):
     return minzoom
 
 
+def thin_chart_soundings(items, maxzoom):
+    """A chart's soundings, those marked _thin given the zoom from which
+    thinning shows them (and dropped where no zoom does)."""
+    kept, thin = [], []
+    for geom, attrs, lnam in items:
+        if attrs.pop('_thin', False) and 'DEPTH' in attrs:
+            thin.extend((part, attrs, lnam) for part in point_parts(geom))
+        else:
+            kept.append((geom, attrs, lnam))
+    if not thin:
+        return kept
+    lon = np.array([g.GetX() for g, _, _ in thin])
+    lat = np.array([g.GetY() for g, _, _ in thin])
+    z = np.array([a['DEPTH'] for _, a, _ in thin], np.float32)
+    minzoom = thin_soundings(lon, lat, z, maxzoom)
+    for i in np.flatnonzero(minzoom >= 0):
+        geom, attrs, lnam = thin[i]
+        kept.append((geom, {**attrs, '_minzoom': int(minzoom[i])}, lnam))
+    return kept
+
+
+def point_parts(geom):
+    if ogr.GT_Flatten(geom.GetGeometryType()) == ogr.wkbPoint:
+        return [geom]
+    return [geom.GetGeometryRef(i).Clone() for i in range(geom.GetGeometryCount())]
+
+
 def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom):
     """Candidate soundings from the bathymetric model's own pixels (never
     the near-shore fill or the chart-grid resampling): water depths of at
@@ -1764,6 +1791,8 @@ def main():
         step('Chart objects')
         areas = chart.coverage(args.chart, bbox_geom)
         depth_layers = chart.chart_layers(args.chart, lambda p: s57_props(p, attributes), classes, bbox_geom, areas)
+        if 'SOUNDG' in depth_layers:
+            depth_layers['SOUNDG'] = thin_chart_soundings(depth_layers['SOUNDG'], args.maxzoom)
         quality = chart_quality(areas, land_cells, box, unit)
         unsare = uncharted_water(water, areas)
         if unsare:

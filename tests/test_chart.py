@@ -124,3 +124,54 @@ def test_water_no_chart_covers_is_unsurveyed():
     unsare = uncharted_water(water, [None, half, None, None, None])
     assert len(unsare) == 1 and unsare[0][0].GetArea() == pytest.approx(0.5)
     assert uncharted_water(water, [water] + [None] * 4) == []
+
+
+def test_a_unit_reads_only_the_squares_it_meets(tmp_path):
+    for west in (24, 25, 26):
+        save(tmp_path, 1, 'DEPCNT', f'traficom-DepthContour_L{chart.square_name(west, 60)}', [])
+    save(tmp_path, 1, 'DEPCNT', '4', [])
+    names = [chart.parse_file_name(p)[2] for p in chart.chart_files(str(tmp_path), (25.2, 60.1, 25.8, 60.4))]
+    assert names == ['4', 'traficom-DepthContour_L-e25n60']
+    assert len(chart.chart_files(str(tmp_path))) == 4
+
+
+def test_traficom_depth_areas_are_its_coverage_and_chart_lake_units(tmp_path):
+    lake = (28.0, 61.2, 28.5, 61.5)
+    save(tmp_path, 1, 'DEPCNT', 'traficom-DepthContour_L-e28n61', [feature(square(28.0, 61.0, 29.0, 62.0))])
+    chart.coverage_index.cache_clear()
+    assert not chart.charted(str(tmp_path), lake, depth_only=True)
+    save(tmp_path, 1, 'M_COVR', '1', [feature(square(28.0, 61.0, 29.0, 62.0), catcov=1)])
+    save(tmp_path, 2, 'M_COVR', '2', [feature(square(28.0, 61.0, 29.0, 62.0), catcov=1)])
+    chart.coverage_index.cache_clear()
+    assert chart.charted(str(tmp_path), lake)
+    assert not chart.charted(str(tmp_path), lake, depth_only=True)
+    save(tmp_path, 1, 'DEPARE', 'traficom-DepthArea_A-e28n61', [feature(square(28.1, 61.3, 28.2, 61.4), drval1=2.0)])
+    chart.coverage_index.cache_clear()
+    assert chart.charted(str(tmp_path), lake, depth_only=True)
+    assert not chart.charted(str(tmp_path), (28.6, 61.2, 28.9, 61.5), depth_only=True)
+    areas = chart.coverage(str(tmp_path), bbox_polygon(*lake))
+    assert areas[1].GetArea() == pytest.approx(0.15)  # the whole lake box, M_COVR and depth area merged
+
+
+def test_single_scale_soundings_are_thinned_per_zoom(tmp_path):
+    from odc.build_unit import thin_chart_soundings
+
+    point = {'type': 'Point', 'coordinates': [24.5, 59.85]}
+    near = {'type': 'Point', 'coordinates': [24.503, 59.853]}
+    save(
+        tmp_path,
+        1,
+        'SOUNDG',
+        'traficom-Sounding_P-e24n59',
+        [feature(point, depth=49.0, quasou='1'), feature(near, depth=12.0)],
+    )
+    box = bbox_polygon(24.0, 59.5, 25.0, 60.0)
+    areas = chart.coverage(str(tmp_path), box)
+    layers = chart.chart_layers(
+        str(tmp_path), lambda p: {k.upper(): v for k, v in p.items()}, {'SOUNDG': 129}, box, areas
+    )
+    soundings = thin_chart_soundings(layers['SOUNDG'], 17)
+    by_depth = {attrs['DEPTH']: attrs for _, attrs, _ in soundings}
+    assert '_thin' not in by_depth[12.0]
+    assert by_depth[12.0]['_minzoom'] < by_depth[49.0]['_minzoom']  # the shoaler first
+    assert by_depth[49.0]['QUASOU'] == '1'
