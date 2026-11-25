@@ -233,7 +233,10 @@ Licence: CC BY 4.0, as the record's metadata states (alongside "do not
 use for navigation"). The charts are not for navigation. Attribution:
 "Vlaamse Hydrografie (Agentschap Maritieme Dienstverlening en Kust),
 multibeam DTM of the Belgian coastal waters from EMODnet Bathymetry
-(https://emodnet.ec.europa.eu), CC BY 4.0". Used by the Belgium region and
+(https://emodnet.ec.europa.eu), CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/); modified: reduced to the
+shoalest depth per chart grid cell and resampled onto the chart grid; not
+to be used for navigation". Used by the Belgium region and
 the units of the Channel and England and Wales regions it reaches.
 
 ## ICGC (Catalonia)

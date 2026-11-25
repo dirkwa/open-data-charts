@@ -78,6 +78,6 @@
     "Shom - IGN, Litto3D® lidar models (Licence Ouverte 2.0; see INFORM of each sounding); modified: moved from NGF to chart datum (ZH) and reduced to the shoalest node per chart grid cell; not suitable for navigation",
     "Shom, 2023. Surfaces BATHYELLI 2.1 (Licence Ouverte 2.0)",
     "IGN, RAF20 (Licence Ouverte 2.0)",
-    "Vlaamse Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM of the Belgian coastal waters from EMODnet Bathymetry (https://emodnet.ec.europa.eu), CC BY 4.0"
+    "Vlaamse Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM of the Belgian coastal waters from EMODnet Bathymetry (https://emodnet.ec.europa.eu), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); modified: reduced to the shoalest depth per chart grid cell and resampled onto the chart grid; not to be used for navigation"
   ]
 }
