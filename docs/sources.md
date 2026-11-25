@@ -41,8 +41,9 @@ with the Irish Sea, and Scotland with Northern Ireland and North East
 England) is built for coasts without Shom data: its depths come from the
 EMODnet Bathymetry DTM (a model at about 115 m), with the British
 Geological Survey's multibeam DTMs (about 14 m, on chart datum) on top
-where it surveyed: Scottish sea lochs and firths, Shetland, Arran, Tiree,
-Lewis and the Northumberland coast. Mount's Bay in Cornwall takes its
+where it surveyed: Scottish sea lochs and firths, Shetland, Arran, Tiree
+and the Northumberland coast. Its DTM of Lewis is left out: EMODnet's
+archive of it is corrupt (its compressed data does not inflate). Mount's Bay in Cornwall takes its
 depths from OceanWise's composite DTM there (about 29 m, on LAT), in the
 units of both the Land's End and the Channel regions. Both come from
 EMODnet's high-resolution DTMs, which lie on top of every other model of a

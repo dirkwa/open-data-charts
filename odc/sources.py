@@ -726,8 +726,11 @@ def fetch_emodnet_hr(dtms, target, tmp):
         # A DTM finer than the chart grid is first taken to the shoalest
         # depth in each chart cell, so no shoal between two chart cells is lost.
         cells_per_degree = min(dtm['cells_per_degree'], round(1 / GRID_STEP))
-        with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
-            result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), cells_per_degree)
+        try:
+            with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
+                result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), cells_per_degree)
+        except (OSError, zipfile.BadZipFile, zlib.error, EOFError, ValueError) as e:
+            raise RuntimeError(f'{dtm["id"]}: broken archive ({e})') from e
         os.remove(archive)
         if result is None:
             raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
