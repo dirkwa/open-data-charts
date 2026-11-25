@@ -729,7 +729,7 @@ def fetch_emodnet_hr(dtms, target, tmp):
         try:
             with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
                 result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), cells_per_degree)
-        except (OSError, zipfile.BadZipFile, zlib.error, EOFError) as e:
+        except (OSError, zipfile.BadZipFile, zlib.error, EOFError, ValueError) as e:
             raise RuntimeError(f'{dtm["id"]}: broken archive ({e})') from e
         os.remove(archive)
         if result is None:

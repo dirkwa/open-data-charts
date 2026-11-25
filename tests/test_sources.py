@@ -727,3 +727,13 @@ def test_a_corrupt_hr_dtm_archive_is_named(monkeypatch, tmp_path):
     monkeypatch.setattr(sources, 'save_url', save_url)
     with pytest.raises(RuntimeError, match='X: broken archive'):
         sources.fetch_emodnet_hr([{'id': 'X', 'cells_per_degree': 7680}], str(tmp_path), str(tmp_path))
+
+
+def test_an_unreadable_hr_dtm_depth_is_named(monkeypatch, tmp_path):
+    def save_url(url, path, timeout=600):
+        with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('X.emo', '2.0;50.0;10;bad;9.5\n')
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    with pytest.raises(RuntimeError, match='X: broken archive'):
+        sources.fetch_emodnet_hr([{'id': 'X', 'cells_per_degree': 7680}], str(tmp_path), str(tmp_path))
