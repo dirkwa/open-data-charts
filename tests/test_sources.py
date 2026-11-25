@@ -402,6 +402,37 @@ def test_an_emodnet_hr_grid_keeps_the_shoalest_depth_on_its_own_cells():
     assert np.allclose(heights, [[sources.EMODNET_NODATA, -8.54], [-3.24, 0.9]])
 
 
+def test_a_dtm_finer_than_the_chart_grid_keeps_each_chart_cell_s_shoalest_depth(tmp_path, monkeypatch):
+    import zipfile
+
+    from osgeo import gdal
+
+    from odc.grid import GRID_STEP
+
+    # Four 1/512' cells inside one chart cell: a single shoal among deep water.
+    base_lon, base_lat = 3.0000101, 51.3000101
+    step = 1 / 30720
+    lines = [
+        f'{base_lon + dx * step:.8f};{base_lat + dy * step:.8f};{depth:.2f};{depth:.2f};{depth:.2f};0;1;;;;x;;'
+        for (dx, dy), depth in zip([(0, 0), (1, 0), (0, 1), (1, 1)], [12.0, 12.0, 2.5, 12.0], strict=True)
+    ]
+
+    def save_url(url, path, **kw):
+        with zipfile.ZipFile(path, 'w') as zf:
+            zf.writestr('be.emo', '\n'.join(lines) + '\n')
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    target = tmp_path / 'dem'
+    target.mkdir()
+    sources.fetch_emodnet_hr([{'id': 'be', 'cells_per_degree': 30720}], str(target), str(tmp_path))
+    ds = gdal.Open(str(target / 'emodnethr_00_be.tif'))
+    x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+    assert dx == GRID_STEP
+    heights = ds.GetRasterBand(1).ReadAsArray()
+    col, row = int((base_lon - x0) / dx), int((base_lat - y0) / dy)
+    assert heights[row, col] == pytest.approx(-2.5)
+
+
 def test_a_smoothed_emodnet_hr_grid_never_reads_deeper_than_a_cell_it_lies_in():
     import numpy as np
 

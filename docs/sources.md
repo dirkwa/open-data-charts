@@ -46,7 +46,12 @@ Lewis and the Northumberland coast. Mount's Bay in Cornwall takes its
 depths from OceanWise's composite DTM there (about 29 m, on LAT), in the
 units of both the Land's End and the Channel regions. Both come from
 EMODnet's high-resolution DTMs, which lie on top of every other model of a
-region. Ireland (its Atlantic
+region.
+Belgium takes its depths in the coastal waters from Vlaamse Hydrografie's
+multibeam DTM of the Belgian coast (1/512', taken to the shoalest depth in
+each chart cell, on LAT), also an EMODnet high-resolution DTM, and from
+the EMODnet DTM beyond it; the western end of the coast, in the Channel
+and England and Wales regions' units, takes the same DTM. Ireland (its Atlantic
 coast from Kerry to Mayo, and Cork, the Shannon Estuary and Galway Bay; its
 east and north coasts lie in the two UK regions) and those UK regions take
 their depths in Irish waters from INFOMAR's surveys, gridded at 10 m inshore
