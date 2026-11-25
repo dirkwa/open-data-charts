@@ -229,8 +229,11 @@ bathymetric models of the regions whose file lists them, as above.
 Vlaamse Hydrografie's (Agentschap Maritieme Dienstverlening en Kust)
 composite multibeam DTM of the Belgian coastal waters, on LAT, downloaded
 from EMODnet Bathymetry (`https://downloads.emodnet-bathymetry.eu/high_resolution/`).
-Its record publishes it for public access marked "do not use for
-navigation", without naming a further licence. Attribution: "Vlaamse
+EMODnet's terms of use leave a data originator's data to the use
+restrictions or licences in its metadata; this record's are public access
+and "do not use for navigation", with no other restriction and no licence
+named. The charts are not for navigation and credit the originator as the
+terms ask. Attribution: "Vlaamse
 Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM
 of the Belgian coastal waters from EMODnet Bathymetry
 (https://emodnet.ec.europa.eu)". Used by the Belgium region and the units
