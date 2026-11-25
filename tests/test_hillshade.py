@@ -108,7 +108,14 @@ def test_inland_water_inside_the_land_stays_transparent(tmp_path):
     ring = [[lake[0], lake[1]], [lake[2], lake[1]], [lake[2], lake[3]], [lake[0], lake[3]], [lake[0], lake[1]]]
     water_path = tmp_path / 'water.geojsonseq'
     water_path.write_text(
-        json.dumps({'type': 'Feature', 'properties': {}, 'geometry': {'type': 'Polygon', 'coordinates': [ring]}}) + '\n'
+        json.dumps(
+            {
+                'type': 'Feature',
+                'properties': {'natural': 'water'},
+                'geometry': {'type': 'Polygon', 'coordinates': [ring]},
+            }
+        )
+        + '\n'
     )
     water = read_water(str(water_path), B.build_box.bbox)
     dry = render_unit(dem, land, B, z)

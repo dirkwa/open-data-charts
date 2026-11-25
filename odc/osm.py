@@ -26,6 +26,11 @@ SEAMARK_FILTER = 'nwr/seamark:type'
 # Harbour basins, docks, canals, rivers and lakes behind the coastline: the
 # land polygons follow the coastline only, so these are cut out of the land.
 WATER_FILTER = ('nwr/natural=water', 'nwr/waterway=riverbank,dock', 'nwr/landuse=basin,reservoir')
+# osmium's filter also keeps the member ways of a lake's multipolygon, which
+# export as areas of their own: an island's outline must not become water.
+WATER_TAGS = {
+    key: set(values.split(',')) for key, values in (rule.split('/', 1)[1].split('=', 1) for rule in WATER_FILTER)
+}
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
 # The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
 OTHER_ROLES = {
@@ -81,6 +86,10 @@ def polygons(geometry):
             yield from polygons(geometry.GetGeometryRef(i))
 
 
+def is_water(tags):
+    return any(tags.get(key) in values for key, values in WATER_TAGS.items())
+
+
 def read_water(path, bbox):
     """The water areas of a WATER_FILTER export meeting bbox, as one geometry."""
     parts = ogr.Geometry(ogr.wkbMultiPolygon)
@@ -88,6 +97,8 @@ def read_water(path, bbox):
         for line in fh:
             feature = json.loads(line.lstrip('\x1e'))
             if feature['geometry']['type'] not in ('Polygon', 'MultiPolygon'):
+                continue
+            if not is_water(feature.get('properties') or {}):
                 continue
             if not intersects(bbox_of(feature['geometry']), bbox):
                 continue
