@@ -33,7 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 
 from odc import ausseabed, litto3d, shom, svdb
@@ -44,6 +44,9 @@ SHARD_BYTES = 12 << 30  # about 1.5 h of downloads per job at Shom's rate
 # A run holds the unit builds back while it mirrors, so a large first fill
 # (Litto3D's hundreds of gigabytes) spreads over several runs.
 MAX_SHARDS = 24
+# A reduce job starts no survey after this, so the surveys it finished are
+# uploaded before the job's 340-minute limit; the rest wait for the next run.
+REDUCE_BUDGET_S = 3 * 3600
 LISTING_THREADS = 4
 # Shom gives each connection ~400 KB/s; with one survey per CPU this keeps
 # a job at about eight connections.
@@ -207,7 +210,22 @@ def reduce_shom_survey(survey, out_dir):
     }
 
 
-def reduce_shard(shard_path, out_dir):
+def run_until(pool, jobs, workers, deadline):
+    """(name, future) for each job as it finishes, at most `workers` running
+    at once; no job starts after the deadline (time.monotonic())."""
+    pending, running = list(jobs), {}
+    while pending or running:
+        while pending and len(running) < workers and time.monotonic() < deadline:
+            name, (fn, *args) = pending.pop(0)
+            running[pool.submit(fn, *args)] = name
+        if not running:
+            return
+        done, _ = wait(running, return_when=FIRST_COMPLETED)
+        for future in done:
+            yield running.pop(future), future
+
+
+def reduce_shard(shard_path, out_dir, budget_s=REDUCE_BUDGET_S):
     """Reduce a shard's surveys, one per CPU: parsing the XYZ is the slow part."""
     os.makedirs(out_dir, exist_ok=True)
     surveys = json.load(open(shard_path, encoding='utf-8'))
@@ -228,19 +246,23 @@ def reduce_shard(shard_path, out_dir):
         os.makedirs(os.path.join(out_dir, 'datum'), exist_ok=True)
         datums = litto3d.datums(os.path.join(out_dir, 'datum'))
     results, failed = [], []
-    with ProcessPoolExecutor(os.cpu_count()) as pool:
-        futures = {
-            pool.submit(reduce_survey, survey, out_dir, separations, datums): survey['name'] for survey in surveys
-        }
-        for future in as_completed(futures):
+    jobs = [(survey['name'], (reduce_survey, survey, out_dir, separations, datums)) for survey in surveys]
+    deadline = time.monotonic() + budget_s
+    workers = os.cpu_count() or 1
+    with ProcessPoolExecutor(workers) as pool:
+        finished = run_until(pool, jobs, workers, deadline)
+        for name, future in finished:
             try:
                 result = future.result()
             except Exception as error:
-                failed.append(futures[future])
-                print(f'{futures[future]}: {error}', flush=True)
+                failed.append(name)
+                print(f'{name}: {error}', flush=True)
                 continue
             print(json.dumps(result), flush=True)
             results.append(result)
+    postponed = len(surveys) - len(results) - len(failed)
+    if postponed:
+        print(f'{postponed} surveys not started within {budget_s} s; the next run takes them up', flush=True)
     with open(os.path.join(out_dir, 'results.json'), 'w', encoding='utf-8') as fh:
         json.dump(results, fh)
     if failed:
