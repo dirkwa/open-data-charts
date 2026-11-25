@@ -10,6 +10,7 @@
   "sources": [
     "emodnet-dtm",
     "infomar",
+    "emodnet-hr",
     "osm",
     "openseamap",
     "copernicus"
@@ -20,6 +21,15 @@
     },
     {
       "source": "infomar"
+    },
+    {
+      "source": "emodnet-hr",
+      "dtms": [
+        {
+          "id": "2243_BELGIUM_MULTIBEAM_COASTAL_DTM010218",
+          "cells_per_degree": 30720
+        }
+      ]
     }
   ],
   "osm": [
@@ -34,6 +44,7 @@
   ],
   "attribution": [
     "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
-    "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry"
+    "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry",
+    "Vlaamse Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM of the Belgian coastal waters from EMODnet Bathymetry (https://emodnet.ec.europa.eu)"
   ]
 }

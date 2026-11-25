@@ -34,6 +34,10 @@
         {
           "id": "2607_cDTM_SaintMountsBay",
           "cells_per_degree": 3840
+        },
+        {
+          "id": "2243_BELGIUM_MULTIBEAM_COASTAL_DTM010218",
+          "cells_per_degree": 30720
         }
       ]
     }
@@ -73,6 +77,7 @@
     "OceanWise, Mount's Bay composite DTM from EMODnet Bathymetry (https://emodnet.ec.europa.eu)",
     "Shom - IGN, Litto3D® lidar models (Licence Ouverte 2.0; see INFORM of each sounding); modified: moved from NGF to chart datum (ZH) and reduced to the shoalest node per chart grid cell; not suitable for navigation",
     "Shom, 2023. Surfaces BATHYELLI 2.1 (Licence Ouverte 2.0)",
-    "IGN, RAF20 (Licence Ouverte 2.0)"
+    "IGN, RAF20 (Licence Ouverte 2.0)",
+    "Vlaamse Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM of the Belgian coastal waters from EMODnet Bathymetry (https://emodnet.ec.europa.eu)"
   ]
 }

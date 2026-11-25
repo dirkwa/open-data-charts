@@ -224,6 +224,18 @@ high-resolution multibeam DTMs from EMODnet Bathymetry
 from EMODnet Bathymetry (https://emodnet.ec.europa.eu)". Used as the
 bathymetric models of the regions whose file lists them, as above.
 
+## EMODnet high-resolution DTM (Belgium)
+
+Vlaamse Hydrografie's (Agentschap Maritieme Dienstverlening en Kust)
+composite multibeam DTM of the Belgian coastal waters, on LAT, downloaded
+from EMODnet Bathymetry (`https://downloads.emodnet-bathymetry.eu/high_resolution/`).
+Its record publishes it for public access marked "do not use for
+navigation", without naming a further licence. Attribution: "Vlaamse
+Hydrografie (Agentschap Maritieme Dienstverlening en Kust), multibeam DTM
+of the Belgian coastal waters from EMODnet Bathymetry
+(https://emodnet.ec.europa.eu)". Used by the Belgium region and the units
+of the Channel and England and Wales regions it reaches.
+
 ## ICGC (Catalonia)
 
 Batimetria de la costa de Catalunya v2.1: the Institut Cartogràfic i
