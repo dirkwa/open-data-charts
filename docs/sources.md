@@ -108,6 +108,12 @@ publishes through AusSeabed under CC BY 4.0 (multibeam and lidar grids of
 Tasmania's coasts, marine parks and the reefs of the Great Barrier Reef and
 the Coral Sea) are charted like Shom's surveys, newest on top, each cell
 its shoalest value, moved from mean sea level to LAT the same way.
+British Columbia's waters, from the Salish Sea and the west coast of
+Vancouver Island to the Central Coast, Haida Gwaii and Dixon Entrance, take their depths from the Canadian Hydrographic Service's
+NONNA models (non-navigational bathymetry compiled from CHS surveys, about
+10 m where surveys are dense and 100 m elsewhere, on chart datum), NONNA-10
+over NONNA-100, each chart cell keeping the shoalest sample. US waters
+inside these regions (Washington, southeast Alaska) have no depths.
 Outside Shom's waters and New Zealand, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can

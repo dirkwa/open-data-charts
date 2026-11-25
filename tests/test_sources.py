@@ -493,6 +493,70 @@ def test_infomar_writes_only_tiles_with_data_on_their_grid(monkeypatch, tmp_path
     assert heights[1, 1] == -12.0
 
 
+def test_nonna_asks_for_nonna_10_only_where_nonna_100_has_data(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    from odc import lat_model
+    from odc.grid import GRID_STEP
+
+    asked = []
+
+    def coverage(name, bounds, path, wait=0):
+        asked.append((name, bounds))
+        west, south, east, north = bounds
+        step = (east - west) / 40
+        heights = np.full((40, 40), 3.4e38, np.float32)
+        if (west, south) in ((-124.0, 49.0), (-124.0, 49.5)):
+            heights[:] = -50.0 if name == '100' else -12.0
+            heights[:, 0] = 40.0  # land
+        ds = gdal.GetDriverByName('GTiff').Create(path, 40, 40, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((west, step, 0.0, north, 0.0, -step))
+        ds.SetProjection(lat_model.wgs84())
+        ds.GetRasterBand(1).SetNoDataValue(3.4e38)
+        ds.GetRasterBand(1).WriteArray(heights)
+        ds = None
+        return heights != np.float32(3.4e38)
+
+    monkeypatch.setattr(sources, 'nonna_coverage', coverage)
+    (tmp_path / 'nonna_10m_+048.000_-0124.000.tif').write_text('')  # an earlier run's tile
+    sources.fetch_nonna((-124.5, 48.6, -123.2, 50.2), str(tmp_path), str(tmp_path))
+    assert sorted(b for n, b in asked if n == '10') == [
+        (-124.0, 49.0, -123.5, 49.5),
+        (-124.0, 49.5, -123.5, 50.0),
+        (-123.5, 49.0, -123.0, 49.5),
+        (-123.5, 49.5, -123.0, 50.0),
+    ]
+    written = sorted(p.name for p in tmp_path.glob('nonna_*.tif'))
+    assert written == [
+        'nonna_100m_+049.000_-0124.000.tif',
+        'nonna_10m_+049.000_-0124.000.tif',
+        'nonna_10m_+049.500_-0124.000.tif',
+    ]
+    ds = gdal.Open(str(tmp_path / 'nonna_10m_+049.000_-0124.000.tif'))
+    assert ds.GetGeoTransform() == pytest.approx((-124.0, GRID_STEP, 0.0, 49.5, 0.0, -GRID_STEP))
+    band = ds.GetRasterBand(1)
+    heights = band.ReadAsArray()
+    assert heights[0, 0] == band.GetNoDataValue()
+    assert heights[0, -1] == -12.0
+
+
+def test_nonna_seams_between_source_tiles_take_the_shoaler_side():
+    heights = np.array(
+        [
+            [-5.0, 9e9, -3.0, -4.0],
+            [-5.0, 9e9, -3.0, 9e9],
+            [9e9, 9e9, 9e9, -4.0],
+        ],
+        np.float32,
+    )
+    data = heights != np.float32(9e9)
+    heights, data = sources.close_seams(heights, data)
+    assert heights[0, 1] == -3.0 and heights[1, 1] == -3.0
+    assert heights[1, 3] == -4.0
+    # Gaps at the edge, or wider than one cell, stay empty.
+    assert not data[2, 0] and not data[2, 1] and not data[2, 2]
+
+
 def test_the_catalan_model_keeps_the_shoalest_metre_of_each_cell_and_only_its_own_chunks(tmp_path, monkeypatch):
     import numpy as np
     from osgeo import gdal, osr

@@ -46,6 +46,10 @@ def test_every_region_names_its_extracts_and_dems():
         assert not infomar or emodnet
         icgc = any(dem.get('source') == 'icgc' for dem in region.get('dem', []))
         assert ('icgc' in region['sources']) == icgc
+        nonna = any(dem.get('source') == 'nonna' for dem in region.get('dem', []))
+        assert ('nonna' in region['sources']) == nonna
+        # Every chart built from NONNA carries CHS's notice (clause 7 of the CHS NONNA Licence).
+        assert not nonna or any(part.startswith('This product was made by') for part in region['attribution'])
         ausseabed = any(dem.get('source') == 'ausseabed' for dem in region.get('dem', []))
         assert ('ausseabed' in region['sources']) == ausseabed
         # Litto3D's packages are moved to chart datum with surfaces of mainland France and Corsica only.
