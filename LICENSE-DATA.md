@@ -213,8 +213,8 @@ the bathymetric models of the regions whose file lists them
 ## EMODnet high-resolution DTMs (United Kingdom)
 
 The British Geological Survey's (BGS) multibeam DTMs of Scottish and North
-East English waters (sea lochs, firths, Shetland, Arran, Tiree, Lewis and
-others, on Admiralty chart datum) and OceanWise's composite DTM of Mount's
+East English waters (sea lochs, firths, Shetland, Arran, Tiree and others,
+on Admiralty chart datum) and OceanWise's composite DTM of Mount's
 Bay, Cornwall (on LAT), downloaded from EMODnet Bathymetry
 (`https://downloads.emodnet-bathymetry.eu/high_resolution/`). Their records
 publish them for public access marked "do not use for navigation", without

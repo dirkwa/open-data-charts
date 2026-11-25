@@ -723,8 +723,11 @@ def fetch_emodnet_hr(dtms, target, tmp):
     for i, dtm in enumerate(dtms):
         archive = os.path.join(tmp, f'{dtm["id"]}.zip')
         save_url(EMODNET_HR.format(id=dtm['id']), archive, timeout=1800)
-        with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
-            result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), dtm['cells_per_degree'])
+        try:
+            with zipfile.ZipFile(archive) as zf, zf.open(f'{dtm["id"]}.emo') as fh:
+                result = emodnet_hr_grid(io.TextIOWrapper(fh, encoding='utf-8'), dtm['cells_per_degree'])
+        except (OSError, zipfile.BadZipFile, zlib.error, EOFError) as e:
+            raise RuntimeError(f'{dtm["id"]}: broken archive ({e})') from e
         os.remove(archive)
         if result is None:
             raise RuntimeError(f'{dtm["id"]}: no depths in the EMO file')
