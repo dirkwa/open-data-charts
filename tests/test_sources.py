@@ -660,3 +660,25 @@ def test_ausseabed_chunks_lie_on_the_chart_grid_so_one_cell_shoals_survive(tmp_p
     path = str(tmp_path / 'ausseabed_-11_+145.tif')
     raster(path, 4326, (145.0, step, 0, -10.0, 0, -step), np.full((4, 4), -10.0, 'float32'), -9999.0)
     assert build_unit.dem_resampling(path) == 'nearest'
+
+
+class Body(io.BytesIO):
+    def __init__(self, data, length):
+        super().__init__(data)
+        self.headers = {'Content-Length': str(length)}
+
+
+def test_a_download_cut_short_is_fetched_again(tmp_path, monkeypatch):
+    bodies = [Body(b'abc', 6), Body(b'abcdef', 6)]
+    monkeypatch.setattr(shom, 'get', lambda url, **kw: bodies.pop(0))
+    monkeypatch.setattr(sources, 'SHORT_READ_WAIT_S', 0)
+    sources.save_url('https://example.org/x.zip', str(tmp_path / 'x.zip'))
+    assert (tmp_path / 'x.zip').read_bytes() == b'abcdef'
+
+
+def test_a_download_always_cut_short_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(shom, 'get', lambda url, **kw: Body(b'abc', 6))
+    monkeypatch.setattr(sources, 'SHORT_READ_WAIT_S', 0)
+    with pytest.raises(OSError, match='3 of 6 bytes'):
+        sources.save_url('https://example.org/x.zip', str(tmp_path / 'x.zip'))
+    assert not (tmp_path / 'x.zip').exists()
