@@ -4,6 +4,17 @@ import os
 
 from odc.grid import units_in
 
+# Clause 7 of the CHS NONNA Licence, word for word, with Open Data Charts as the maker.
+CHS_NOTICE = (
+    'This product was made by Open Data Charts and contains intellectual property of the Canadian Hydrographic '
+    'Service (CHS) of the Department of Fisheries and Oceans. This product does not meet the requirements of the '
+    'Navigation Safety Regulations, 2020 under the Canada Shipping Act, 2001. Charts and publications issued by or '
+    'on the authority of CHS must be used to meet the requirements of those regulations. The copyright in the data '
+    'are and remain the property of His Majesty the King in Right of Canada and shall not be sold, licensed, leased, '
+    'assigned or given to a third party. The incorporation of CHS data in this product does not constitute an '
+    'endorsement or an approval of this product by the Canadian Hydrographic Service, the Department of Fisheries '
+    'and Oceans or His Majesty the King in Right of Canada.'
+)
 REGIONS = sorted(glob.glob(os.path.join(os.path.dirname(__file__), '..', 'regions', '*.json')))
 
 
@@ -48,8 +59,7 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('icgc' in region['sources']) == icgc
         nonna = any(dem.get('source') == 'nonna' for dem in region.get('dem', []))
         assert ('nonna' in region['sources']) == nonna
-        # Every chart built from NONNA carries CHS's notice (clause 7 of the CHS NONNA Licence).
-        assert not nonna or any(part.startswith('This product was made by') for part in region['attribution'])
+        assert not nonna or CHS_NOTICE in region['attribution']
         ausseabed = any(dem.get('source') == 'ausseabed' for dem in region.get('dem', []))
         assert ('ausseabed' in region['sources']) == ausseabed
         # Litto3D's packages are moved to chart datum with surfaces of mainland France and Corsica only.

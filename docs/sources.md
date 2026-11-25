@@ -113,7 +113,8 @@ Vancouver Island to the Central Coast, Haida Gwaii and Dixon Entrance, take thei
 NONNA models (non-navigational bathymetry compiled from CHS surveys, about
 10 m where surveys are dense and 100 m elsewhere, on chart datum), NONNA-10
 over NONNA-100, each chart cell keeping the shoalest sample. US waters
-inside these regions (Washington, southeast Alaska) have no depths.
+inside these regions (Washington, southeast Alaska) have no model depths;
+only their deep water takes ETOPO's, as everywhere (below).
 Outside Shom's waters and New Zealand, buoys,
 beacons, lights and other aids to navigation come from OpenStreetMap's
 seamark tags (the OpenSeaMap scheme), which volunteers keep and which can
