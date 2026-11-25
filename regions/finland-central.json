@@ -1,0 +1,25 @@
+{
+  "id": "finland-central",
+  "name": "Finland: Bothnian Sea and the Lake District",
+  "bbox": [
+    19.0,
+    61.28,
+    31.6,
+    63.54
+  ],
+  "sources": [
+    "traficom-depths",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/finland-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/finland-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "Source: The Finnish Transport and Communications Agency (Traficom). Not for navigational purposes. Does not meet the requirements set for official nautical charts"
+  ]
+}

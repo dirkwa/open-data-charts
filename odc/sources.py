@@ -23,7 +23,8 @@
                                   on LAT (CC BY 4.0, CC BY 3.0 AU), no data beyond them nor in deep
                                   water (odc.lat_model), if asked for
   chart/<band>__<CLASS>__<layer>.json   LINZ's New Zealand chart objects (CC BY 4.0), one file
-                                  per LDS layer, band 0 the smallest scale (odc.chart), if asked for
+                                  per LDS layer, band 0 the smallest scale (odc.chart), and
+                                  Traficom's Finnish depths, one file per layer and square, if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
@@ -82,6 +83,22 @@ LINZ_ATTEMPTS = 3
 LINZ_RETRY_WAIT_S = 60
 LINZ_REASON_BYTES = 2000
 LINZ_KEY_ENV = 'LINZ_API_KEY'
+# Traficom's chart depths of Finnish waters, sea and lakes, used with
+# Traficom's permission (attribution in the region files).
+CHART_SOURCES = {'linz-hydro', 'traficom-depths'}
+TRAFICOM_WFS = 'https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs'
+TRAFICOM_LAYERS = (
+    ('DepthArea_A', 'DEPARE'),
+    ('DepthContour_L', 'DEPCNT'),
+    ('Sounding_P', 'SOUNDG'),
+    ('UnsurveyedArea_A', 'UNSARE'),
+)
+# One scale for all of it, shown from the first zoom like LINZ's smallest bands.
+TRAFICOM_BAND = 1
+TRAFICOM_PAGE = 5000
+# The attributes the charts use: the layers also carry update times that
+# change with every republication and would rebuild every unit.
+TRAFICOM_ATTRIBUTES = {'DRVAL1': float, 'DRVAL2': float, 'VALDCO': float, 'QUASOU': str, 'TECSOU': str, 'SORDAT': str}
 # A Geofabrik extract with no other mirror fails a whole region's run on one
 # dropped connection, so each alternative is tried a few times.
 OSM_ATTEMPTS = 3
@@ -587,10 +604,114 @@ def linz_layer(layer_id, bbox, key):
     return sorted(features, key=lambda f: str(f['id']))
 
 
+MULTI = {0: ogr.wkbMultiPoint, 1: ogr.wkbMultiLineString, 2: ogr.wkbMultiPolygon}
+
+
+def singles(geom):
+    if geom.GetGeometryType() in (ogr.wkbGeometryCollection, *MULTI.values()):
+        for i in range(geom.GetGeometryCount()):
+            yield from singles(geom.GetGeometryRef(i))
+    elif not geom.IsEmpty():
+        yield geom
+
+
+def same_dimension(geom, dimension):
+    """The parts of a cut of the given dimension: a cut along an edge also
+    leaves points and lines."""
+    if geom is None:
+        return None
+    kept = [part for part in singles(geom) if part.GetDimension() == dimension]
+    if not kept:
+        return None
+    multi = ogr.Geometry(MULTI[dimension])
+    for part in kept:
+        multi.AddGeometry(part)
+    return multi
+
+
+def traficom_square(layer, west, south):
+    """A layer's objects in one square, cut to it, in WGS84."""
+    params = {
+        'service': 'WFS',
+        'version': '2.0.0',
+        'request': 'GetFeature',
+        'typeNames': f'rajoitettu:{layer}',
+        'outputFormat': 'application/json',
+        'srsName': 'urn:ogc:def:crs:EPSG::4326',
+        'bbox': f'{south},{west},{south + chart.SQUARE_DEG},{west + chart.SQUARE_DEG},urn:ogc:def:crs:EPSG::4326',
+        'sortBy': 'IDENTIFIER',
+        'count': TRAFICOM_PAGE,
+    }
+    square = ogr.CreateGeometryFromWkt(
+        f'POLYGON(({west} {south},{west + chart.SQUARE_DEG} {south},{west + chart.SQUARE_DEG} '
+        f'{south + chart.SQUARE_DEG},{west} {south + chart.SQUARE_DEG},{west} {south}))'
+    )
+    features, start = [], 0
+    while True:
+        page = shom.get_json(f'{TRAFICOM_WFS}?{urllib.parse.urlencode({**params, "startIndex": start})}', timeout=600)
+        for feature in page.get('features') or []:
+            if not feature.get('geometry'):
+                continue
+            geom = ogr.CreateGeometryFromJson(json.dumps(feature['geometry']))
+            geom.FlattenTo2D()
+            if geom.GetGeometryType() == ogr.wkbPoint:
+                # A sounding on a square's edge belongs to the square east or north of it only.
+                x, y = geom.GetX(), geom.GetY()
+                if not (west <= x < west + chart.SQUARE_DEG and south <= y < south + chart.SQUARE_DEG):
+                    continue
+            elif not square.Contains(geom):
+                geom = same_dimension(geom.MakeValid().Intersection(square), geom.GetDimension())
+                if geom is None:
+                    continue
+            props = feature.get('properties') or {}
+            kept = {
+                k.lower(): cast(props[k]) for k, cast in TRAFICOM_ATTRIBUTES.items() if props.get(k) not in (None, '')
+            }
+            if props.get('DEPTH') is not None:
+                kept['depth'] = float(props['DEPTH'])
+            identifier = props.get('IDENTIFIER', feature.get('id'))
+            features.append(
+                {
+                    'type': 'Feature',
+                    'id': f'traficom-{layer}.{identifier}{chart.square_name(west, south)}',
+                    'geometry': json.loads(geom.ExportToJson()),
+                    'properties': kept,
+                }
+            )
+        returned = len(page.get('features') or [])
+        start += returned
+        if returned < TRAFICOM_PAGE:
+            return features
+
+
+def fetch_traficom(region, target):
+    minlon, minlat, maxlon, maxlat = fetch_bounds(region)
+    squares = [
+        (west, south)
+        for south in range(math.floor(minlat), math.ceil(maxlat), chart.SQUARE_DEG)
+        for west in range(math.floor(minlon), math.ceil(maxlon), chart.SQUARE_DEG)
+    ]
+    for layer, objl in TRAFICOM_LAYERS:
+        total = 0
+        for west, south in squares:
+            features = traficom_square(layer, west, south)
+            if not features:
+                continue
+            layer_id = f'traficom-{layer}{chart.square_name(west, south)}'
+            save_json(
+                os.path.join(target, chart.file_name(TRAFICOM_BAND, objl, layer_id)),
+                {'type': 'FeatureCollection', 'features': features},
+            )
+            total += len(features)
+        print(f'{total:7d}  {objl} (Traficom {layer})', flush=True)
+
+
 def fetch_chart(region, out):
     target = os.path.join(out, 'chart')
     for stale in glob.glob(os.path.join(target, '*.json')):
         os.remove(stale)
+    if 'traficom-depths' in region.get('sources', []):
+        fetch_traficom(region, target)
     if 'linz-hydro' not in region.get('sources', []):
         return
     key = os.environ.get(LINZ_KEY_ENV)
@@ -1453,7 +1574,7 @@ def fetch_etopo(region, out):
     tops = range(math.ceil((maxlat + m) / step) * step, math.floor((minlat - m) / step) * step, -step)
     lefts = range(math.floor((minlon - m) / step) * step, math.ceil((maxlon + m) / step) * step, step)
     names = {etopo_name(top, left) + '.tif' for top in tops for left in lefts}
-    if 'linz-hydro' in region.get('sources', []):
+    if CHART_SOURCES & set(region.get('sources', [])):
         names = set()
     target = os.path.join(out, 'etopo')
     os.makedirs(target, exist_ok=True)
