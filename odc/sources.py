@@ -334,6 +334,7 @@ ACA_WFS = (
 )
 ACA_PAGE = 5000
 CHUNK = 1 << 20
+SHORT_READ_WAIT_S = 10
 
 
 def save_json(path, value):
@@ -351,10 +352,20 @@ def sha256_of(path):
     return digest.hexdigest()
 
 
-def save_url(url, path, timeout=600):
-    with shom.get(url, timeout=timeout) as response, open(path + '.part', 'wb') as fh:
-        shutil.copyfileobj(response, fh, CHUNK)
-    os.replace(path + '.part', path)
+def save_url(url, path, timeout=600, tries=3):
+    """A connection the server drops mid-body ends the read without an
+    error, so the length it announced is checked."""
+    for attempt in range(tries):
+        with shom.get(url, timeout=timeout) as response, open(path + '.part', 'wb') as fh:
+            shutil.copyfileobj(response, fh, CHUNK)
+            expected, received = response.headers.get('Content-Length'), fh.tell()
+        if expected is None or received == int(expected):
+            os.replace(path + '.part', path)
+            return
+        if attempt == tries - 1:
+            raise OSError(f'{url}: {received} of {expected} bytes after {tries} tries')
+        print(f'{url}: {received} of {expected} bytes, trying again', flush=True)
+        time.sleep(SHORT_READ_WAIT_S * (attempt + 1))
 
 
 def remote_size(url):
