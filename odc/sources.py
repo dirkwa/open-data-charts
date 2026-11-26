@@ -28,6 +28,8 @@
                                   per LDS layer, band 0 the smallest scale (odc.chart), and
                                   Traficom's Finnish depths, one file per layer and square, if asked for
   dataset-dates.json              when datasets whose attribution names that date were obtained
+  his.geojsonseq                  the Estonian Transport Administration's rocks, wrecks and
+                                  obstructions as S-57 points (odc.vta_his), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
   water.geojsonseq                OSM water areas: harbours, canals, rivers, lakes (ODbL)
@@ -64,7 +66,7 @@ import zlib
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom
+from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom, vta_his
 from odc.grid import GRID_STEP, units_in
 
 gdal.UseExceptions()
@@ -706,6 +708,15 @@ def fetch_traficom(region, target):
             )
             total += len(features)
         print(f'{total:7d}  {objl} (Traficom {layer})', flush=True)
+
+
+def fetch_his(region, out):
+    target = os.path.join(out, 'his.geojsonseq')
+    if 'vta-his' not in region.get('sources', []):
+        if os.path.exists(target):
+            os.remove(target)
+        return
+    vta_his.write(target, vta_his.features(fetch_bounds(region)))
 
 
 def fetch_chart(region, out):
@@ -1976,6 +1987,7 @@ def fetch_aca_depth(region, out):
 FETCHERS = {
     'wfs': fetch_wfs,
     'chart': fetch_chart,
+    'his': fetch_his,
     'dem': fetch_dem,
     'land': fetch_land,
     'osm': fetch_osm,

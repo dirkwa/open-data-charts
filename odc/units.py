@@ -39,6 +39,7 @@ BUILDER_FILES = (
     'odc/tile.py',
     'odc/run_unit.py',
     'odc/seamarks.py',
+    'odc/vta_his.py',
 )
 
 
@@ -255,6 +256,9 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         add_geojsonseq(digests, 'osm', osm_path)
     if os.path.exists(seamarks_path):
         add_geojsonseq(digests, 'seamarks', seamarks_path)
+    his_path = os.path.join(inputs, 'his.geojsonseq')
+    if os.path.exists(his_path):
+        add_geojsonseq(digests, 'his', his_path)
     water_path = os.path.join(inputs, 'water.geojsonseq')
     if os.path.exists(water_path):
         add_geojsonseq(digests, 'water', water_path)
