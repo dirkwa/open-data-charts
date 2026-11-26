@@ -1341,8 +1341,14 @@ NONNA_COVERAGES = (('100', GRID_STEP * 8, 1.0), ('10', GRID_STEP, 0.5))
 # 3.6 km) is interpolated along the gap; each tile is filled with this
 # margin around it, so a gap across a tile edge is filled from both sides.
 NONNA_FILL_CELLS = 32
-NONNA_ATTEMPTS = 4
+# Waits of 1 to 5 minutes, about a quarter of an hour in all, ride out a
+# restart of the service; an outage longer than that stops the region.
+NONNA_ATTEMPTS = 6
 NONNA_RETRY_WAIT_S = 60
+
+
+class ServiceDown(RuntimeError):
+    pass
 
 
 def close_seams(heights, data):
@@ -1420,7 +1426,13 @@ def nonna_coverage(name, bounds, path, wait=NONNA_RETRY_WAIT_S):
     for attempt in range(NONNA_ATTEMPTS):
         if attempt:
             time.sleep(wait * attempt)
-        save_url(url, path, timeout=900)
+        try:
+            save_url(url, path, timeout=900)
+        except OSError as error:
+            if shom.is_client_error(error):
+                raise
+            print(f'NONNA-{name} {bounds}: {error}', flush=True)
+            continue
         try:
             ds = gdal.Open(path, gdal.GA_Update)
         except RuntimeError:
@@ -1435,7 +1447,10 @@ def nonna_coverage(name, bounds, path, wait=NONNA_RETRY_WAIT_S):
         band.WriteArray(heights)
         ds = None
         return data
-    raise RuntimeError(f'NONNA-{name}: no coverage for {bounds} after {NONNA_ATTEMPTS} attempts')
+    raise ServiceDown(
+        f"CHS's NONNA service gave no NONNA-{name} coverage for {bounds} after {NONNA_ATTEMPTS} attempts;"
+        ' the region is not built until it answers again'
+    )
 
 
 def nonna_tiles(bounds, tile_deg):
@@ -1999,7 +2014,11 @@ def main():
         names.insert(names.index('osm'), 'land')  # near_sea reads it
     for name in names:
         print(f'== {name}', flush=True)
-        FETCHERS[name](region, out)
+        try:
+            FETCHERS[name](region, out)
+        except ServiceDown as error:
+            print(f'::error::{error}', flush=True)
+            sys.exit(1)
 
 
 if __name__ == '__main__':
