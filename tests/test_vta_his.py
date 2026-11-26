@@ -24,8 +24,14 @@ def rock(ident, northing, easting, depth):
     )
 
 
+NAMESPACES = (
+    'xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:gml="http://www.opengis.net/gml"'
+    ' xmlns:his="https://his.vta.ee:8443/HIS/WFS"'
+)
+
+
 def answer(*members):
-    return '<wfs:FeatureCollection>' + ''.join(members) + '</wfs:FeatureCollection>'
+    return f'<wfs:FeatureCollection {NAMESPACES}>' + ''.join(members) + '</wfs:FeatureCollection>'
 
 
 def test_an_answer_gives_each_object_easting_first():
@@ -77,7 +83,10 @@ def test_a_full_box_is_asked_again_in_quarters(monkeypatch):
 def test_an_answer_that_is_not_a_whole_collection_fails():
     box = (0.0, 0.0, 40.0, 40.0)
     assert vta_his.layer_objects('kivi', box, lambda layer, box: '<?xml version="1.0"?>\n' + answer()) == {}
-    for body in ('<ows:ExceptionReport>busy</ows:ExceptionReport>', answer(ROCK)[:-10]):
+    assert vta_his.layer_objects('kivi', box, lambda layer, box: f'<wfs:FeatureCollection {NAMESPACES}/>') == {}
+    unclosed = answer(ROCK.replace('</wfs:featureMember>', ''))
+    exception = '<ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/1.1">busy</ows:ExceptionReport>'
+    for body in (exception, answer(ROCK)[:-10], unclosed):
         with pytest.raises(RuntimeError):
             vta_his.layer_objects('kivi', box, lambda layer, box, body=body: body)
 

@@ -12,6 +12,7 @@ import math
 import os
 import re
 import urllib.parse
+from xml.etree import ElementTree
 
 from osgeo import osr
 
@@ -29,7 +30,6 @@ ROCK_MAX_DEPTH_M = 10.0
 UNKNOWN = 999
 # Wrecks the database has no name for are numbered NIMETU-<n> ("nameless").
 NAMELESS = re.compile(r'^NIMETU\b', re.IGNORECASE)
-COLLECTION = re.compile(r'\s*(<\?xml[^>]*\?>\s*)?<wfs:FeatureCollection[\s>].*</wfs:FeatureCollection>\s*$', re.DOTALL)
 MEMBER = re.compile(r'<wfs:featureMember>(.*?)</wfs:featureMember>', re.DOTALL)
 GML_ID = re.compile(r'gml:id="([^"]+)"')
 POS = re.compile(r'<gml:pos[^>]*>\s*([-\d.]+)\s+([-\d.]+)\s*</gml:pos>')
@@ -48,6 +48,14 @@ def to_wgs84():
             srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         _TO_WGS84 = (osr.CoordinateTransformation(estonia, wgs84), osr.CoordinateTransformation(wgs84, estonia))
     return _TO_WGS84
+
+
+def is_collection(gml):
+    try:
+        root = ElementTree.fromstring(gml)
+    except ElementTree.ParseError:
+        return False
+    return root.tag == '{http://www.opengis.net/wfs/2.0}FeatureCollection'
 
 
 def unescape(text):
@@ -158,7 +166,7 @@ def layer_objects(layer, box, get=get_box):
         gml = get(layer, (minx, miny, maxx, maxy))
         # An answer cut short or an ExceptionReport still comes as 200; it must
         # not stand in for the box's objects.
-        if not COLLECTION.match(gml):
+        if not is_collection(gml):
             raise RuntimeError(
                 f'HIS {layer} {(minx, miny, maxx, maxy)}: not a complete feature collection: {gml[:200]!r}'
             )
