@@ -43,7 +43,7 @@ downloaded to your boat, and they work offline in
 | Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea | EMODnet, ICGC on the Catalan coast |
 | Australia | Kimberley and Top End, Torres Strait, Great Barrier Reef, New South Wales, Victoria and Tasmania | Geoscience Australia, NSW marine lidar and multibeam |
 | New Zealand | North, South and Stewart Islands | LINZ chart data |
-| Canada | British Columbia: the Salish Sea and Desolation Sound, the west coast of Vancouver Island, the Central Coast, Haida Gwaii, Prince Rupert and Dixon Entrance | Canadian Hydrographic Service (NONNA) |
+| Canada | British Columbia: the Salish Sea and Desolation Sound, the west coast of Vancouver Island, the Central Coast, Haida Gwaii, Prince Rupert and Dixon Entrance; the Gulf of St. Lawrence, Nova Scotia and the Bay of Fundy, Newfoundland | Canadian Hydrographic Service (NONNA) |
 
 New regions are added regularly. The Open Data Charts tab (below) always
 shows what is available right now. [docs/sources.md](docs/sources.md)
