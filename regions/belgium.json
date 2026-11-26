@@ -2,8 +2,8 @@
   "id": "belgium",
   "name": "Belgium",
   "bbox": [
-    2.82,
-    50.74,
+    2.12,
+    51.19,
     3.5,
     52.0
   ],
@@ -29,6 +29,10 @@
     }
   ],
   "osm": [
+    [
+      "https://download.openstreetmap.fr/extracts/europe/france/nord_pas_de_calais-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/france/nord-pas-de-calais-latest.osm.pbf"
+    ],
     [
       "https://download.openstreetmap.fr/extracts/europe/belgium/flanders/west_flanders-latest.osm.pbf",
       "https://download.geofabrik.de/europe/belgium-latest.osm.pbf"
