@@ -93,6 +93,23 @@ Shom already charts. OSM wrecks, rocks and other dangers are kept wherever
 they are. Shom's WFS stops at French waters, so the English coast keeps its
 OSM marks.
 
+## Offshore structures and wrecks
+
+European regions with `emodnet-human-activities` in their sources chart
+EMODnet Human Activities' wind farms, offshore installations, pipelines,
+power and telecom cables, military areas and dumped munitions, and UKHO's
+worldwide wreck list, which EMODnet republishes (`odc/human_activities.py`).
+Only what is in the water now is charted: planned and dismantled wind
+farms, planned cables and pipelines, planned or deactivated military areas
+and lifted wrecks are left out. A wreck's depth is charted only where it is
+given on a low-water datum (LAT, MLWS, LLW); one on mean sea level keeps
+its symbol without a depth. Shom's or a published chart's object of the
+same class stands over EMODnet's, and EMODnet's over OpenStreetMap's: an
+outline that meets one charted in the same class, or a wreck within 150 m
+of a charted one, is left out. Between Bornholm and Gotland (54-58° N,
+14-21° E) this gives 1,394 wrecks, 23 military areas in force and the
+wind farms in production or under construction.
+
 ## Satellite depths
 
 The Allen Coral Atlas publishes satellite-derived bathymetry only in

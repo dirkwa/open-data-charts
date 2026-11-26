@@ -31,6 +31,8 @@
   his.geojsonseq                  the Estonian Transport Administration's rocks, wrecks and
                                   obstructions as S-57 points (odc.vta_his), if asked for
   osm.geojsonseq                  OSM features the chart uses, buildings only near the sea (ODbL)
+  human-activities/<layer>.json   EMODnet Human Activities wind farms, platforms, cables, pipelines,
+                                  military areas, munitions and UKHO wrecks (CC BY 4.0), if asked for
   seamarks.geojsonseq             OSM seamark:* objects (OpenSeaMap tagging), if asked for (ODbL)
   water.geojsonseq                OSM water areas: harbours, canals, rivers, lakes (ODbL)
   land.gpkg                       OSM land polygons (osmdata.openstreetmap.de, ODbL)
@@ -67,7 +69,7 @@ import zlib
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import aca_depth, attribution, build_unit, chart, lat_model, osm, seamarks, shom, vta_his
+from odc import aca_depth, attribution, build_unit, chart, human_activities, lat_model, osm, seamarks, shom, vta_his
 from odc.grid import GRID_STEP, units_in
 
 gdal.UseExceptions()
@@ -553,6 +555,14 @@ def fetch_wfs(region, out):
             {'type': 'FeatureCollection', 'features': features},
         )
         print(f'{len(features):6d}  {name}', flush=True)
+
+
+def fetch_human_activities(region, out):
+    target = os.path.join(out, 'human-activities')
+    if 'emodnet-human-activities' not in region.get('sources', []):
+        shutil.rmtree(target, ignore_errors=True)
+        return
+    human_activities.fetch(fetch_bounds(region), target, lambda url: shom.get_json(url, timeout=600))
 
 
 def east_of_greenwich(coords):
@@ -2002,6 +2012,7 @@ def fetch_aca_depth(region, out):
 
 FETCHERS = {
     'wfs': fetch_wfs,
+    'human-activities': fetch_human_activities,
     'chart': fetch_chart,
     'his': fetch_his,
     'dem': fetch_dem,

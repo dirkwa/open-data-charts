@@ -58,6 +58,10 @@ the index and the docs say so.
   named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
   `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
   release); the draft release `mirror` holds the index.
+- `odc/human_activities.py`: EMODnet Human Activities' wind farms,
+  platforms, cables, pipelines, military areas, munitions and UKHO
+  wrecks, for regions listing `emodnet-human-activities`, as S-57 objects
+  that give way to Shom's and a chart's.
 - `odc/seamarks.py`: aids to navigation from OpenStreetMap's `seamark:*`
   tags (OpenSeaMap), as S-57 objects, for regions listing `openseamap`
   (those without Shom's WFS).
