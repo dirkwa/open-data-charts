@@ -1812,7 +1812,11 @@ def main():
     if args.seamarks:
         step('OSM seamarks')
         charted = shom_aids_near(args.wfs, attributes, classes, args.bbox)
-        marks = seamarks.seamark_layers(osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted)
+        # Shom's or a chart's own traffic schemes and areas stand where they chart them.
+        elsewhere = seamarks.outlined_in({objl: list(layers.get(objl, ())) for objl in seamarks.OUTLINED_CLASSES})
+        marks = seamarks.seamark_layers(
+            osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted, elsewhere
+        )
         for objl, items in marks.items():
             layers.setdefault(objl, []).extend(items)
     if args.nc_structures:

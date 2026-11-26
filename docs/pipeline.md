@@ -73,6 +73,15 @@ moorings and line every quay and canal, so only mooring buoys are kept. In
 the Wadden unit z9-263-166 (Harlingen, Vlieland) this gives 876 lateral
 buoys, 265 lights, 497 topmarks and some 460 other aids.
 
+Traffic separation schemes, restricted and military areas, wind farms
+(`production_area`), anchorages, dumping grounds, fishing gear, marine
+farms, submarine cables and pipelines keep their outline or line, cut to
+the unit, since on open water a passage is planned around them. In the
+Schleswig-Holstein extract around Kiel Bay this adds 151 restricted areas,
+14 dumping grounds, 13 fishing facilities, 10 cables and the Kiel
+lighthouse TSS. Where Shom or a published chart already charts an object
+of the same class over it, the OSM one is left out.
+
 A region with both, the Channel with England's south coast, charts Shom's
 aids and OpenStreetMap's on the other coast: an OSM aid within a nautical
 mile of a Shom aid, inside the unit or just beyond it, is left out as one

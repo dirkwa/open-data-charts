@@ -196,3 +196,68 @@ def test_a_shom_aid_past_the_build_box_still_takes_the_place_of_an_osm_aid(tmp_p
     ]
     kept = seamarks.seamark_layers(items, BBOX, 'OSM', charted)['BOYLAT']
     assert [round(g.GetY(), 1) for g, _, _ in kept] == [0.6]
+
+
+def square(x0, y0, x1, y1):
+    return ogr.CreateGeometryFromWkt(f'POLYGON (({x0} {y0},{x1} {y0},{x1} {y1},{x0} {y1},{x0} {y0}))')
+
+
+def test_a_wind_farm_keeps_its_outline_cut_to_the_box():
+    farm = square(0.8, 0.4, 1.5, 0.6)
+    items = [({'seamark:type': 'production_area', 'seamark:production_area:category': 'wind_farm'}, farm)]
+    ((geom, attrs, _),) = seamarks.seamark_layers(items, BBOX, 'OSM')['PRDARE']
+    assert geom.GetGeometryName() == 'POLYGON'
+    assert abs(geom.GetArea() - 0.2 * 0.2) < 1e-9
+    assert attrs == {'CATPRA': '9', 'INFORM': 'OSM'}
+
+
+def test_a_traffic_lane_keeps_its_direction_and_a_restricted_area_its_restrictions():
+    items = [
+        (
+            {'seamark:type': 'separation_lane', 'seamark:separation_lane:orientation': '62.5'},
+            square(0.1, 0.1, 0.3, 0.2),
+        ),
+        (
+            {
+                'seamark:type': 'restricted_area',
+                'seamark:name': 'Firing area',
+                'seamark:restricted_area:category': 'military',
+                'seamark:restricted_area:restriction': 'no_entry;no_anchoring',
+            },
+            square(0.4, 0.4, 0.5, 0.5),
+        ),
+    ]
+    layers = seamarks.seamark_layers(items, BBOX, 'OSM')
+    assert layers['TSSLPT'][0][1] == {'ORIENT': 62.5, 'INFORM': 'OSM'}
+    assert layers['RESARE'][0][1] == {'OBJNAM': 'Firing area', 'CATREA': '9', 'RESTRN': '7,1', 'INFORM': 'OSM'}
+
+
+def test_a_submarine_cable_stays_a_line_and_an_area_type_given_a_line_is_left_out():
+    cable = ogr.CreateGeometryFromWkt('LINESTRING (0.1 0.1,0.9 0.9)')
+    items = [
+        ({'seamark:type': 'cable_submarine', 'seamark:cable_submarine:category': 'power'}, cable),
+        ({'seamark:type': 'separation_zone'}, ogr.CreateGeometryFromWkt('LINESTRING (0.1 0.5,0.9 0.5)')),
+    ]
+    layers = seamarks.seamark_layers(items, BBOX, 'OSM')
+    ((geom, attrs, _),) = layers['CBLSUB']
+    assert geom.GetGeometryName() == 'LINESTRING' and attrs == {'CATCBL': '1', 'INFORM': 'OSM'}
+    assert 'TSEZNE' not in layers
+
+
+def test_an_outlined_object_another_source_charts_is_left_to_it():
+    shom = {'TSEZNE': [(square(0.1, 0.1, 0.2, 0.2), {}, None)]}
+    items = [
+        ({'seamark:type': 'separation_zone'}, square(0.15, 0.15, 0.25, 0.25)),
+        ({'seamark:type': 'separation_zone'}, square(0.6, 0.6, 0.7, 0.7)),
+        ({'seamark:type': 'separation_lane'}, square(0.15, 0.15, 0.25, 0.25)),
+    ]
+    layers = seamarks.seamark_layers(items, BBOX, 'OSM', None, seamarks.outlined_in(shom))
+    assert len(layers['TSEZNE']) == 1 and layers['TSEZNE'][0][0].Intersects(square(0.6, 0.6, 0.7, 0.7))
+    assert len(layers['TSSLPT']) == 1
+
+
+def test_a_fish_trap_charted_as_a_line_is_a_fishing_facility():
+    net = ogr.CreateGeometryFromWkt('LINESTRING (0.1 0.1,0.1 0.2)')
+    items = [({'seamark:type': 'fishing_facility', 'seamark:fishing_facility:category': 'trap'}, net)]
+    ((geom, attrs, _),) = seamarks.seamark_layers(items, BBOX, 'OSM')['FSHFAC']
+    assert geom.GetGeometryName() == 'LINESTRING' and attrs == {'CATFIF': '2', 'INFORM': 'OSM'}

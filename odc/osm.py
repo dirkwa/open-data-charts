@@ -11,6 +11,7 @@ import os
 
 from osgeo import ogr
 
+from odc.seamarks import OUTLINED
 from odc.shom import bbox_of, intersects
 
 OSMIUM_FILTER = (
@@ -32,6 +33,9 @@ WATER_TAGS = {
     key: set(values.split(',')) for key, values in (rule.split('/', 1)[1].split('=', 1) for rule in WATER_FILTER)
 }
 AREA_MAN_MADE = ('breakwater', 'groyne', 'quay')
+# Closed ways of these seamark types are areas (a TSS lane, a wind farm);
+# OpenSeaMap tags them without area=yes.
+SEAMARK_AREAS = {kind for kind, (_, shapes, _) in OUTLINED.items() if 'area' in shapes.split()}
 # The filter's other roles, as {key: values}; a building carrying one is kept whatever its position.
 OTHER_ROLES = {
     rule.split('/')[1].split('=')[0]: set(rule.split('=')[1].split(',')) for rule in OSMIUM_FILTER if '=' in rule
@@ -50,6 +54,7 @@ def is_area(tags, from_relation):
         or tags.get('area') == 'yes'
         or tags.get('natural') == 'reef'
         or tags.get('man_made') in AREA_MAN_MADE
+        or tags.get('seamark:type') in SEAMARK_AREAS
         or 'building' in tags
     )
 

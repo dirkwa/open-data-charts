@@ -141,3 +141,9 @@ def test_extracts_holding_different_versions_of_a_node_merge_into_its_newest(tmp
     sources.export_filtered(extract, osm.WATER_FILTER, target, str(tmp_path), areas_only=True)
     [lake] = [json.loads(line) for line in open(target)]
     assert lake['geometry']['coordinates'][0][0][0] == [1.0, 50.001]
+
+
+def test_a_closed_way_of_an_area_seamark_type_is_an_area_and_a_closed_cable_a_line():
+    assert osm.is_area({'seamark:type': 'separation_zone'}, False)
+    assert osm.is_area({'seamark:type': 'production_area'}, False)
+    assert not osm.is_area({'seamark:type': 'cable_submarine'}, False)
