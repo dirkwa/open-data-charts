@@ -15,6 +15,8 @@ CHS_NOTICE = (
     'endorsement or an approval of this product by the Canadian Hydrographic Service, the Department of Fisheries '
     'and Oceans or His Majesty the King in Right of Canada.'
 )
+# The Estonian Transport Administration's conditions for its HIS data (November 2026).
+VTA_NOTICE = 'Not for navigation. Not for sale; not to be used in derived products intended for sale.'
 REGIONS = sorted(glob.glob(os.path.join(os.path.dirname(__file__), '..', 'regions', '*.json')))
 
 
@@ -60,6 +62,7 @@ def test_every_region_names_its_extracts_and_dems():
         nonna = any(dem.get('source') == 'nonna' for dem in region.get('dem', []))
         assert ('nonna' in region['sources']) == nonna
         assert not nonna or CHS_NOTICE in region['attribution']
+        assert ('vta-his' in region['sources']) == any(VTA_NOTICE in text for text in region.get('attribution', []))
         ausseabed = any(dem.get('source') == 'ausseabed' for dem in region.get('dem', []))
         assert ('ausseabed' in region['sources']) == ausseabed
         # Litto3D's packages are moved to chart datum with surfaces of mainland France and Corsica only.

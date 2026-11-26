@@ -228,6 +228,27 @@ Hydrographic Authority chart data (Hydro layers, as of April 2023)". Used
 for the depths, aids, hazards and areas of the regions that list
 `linz-hydro`; the layers taken are in `odc/linz_hydro_layers.json`.
 
+## Estonian Transport Administration (Estonia)
+
+The Estonian Transport Administration's (Transpordiamet) rocks, wrecks and
+obstructions from its hydrographic information system (HIS), through its
+open WFS (`https://his.vta.ee:8443/HIS/WFS`). The administration's
+hydrographic department allows their use for these charts with a reference
+to the data source, on three conditions: not for navigation, not for sale,
+and not for use in derived products intended for sale (November 2026). The
+ODbL under which a chart unit is published grants no rights in these
+objects, which stay subject to those conditions. The notice every unit
+built from them carries in its attribution:
+
+> Source: Estonian Transport Administration (Transpordiamet), hydrographic
+> information system (https://his.vta.ee:8443/HIS/WFS): rocks, wrecks and
+> obstructions. Not for navigation. Not for sale; not to be used in derived
+> products intended for sale. The ODbL of these charts grants no rights in
+> this data
+
+Used by the regions that list `vta-his`. Rocks deeper than 10 m are left
+out; rocks of unknown depth are kept.
+
 ## Traficom (Finland)
 
 The Finnish Transport and Communications Agency's (Traficom) chart depths

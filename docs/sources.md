@@ -76,6 +76,11 @@ Over these models, BSH's surveys from its survey database (SVDB, CC0,
 surveys, newest on top, moved from NHN to LAT the same way.
 Estonia, with the Latvian shore of the Gulf of Riga, takes its depths from the
 EMODnet DTM alone, its shore charted as microtidal like the Mediterranean's.
+Its rocks, wrecks and obstructions come from the Estonian Transport
+Administration's hydrographic information system: every wreck and
+obstruction, and the rocks up to 10 m deep or of unknown depth (charted as
+if shallow), which surveys found by the hundred thousand along the shore, so each zoom shows the shoalest rock of
+each area the way soundings are thinned, all of them only from close in.
 Panama has no open national depth data: its reefs (San Blas, Bocas del Toro,
 Las Perlas) come from the Allen Coral Atlas, its coast and seamarks from
 OpenStreetMap and OpenSeaMap, and its deep water from ETOPO; the atlas's

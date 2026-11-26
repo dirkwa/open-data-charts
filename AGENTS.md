@@ -61,6 +61,10 @@ the index and the docs say so.
 - `odc/seamarks.py`: aids to navigation from OpenStreetMap's `seamark:*`
   tags (OpenSeaMap), as S-57 objects, for regions listing `openseamap`
   (those without Shom's WFS).
+- `odc/vta_his.py`: the Estonian Transport Administration's rocks, wrecks
+  and obstructions from its HIS WFS (GML on EPSG:3301, at most 10000
+  objects a request, so asked box by box), as S-57 points, for regions
+  listing `vta-his`; rocks thinned per zoom like soundings.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
   structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022

@@ -35,7 +35,7 @@ import time
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import chart, osm, seamarks
+from odc import chart, osm, seamarks, vta_his
 from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, cell_x, cell_y, mercator_pixel
 
 gdal.UseExceptions()
@@ -577,6 +577,31 @@ def thin_soundings(lon, lat, z, maxzoom, model=None):
         _, first = np.unique(k[cand], return_index=True)
         minzoom[cand[first]] = zoom
     return minzoom
+
+
+def his_layers(path, bbox, maxzoom):
+    """HIS objects per class; rocks lie by the thousand along surveyed
+    shores, so like soundings each zoom shows the shoalest rock per square."""
+    layers, rocks = {}, []
+    for objl, lon, lat, attrs, ident in vta_his.read(path, bbox):
+        point = ogr.Geometry(ogr.wkbPoint)
+        point.AddPoint_2D(lon, lat)
+        item = (point, attrs, ident)
+        if objl == 'UWTROC':
+            rocks.append(item)
+        else:
+            layers.setdefault(objl, []).append(item)
+    if rocks:
+        lon = np.array([g.GetX() for g, _, _ in rocks])
+        lat = np.array([g.GetY() for g, _, _ in rocks])
+        # A rock of unknown depth may be awash, so it wins its square like the shoalest.
+        z = np.array([a.get('VALSOU', 0.0) for _, a, _ in rocks], np.float32)
+        minzoom = thin_soundings(lon, lat, z, maxzoom)
+        layers['UWTROC'] = []
+        for i in np.flatnonzero(minzoom >= 0):
+            geom, attrs, ident = rocks[i]
+            layers['UWTROC'].append((geom, {**attrs, '_minzoom': int(minzoom[i])}, ident))
+    return layers
 
 
 def thin_chart_soundings(items, maxzoom):
@@ -1753,6 +1778,7 @@ def main():
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
     ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
     ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
+    ap.add_argument('--his', help='GeoJSONSeq of Estonian rocks, wrecks and obstructions (odc.vta_his)')
     ap.add_argument('--water', help='GeoJSONSeq of OSM water areas (odc.sources), cut out of the land')
     ap.add_argument('--relief-dem', nargs='*', help='Copernicus DEM GLO-30 tiles')
     ap.add_argument('--deep-dem', nargs='*', help='ETOPO 2022 15 arc-second tiles, for deep water only')
@@ -1814,6 +1840,10 @@ def main():
         charted = shom_aids_near(args.wfs, attributes, classes, args.bbox)
         marks = seamarks.seamark_layers(osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted)
         for objl, items in marks.items():
+            layers.setdefault(objl, []).extend(items)
+    if args.his:
+        step('HIS rocks, wrecks and obstructions')
+        for objl, items in his_layers(args.his, args.bbox, args.maxzoom).items():
             layers.setdefault(objl, []).extend(items)
     if args.nc_structures:
         step('OBLIC coastal structures')
