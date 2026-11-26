@@ -17,6 +17,8 @@
                                   beyond it (odc.lat_model), if asked for
   dem/infomar_*.tif               INFOMAR's Irish bathymetry on LAT (CC BY 4.0), on the chart grid
                                   or a coarser one, if asked for
+  dem/nonna_*.tif                 CHS's NONNA-100 and NONNA-10 models of Canadian waters on chart
+                                  datum (CHS NONNA Licence), no data beyond them, if asked for
   dem/icgc_*.tif                  ICGC's Catalan coastal topobathymetric model on mean sea level,
                                   no data beyond it (odc.lat_model), if asked for
   dem/ausseabed_*.tif             Geoscience Australia's AusBathyTopo models and NSW's 5 m model
@@ -628,6 +630,8 @@ def dem_grids(inputs):
         + sorted(glob.glob(os.path.join(dem, 'kartverket_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_25m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, 'infomar_10m_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'nonna_100m_*.tif')))
+        + sorted(glob.glob(os.path.join(dem, 'nonna_10m_*.tif')))
         + sorted(glob.glob(os.path.join(dem, '*.asc')))
         # A survey's own DTM is finer than any model it lies in.
         + sorted(glob.glob(os.path.join(dem, 'emodnethr_*.tif')))
@@ -1200,6 +1204,127 @@ def fetch_infomar(bounds, target, tmp):
             os.remove(path)
 
 
+NONNA_WCS = (
+    'https://nonna-geoserver.data.chs-shc.ca/geoserver/wcs?service=WCS&version=2.0.1&request=GetCoverage'
+    '&format=image/tiff&geotiff:compression=Deflate'
+    '&subsettingCrs=http://www.opengis.net/def/crs/EPSG/0/4326'
+)
+# NONNA-100 first, on a grid near its own ~100 m cells, so NONNA-10 lies on
+# top of it in the mosaic. NONNA-10 has data only where NONNA-100 has, so
+# NONNA-100's tiles say which NONNA-10 tiles to ask for. Tiles stay small:
+# a request of several degrees knocks the service out for minutes.
+NONNA_COVERAGES = (('100', GRID_STEP * 8, 1.0), ('10', GRID_STEP, 0.5))
+NONNA_ATTEMPTS = 4
+NONNA_RETRY_WAIT_S = 60
+
+
+def close_seams(heights, data):
+    """The service's mosaic leaves a one-cell gap along the edges of its
+    0.1-degree source tiles; a gap cell with data on both sides takes the
+    shoaler of the two."""
+    for axis in (0, 1):
+        before, after = np.roll(heights, 1, axis), np.roll(heights, -1, axis)
+        has_before, has_after = np.roll(data, 1, axis), np.roll(data, -1, axis)
+        edge = np.zeros_like(data)
+        if axis == 0:
+            edge[[0, -1], :] = True
+        else:
+            edge[:, [0, -1]] = True
+        gap = ~data & has_before & has_after & ~edge
+        heights[gap] = np.maximum(before[gap], after[gap])
+        data = data | gap
+    return heights, data
+
+
+def nonna_coverage(name, bounds, path, wait=NONNA_RETRY_WAIT_S):
+    """Where the coverage has data over `bounds`; its heights (negative
+    under water) are left at `path` on its own cells. The service answers
+    an overloaded request with an exception report, not an error status."""
+    west, south, east, north = bounds
+    url = (
+        f'{NONNA_WCS}&coverageId={urllib.parse.quote(f"nonna__NONNA {name} Coverage")}'
+        f'&subset=Long({west:.6f},{east:.6f})&subset=Lat({south:.6f},{north:.6f})'
+    )
+    for attempt in range(NONNA_ATTEMPTS):
+        if attempt:
+            time.sleep(wait * attempt)
+        save_url(url, path, timeout=900)
+        try:
+            ds = gdal.Open(path, gdal.GA_Update)
+        except RuntimeError:
+            with open(path, 'rb') as fh:
+                print(f'NONNA-{name} {bounds}: {fh.read(600)!r}', flush=True)
+            continue
+        band = ds.GetRasterBand(1)
+        heights = band.ReadAsArray()
+        nodata = band.GetNoDataValue()
+        data = np.isfinite(heights) & (heights != nodata if nodata is not None else True)
+        heights, data = close_seams(heights, data)
+        band.WriteArray(heights)
+        ds = None
+        return data
+    raise RuntimeError(f'NONNA-{name}: no coverage for {bounds} after {NONNA_ATTEMPTS} attempts')
+
+
+def nonna_tiles(bounds, tile_deg):
+    minlon, minlat, maxlon, maxlat = bounds
+    for s in np.arange(math.floor(minlat / tile_deg) * tile_deg, maxlat, tile_deg):
+        for w in np.arange(math.floor(minlon / tile_deg) * tile_deg, maxlon, tile_deg):
+            yield round(float(s), 6), round(float(w), 6)
+
+
+def fetch_nonna(bounds, target, tmp):
+    """CHS's NONNA models, the shoalest sample in each cell; drying banks
+    are kept, land above them left to the land data."""
+    written = set()
+    present = None
+    for name, step, tile_deg in NONNA_COVERAGES:
+        found = []
+        for s, w in nonna_tiles(bounds, tile_deg):
+            if present is not None and not any(ps <= s < ps + pdeg and pw <= w < pw + pdeg for ps, pw, pdeg in present):
+                continue
+            raw = os.path.join(tmp, 'nonna.tif')
+            data = nonna_coverage(name, (w, s, w + tile_deg, s + tile_deg), raw)
+            if not data.any():
+                continue
+            found.append((s, w, tile_deg))
+            cells = round(tile_deg / step)
+            # The service's cells are Mercator ones; the shoalest sample in each chart cell.
+            warped = gdal.Warp(
+                '',
+                raw,
+                format='MEM',
+                dstSRS='EPSG:4326',
+                outputBounds=(w, s, w + tile_deg, s + tile_deg),
+                width=cells,
+                height=cells,
+                resampleAlg='max',
+                dstNodata=EMODNET_NODATA,
+            )
+            heights = warped.GetRasterBand(1).ReadAsArray()
+            warped = None
+            heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
+            if not (heights != EMODNET_NODATA).any():
+                continue
+            path = os.path.join(target, f'nonna_{name}m_{s:+08.3f}_{w:+09.3f}.tif')
+            out = gdal.GetDriverByName('GTiff').Create(
+                path + '.part', cells, cells, 1, gdal.GDT_Float32, ['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES']
+            )
+            out.SetGeoTransform((w, step, 0.0, s + tile_deg, 0.0, -step))
+            out.SetProjection(lat_model.wgs84())
+            band = out.GetRasterBand(1)
+            band.SetNoDataValue(EMODNET_NODATA)
+            band.WriteArray(heights.astype(np.float32))
+            out = None
+            os.replace(path + '.part', path)
+            written.add(path)
+        present = found
+    # A tile from an earlier run that this one no longer has would still reach the mosaic.
+    for path in glob.glob(os.path.join(target, 'nonna_*.tif')):
+        if path not in written:
+            os.remove(path)
+
+
 def icgc_model(tmp):
     """The mirrored model, its parts joined in name order and each checked against its digest."""
     repo = os.environ.get('GITHUB_REPOSITORY', 'dirkwa/open-data-charts')
@@ -1261,6 +1386,9 @@ def fetch_dem(region, out):
                 continue
             if dem.get('source') == 'infomar':
                 fetch_infomar(fetch_bounds(region), target, tmp)
+                continue
+            if dem.get('source') == 'nonna':
+                fetch_nonna(fetch_bounds(region), target, tmp)
                 continue
             if dem.get('source') == 'icgc':
                 fetch_icgc(fetch_bounds(region), target, tmp)

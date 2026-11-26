@@ -183,6 +183,38 @@ Attribution: "Contains Irish Public Sector Data (Geological Survey Ireland
 International (CC BY 4.0) licence". Used as the bathymetric model of the
 regions whose file asks for it (`"dem": [..., {"source": "infomar"}]`).
 
+## Canadian Hydrographic Service (Canada)
+
+The Canadian Hydrographic Service's Non-Navigational (NONNA) bathymetric
+data, NONNA-10 and NONNA-100, on chart datum, through the service
+`https://nonna-geoserver.data.chs-shc.ca/geoserver/wcs`, used under the
+CHS NONNA Licence (<https://data.chs-shc.ca>), which allows derivative
+products to be made and distributed, sold included, and asks every
+derivative product to show its notice in a prominent place. CHS's
+Intellectual Property and Licensing office confirmed this for these charts
+(November 2026). The data shall not be used for navigation, and its
+copyright stays with His Majesty the King in Right of Canada: the ODbL
+under which a chart unit is published grants no rights in the depths
+derived from NONNA, which stay subject to the CHS NONNA Licence. The notice
+every unit built from NONNA carries in its attribution:
+
+> This product was made by Open Data Charts and contains intellectual
+> property of the Canadian Hydrographic Service (CHS) of the Department of
+> Fisheries and Oceans. This product does not meet the requirements of the
+> Navigation Safety Regulations, 2020 under the Canada Shipping Act, 2001.
+> Charts and publications issued by or on the authority of CHS must be used
+> to meet the requirements of those regulations. The copyright in the data
+> are and remain the property of His Majesty the King in Right of Canada and
+> shall not be sold, licensed, leased, assigned or given to a third party.
+> The incorporation of CHS data in this product does not constitute an
+> endorsement or an approval of this product by the Canadian Hydrographic
+> Service, the Department of Fisheries and Oceans or His Majesty the King in
+> Right of Canada.
+
+Used as the bathymetric model of the regions whose file asks for it
+(`"dem": [{"source": "nonna"}]`). If CHS ends the licence, the units built
+from NONNA are withdrawn from the releases and the index.
+
 ## LINZ (New Zealand)
 
 The Hydro layers of the LINZ Data Service (<https://data.linz.govt.nz>):
