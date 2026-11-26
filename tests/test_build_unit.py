@@ -293,10 +293,16 @@ def test_in_inland_water_the_model_keeps_only_depths(tmp_path):
 def test_read_water_keeps_the_areas_meeting_the_box(tmp_path):
     from odc import osm
 
-    def area(x, kind='Polygon'):
+    def area(x, kind='Polygon', tags=None):
         ring = [[x, 0], [x + 0.001, 0], [x + 0.001, 0.001], [x, 0.001], [x, 0]]
         coordinates = [ring] if kind == 'Polygon' else [[ring]]
-        return {'type': 'Feature', 'id': 'a2', 'properties': {}, 'geometry': {'type': kind, 'coordinates': coordinates}}
+        properties = {'natural': 'water'} if tags is None else tags
+        return {
+            'type': 'Feature',
+            'id': 'a2',
+            'properties': properties,
+            'geometry': {'type': kind, 'coordinates': coordinates},
+        }
 
     line = {
         'type': 'Feature',
@@ -305,7 +311,10 @@ def test_read_water_keeps_the_areas_meeting_the_box(tmp_path):
         'geometry': {'type': 'LineString', 'coordinates': [[0, 0], [1, 1]]},
     }
     path = tmp_path / 'water.geojsonseq'
-    path.write_text(''.join(json.dumps(f) + '\n' for f in (area(0.0), area(0.002, 'MultiPolygon'), area(0.5), line)))
+    # The outline of an island in a lake comes with the lake's export, as an area of its own.
+    island = area(0.004, tags={'place': 'islet', 'name': 'Vääräsaari'})
+    features = (area(0.0), area(0.002, 'MultiPolygon'), area(0.5), line, island)
+    path.write_text(''.join(json.dumps(f) + '\n' for f in features))
     water = osm.read_water(str(path), (0.0, 0.0, 0.01, 0.01))
     assert water.GetArea() == pytest.approx(2e-6)
 
