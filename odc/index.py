@@ -2,6 +2,7 @@
 
 Usage:
   python3 -m odc.index <region.json> <plan.json> <built dir> <old site dir> <mirror dir> <released.json> <out dir>
+  python3 -m odc.index overview <overviews/<id>.json> <overview.mbtiles> <old site dir> <released.json> <out dir>
 
 <built dir> holds <unit>.<version>.mbtiles and <unit>.json (odc.build_unit's
 unit.json) for every unit the plan built. <old site dir> holds what Pages
@@ -16,6 +17,7 @@ grace period).
 import hashlib
 import json
 import os
+import sqlite3
 import sys
 from datetime import UTC, datetime, timedelta
 
@@ -24,6 +26,8 @@ from osgeo import ogr
 from odc import attribution, hillshade
 from odc.build_unit import quality_category
 from odc.grid import MAX_ZOOM, UNIT_ZOOM, Unit
+from odc.overview import asset_name as overview_asset_name
+from odc.overview import release_tag as overview_release_tag
 
 SCHEMA_VERSION = 1
 REPO = 'https://github.com/dirkwa/open-data-charts'
@@ -118,19 +122,33 @@ def unit_entry(region, unit_id, version, built_dir, today):
     return entry
 
 
+def owned_assets(index):
+    """Every release asset the index points to -> who owns it: a unit's
+    region, or an overview's release tag."""
+    owned = {}
+    for unit in index.get('units', []):
+        for url in (unit['url'], unit.get('hillshade', {}).get('url')):
+            if url:
+                owned[url.rsplit('/', 1)[1]] = unit['region']
+    for region in index.get('regions', []):
+        url = (region.get('overview') or {}).get('url')
+        if url:
+            tag, name = url.rsplit('/', 2)[1:]
+            owned[name] = tag
+    return owned
+
+
 def asset_names(units):
     """Every release asset the units' entries point to."""
-    return {
-        url.rsplit('/', 1)[1] for unit in units for url in (unit['url'], unit.get('hillshade', {}).get('url')) if url
-    }
+    return set(owned_assets({'units': units}))
 
 
-def region_entry(region, text):
+def region_entry(region, text, overview=None):
     return {
         'id': region['id'],
         'name': region['name'],
         'bbox': region['bbox'],
-        'overview': None,
+        'overview': overview,
         'sources': region.get('sources', []),
         'attribution': text,
     }
@@ -144,8 +162,16 @@ def build_index(region, plan, built_dir, old, today):
         units.append(kept.get(unit_id) or unit_entry(region, unit_id, version, built_dir, today))
     units.sort(key=lambda u: (u['region'], u['id']))
     text = plan.get('attribution') or attribution.of_region(region)
-    regions = [r for r in old['regions'] if r['id'] != region['id']] + [region_entry(region, text)]
-    regions.sort(key=lambda r: r['id'])
+    # The overview is written by its own run (odc.overview); a region's build keeps it.
+    previous = next((r for r in old['regions'] if r['id'] == region['id']), {})
+    regions = [r for r in old['regions'] if r['id'] != region['id']] + [
+        region_entry(region, text, previous.get('overview'))
+    ]
+    return finish(old, regions, units)
+
+
+def finish(old, regions, units):
+    regions = sorted(regions, key=lambda r: r['id'])
     index = {
         'schemaVersion': SCHEMA_VERSION,
         'disclaimer': DISCLAIMER,
@@ -161,6 +187,28 @@ def build_index(region, plan, built_dir, old, today):
     return index, not unchanged
 
 
+def with_overview(old, overview, entry):
+    """The index with entry as the overview of every region of the overview
+    the index lists; a region with no units published yet gets it with its first."""
+    regions = [{**r, 'overview': entry} if r['id'] in overview['regions'] else r for r in old['regions']]
+    return finish(old, regions, old['units'])
+
+
+def overview_entry(overview, path):
+    with sqlite3.connect(path) as db:
+        meta = dict(db.execute('SELECT name, value FROM metadata').fetchall())
+    overview_version = meta['x-odc-version']
+    name = overview_asset_name(overview['id'], overview_version)
+    return {
+        'url': f'{REPO}/releases/download/{overview_release_tag(overview["id"])}/{name}',
+        'sha256': sha256_of(path),
+        'size': os.path.getsize(path),
+        'version': overview_version,
+        'minzoom': int(meta['minzoom']),
+        'maxzoom': int(meta['maxzoom']),
+    }
+
+
 def retire(old, index, retired, now, region_id, released):
     """The retirement ledger and this region's assets past the grace period.
 
@@ -169,12 +217,12 @@ def retire(old, index, retired, now, region_id, released):
     without a time; a later run that no longer finds it in the served index
     starts the grace period. An entry stays until its asset is gone from the
     region's release (`released`), so a failed deletion is retried."""
-    current = asset_names(index['units'])
-    served = asset_names((old or {}).get('units', []))
+    current = set(owned_assets(index))
+    served = owned_assets(old or {})
     ledger = {name: dict(entry) for name, entry in (retired or {}).items() if name not in current}
-    for unit in (old or {}).get('units', []):
-        for name in asset_names([unit]) - current:
-            ledger.setdefault(name, {'region': unit['region'], 'since': None})
+    for name, owner in served.items():
+        if name not in current:
+            ledger.setdefault(name, {'region': owner, 'since': None})
     for name, entry in ledger.items():
         if entry['since'] is None and name not in served:
             entry['since'] = now
@@ -222,7 +270,33 @@ def write(path, value):
         json.dump(value, fh, indent=1, ensure_ascii=False)
 
 
+def main_overview(overview_path, mbtiles, old_dir, released_path, out):
+    overview = load(overview_path)
+    old = load(os.path.join(old_dir, 'open-data-index.json'))
+    now = datetime.now(UTC).replace(microsecond=0)
+    index, changed = with_overview(old, overview, overview_entry(overview, mbtiles))
+    retired, delete = retire(
+        old,
+        index,
+        load(os.path.join(old_dir, 'retired.json'), {}),
+        now.isoformat(),
+        overview_release_tag(overview['id']),
+        set(load(released_path)),
+    )
+    os.makedirs(out, exist_ok=True)
+    write(os.path.join(out, 'open-data-index.json'), index)
+    write(os.path.join(out, 'retired.json'), retired)
+    write(os.path.join(out, 'delete-assets.json'), delete)
+    print(f'overview {overview["id"]}: changed={changed}, {len(delete)} assets to delete')
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+            fh.write(f'changed={"true" if changed else "false"}\n')
+
+
 def main():
+    if sys.argv[1] == 'overview':
+        main_overview(*sys.argv[2:7])
+        return
     region_path, plan_path, built_dir, old_dir, mirror_dir, released_path, out = sys.argv[1:8]
     region, plan = load(region_path), load(plan_path)
     old = load(os.path.join(old_dir, 'open-data-index.json'))

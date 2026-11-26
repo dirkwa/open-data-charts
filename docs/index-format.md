@@ -29,7 +29,9 @@ about 0.7° wide. Its MBTiles holds tiles z9 to `maxzoom` (17 for every
 unit; a set never mixes max zooms, as plotters do not overzoom a missing
 vector tile) that all lie inside that tile, so no tile at z ≥ 9 belongs to two units. A chart set
 on the boat is the union of its units' `tiles` rows, plus the region
-overview's rows for z < 9 when the index has one. Serve a set as that one chart, not as
+overview's rows for z < 9 when the index has one. An overview covers a whole
+sea (`overviews/<id>.json`), so the regions of one sea list the same file:
+a set takes it once. Serve a set as that one chart, not as
 one chart per unit: a renderer draws a label from the tile that holds its
 point and clips each chart to its own bounds, so labels next to a unit edge
 would be cut in half.
@@ -108,6 +110,19 @@ Shares of the unit's water area, by where its depths come from:
 
 `best` is the first of these, in this order, whose share is above zero.
 Consumers show an unknown category as "Other".
+
+## Overviews
+
+A region's `overview` is a vector MBTiles like a unit's (`type=S-57`, one
+MVT layer per class) with zooms 4 to 8 over every published unit of its
+sea, for planning a passage between regions. It holds the land, the depth
+areas, unsurveyed areas and every danger, traffic separation scheme,
+restricted, military and wind farm area; contours and point dangers from
+z6, lights, cables, pipelines and fishing gear from z7. Soundings, buoys
+and buildings are left to the units. Its metadata carries `x-odc-overview`
+(the sea's id) and `x-odc-version`, which changes when, and only when, one
+of its units' versions does. A region whose units were published after the
+overview's last build has `overview: null` until the next one.
 
 ## Terrain shading
 
