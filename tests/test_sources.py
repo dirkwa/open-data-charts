@@ -557,6 +557,46 @@ def test_nonna_water_between_close_survey_lines_is_interpolated():
     assert (sources.fill_between_lines(heights, nodata, 3)[1:4] == nodata).all()
 
 
+def test_nonna_land_above_the_cut_still_stops_the_fill(monkeypatch, tmp_path):
+    from osgeo import gdal
+
+    from odc import lat_model
+
+    nodata = np.float32(3.4e38)
+    source = {}
+
+    def coverage(name, bounds, path, wait=0):
+        west, south, east, north = bounds
+        step = (east - west) / 40
+        heights = np.full((40, 40), nodata, np.float32)
+        if name == '100':
+            source['transform'] = (west, step, north)
+            heights[::2] = -20.0  # survey lines with gaps of one source row
+            heights[1::2, 20] = 40.0  # an islet in each gap
+        ds = gdal.GetDriverByName('GTiff').Create(path, 40, 40, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((west, step, 0.0, north, 0.0, -step))
+        ds.SetProjection(lat_model.wgs84())
+        ds.GetRasterBand(1).SetNoDataValue(float(nodata))
+        ds.GetRasterBand(1).WriteArray(heights)
+        ds = None
+        return heights != nodata
+
+    monkeypatch.setattr(sources, 'nonna_coverage', coverage)
+    sources.fetch_nonna((-123.9, 49.1, -123.8, 49.2), str(tmp_path), str(tmp_path))
+    ds = gdal.Open(str(tmp_path / 'nonna_100m_+049.000_-0124.000.tif'))
+    x0, dx, _, y0, _, dy = ds.GetGeoTransform()
+    band = ds.GetRasterBand(1)
+    heights = band.ReadAsArray()
+    west, step, north = source['transform']
+
+    def at(row, col):
+        lon, lat = west + (col + 0.5) * step, north - (row + 0.5) * step
+        return heights[int((lat - y0) / dy), int((lon - x0) / dx)]
+
+    assert at(21, 10) == -20.0
+    assert at(21, 20) == band.GetNoDataValue()
+
+
 def test_nonna_seams_between_source_tiles_take_the_shoaler_side():
     heights = np.array(
         [

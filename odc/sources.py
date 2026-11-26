@@ -1477,10 +1477,10 @@ def fetch_nonna(bounds, target, tmp):
             )
             heights = warped.GetRasterBand(1).ReadAsArray()
             warped = None
-            heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
             if margin:
                 heights = fill_between_lines(heights, EMODNET_NODATA, NONNA_FILL_CELLS)
                 heights = heights[margin:-margin, margin:-margin]
+            heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
             if not (heights != EMODNET_NODATA).any():
                 continue
             path = os.path.join(target, f'nonna_{name}m_{s:+08.3f}_{w:+09.3f}.tif')
