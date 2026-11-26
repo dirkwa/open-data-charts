@@ -77,17 +77,16 @@ def discover(region, inputs):
     for unit in units_in(*region['bbox']):
         area = bounds_polygon(*unit.bounds)
         layer.SetSpatialFilter(area)
-        water = area
-        has_land = False
+        # One union, not one difference per island: an archipelago unit
+        # meets thousands of them, and differences one by one take minutes.
+        land_parts = ogr.Geometry(ogr.wkbGeometryCollection)
         for feature in layer:
             geometry = feature.GetGeometryRef()
-            if not geometry.Intersects(area):
-                continue
-            has_land = True
-            water = water.Difference(geometry)
-            if water.IsEmpty():
-                break
+            if geometry.Intersects(area):
+                land_parts.AddGeometry(geometry)
         layer.ResetReading()
+        has_land = land_parts.GetGeometryCount() > 0
+        water = area.Difference(land_parts.UnaryUnion()) if has_land else area
         # OSM's land polygons hold the lakes, which a chart's depth areas reach.
         if water.IsEmpty() and not chart.charted(charts, unit.bounds, depth_only=True):
             continue
