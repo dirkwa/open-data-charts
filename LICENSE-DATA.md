@@ -228,6 +228,19 @@ Hydrographic Authority chart data (Hydro layers, as of April 2023)". Used
 for the depths, aids, hazards and areas of the regions that list
 `linz-hydro`; the layers taken are in `odc/linz_hydro_layers.json`.
 
+## Traficom (Finland)
+
+The Finnish Transport and Communications Agency's (Traficom) chart depths
+of Finnish waters, sea and lakes: depth areas, depth contours, soundings
+and unsurveyed areas, through its WFS
+(`https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs`). Traficom
+allows their free use with the attribution "Source: The Finnish Transport
+and Communications Agency (Traficom). Not for navigational purposes. Does
+not meet the requirements set for official nautical charts" (Traficom's
+copyright team, November 2026), and this project publishes the charts
+derived from them under the ODbL with that attribution. Used for the
+depths of the regions that list `traficom-depths`.
+
 ## EMODnet high-resolution DTMs (Portugal)
 
 The Instituto Hidrográfico's (IHPT) high-resolution DTMs of Portuguese

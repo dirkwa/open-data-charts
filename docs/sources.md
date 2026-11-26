@@ -123,7 +123,11 @@ lag behind changes at sea. New Zealand is charted from LINZ's chart data
 (the New Zealand Hydrographic Authority's Hydro layers, as of April 2023):
 its depth areas, contours, soundings, aids, hazards and areas come from the
 charts themselves, each chart scale from its own zoom, with land and
-buildings from OpenStreetMap.
+buildings from OpenStreetMap. Finland's sea and lakes take their depth
+areas, contours, soundings and unsurveyed areas from Traficom's chart
+depths the same way, at one scale from the first zoom; its aids to
+navigation come from OpenStreetMap. Water outside Traficom's depth areas
+is charted as unsurveyed.
 
 Where no survey sounding is near, depth numbers come from the bathymetric
 model's own pixels, the shoalest of each area thinned per zoom like the

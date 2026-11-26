@@ -801,3 +801,48 @@ def test_an_unreadable_hr_dtm_depth_is_named(monkeypatch, tmp_path):
     monkeypatch.setattr(sources, 'save_url', save_url)
     with pytest.raises(RuntimeError, match='X: broken archive'):
         sources.fetch_emodnet_hr([{'id': 'X', 'cells_per_degree': 7680}], str(tmp_path), str(tmp_path))
+
+
+def test_traficom_squares_are_paged_cut_and_keep_the_chart_attributes(monkeypatch):
+    from osgeo import ogr
+
+    def polygon(x0, y0, x1, y1):
+        return {'type': 'Polygon', 'coordinates': [[[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0], [x0, y0, 0]]]}
+
+    pages = [
+        [
+            {
+                'geometry': polygon(24.5, 60.5, 25.5, 60.8),
+                'properties': {'IDENTIFIER': 'FI 1', 'DRVAL1': '3', 'DRVAL2': '6', 'PVM': '2026-02-22T19:13:49'},
+            },
+            {'geometry': polygon(24.2, 60.2, 24.4, 60.4), 'properties': {'IDENTIFIER': 'FI 2', 'DRVAL1': '0'}},
+        ],
+        [{'geometry': None, 'properties': {'IDENTIFIER': 'FI 3'}}],
+    ]
+    urls = []
+
+    def get_json(url, timeout=None):
+        urls.append(url)
+        return {'features': pages[len(urls) - 1]}
+
+    monkeypatch.setattr(sources, 'TRAFICOM_PAGE', 2)
+    monkeypatch.setattr(sources.shom, 'get_json', get_json)
+    features = sources.traficom_square('DepthArea_A', 24, 60)
+    assert ['startIndex=0' in urls[0], 'startIndex=2' in urls[1]] == [True, True]
+    assert 'bbox=60%2C24%2C61%2C25' in urls[0]
+    assert [f['id'] for f in features] == ['traficom-DepthArea_A.FI 1-e24n60', 'traficom-DepthArea_A.FI 2-e24n60']
+    assert features[0]['properties'] == {'drval1': 3.0, 'drval2': 6.0}
+    cut = ogr.CreateGeometryFromJson(json.dumps(features[0]['geometry']))
+    assert cut.GetEnvelope() == pytest.approx((24.5, 25.0, 60.5, 60.8))
+    assert cut.GetCoordinateDimension() == 2
+
+
+def test_a_traficom_sounding_on_a_square_edge_belongs_to_one_square(monkeypatch):
+    sounding = {
+        'geometry': {'type': 'Point', 'coordinates': [25.0, 60.5, 0]},
+        'properties': {'IDENTIFIER': 'FI 9', 'DEPTH': 4.2, 'QUASOU': '1', 'SORDAT': '20140523'},
+    }
+    monkeypatch.setattr(sources.shom, 'get_json', lambda url, timeout=None: {'features': [sounding]})
+    assert sources.traficom_square('Sounding_P', 24, 60) == []
+    [kept] = sources.traficom_square('Sounding_P', 25, 60)
+    assert kept['properties'] == {'quasou': '1', 'sordat': '20140523', 'depth': 4.2}
