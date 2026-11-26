@@ -1,0 +1,35 @@
+{
+  "id": "estonia",
+  "name": "Estonia: Gulf of Finland to the Gulf of Riga",
+  "bbox": [
+    21.4,
+    57.5,
+    28.2,
+    59.53
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
+  ],
+  "osm": [
+    [
+      "https://download.geofabrik.de/europe/estonia-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/estonia-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/latvia-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/latvia-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0"
+  ]
+}
