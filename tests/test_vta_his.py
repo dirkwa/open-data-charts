@@ -1,3 +1,5 @@
+import pytest
+
 from odc import build_unit, vta_his
 
 ROCK = """<wfs:featureMember>
@@ -70,6 +72,14 @@ def test_a_full_box_is_asked_again_in_quarters(monkeypatch):
     found = vta_his.layer_objects('kivi', (0.0, 0.0, 40.0, 40.0), get)
     assert sorted(found) == ['kivi_1', 'kivi_2', 'kivi_3']
     assert asked[0] == (0.0, 0.0, 40.0, 40.0) and len(asked) == 5
+
+
+def test_an_answer_that_is_not_a_whole_collection_fails():
+    box = (0.0, 0.0, 40.0, 40.0)
+    assert vta_his.layer_objects('kivi', box, lambda layer, box: '<?xml version="1.0"?>\n' + answer()) == {}
+    for body in ('<ows:ExceptionReport>busy</ows:ExceptionReport>', answer(ROCK)[:-10]):
+        with pytest.raises(RuntimeError):
+            vta_his.layer_objects('kivi', box, lambda layer, box, body=body: body)
 
 
 def test_the_region_s_objects_come_as_points_inside_its_bounds():

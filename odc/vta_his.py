@@ -29,6 +29,7 @@ ROCK_MAX_DEPTH_M = 10.0
 UNKNOWN = 999
 # Wrecks the database has no name for are numbered NIMETU-<n> ("nameless").
 NAMELESS = re.compile(r'^NIMETU\b', re.IGNORECASE)
+COLLECTION = re.compile(r'\s*(<\?xml[^>]*\?>\s*)?<wfs:FeatureCollection[\s>].*</wfs:FeatureCollection>\s*$', re.DOTALL)
 MEMBER = re.compile(r'<wfs:featureMember>(.*?)</wfs:featureMember>', re.DOTALL)
 GML_ID = re.compile(r'gml:id="([^"]+)"')
 POS = re.compile(r'<gml:pos[^>]*>\s*([-\d.]+)\s+([-\d.]+)\s*</gml:pos>')
@@ -155,6 +156,12 @@ def layer_objects(layer, box, get=get_box):
     while pending:
         minx, miny, maxx, maxy = pending.pop()
         gml = get(layer, (minx, miny, maxx, maxy))
+        # An answer cut short or an ExceptionReport still comes as 200; it must
+        # not stand in for the box's objects.
+        if not COLLECTION.match(gml):
+            raise RuntimeError(
+                f'HIS {layer} {(minx, miny, maxx, maxy)}: not a complete feature collection: {gml[:200]!r}'
+            )
         if gml.count('<wfs:featureMember>') >= HIS_CAP:
             midx, midy = (minx + maxx) / 2, (miny + maxy) / 2
             pending += [
