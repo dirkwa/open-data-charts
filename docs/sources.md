@@ -74,6 +74,8 @@ seaward of Emden, Bremerhaven and Cuxhaven. EMODnet fills beyond them.
 Over these models, BSH's surveys from its survey database (SVDB, CC0,
 2012 on: 1 m multibeam grids and single-beam lines) are charted like Shom's
 surveys, newest on top, moved from NHN to LAT the same way.
+Estonia, with the Latvian shore of the Gulf of Riga, takes its depths from the
+EMODnet DTM alone, its shore charted as microtidal like the Mediterranean's.
 Panama has no open national depth data: its reefs (San Blas, Bocas del Toro,
 Las Perlas) come from the Allen Coral Atlas, its coast and seamarks from
 OpenStreetMap and OpenSeaMap, and its deep water from ETOPO; the atlas's
