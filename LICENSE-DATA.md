@@ -233,12 +233,13 @@ for the depths, aids, hazards and areas of the regions that list
 The Finnish Transport and Communications Agency's (Traficom) chart depths
 of Finnish waters, sea and lakes: depth areas, depth contours, soundings
 and unsurveyed areas, through its WFS
-(`https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs`). Traficom
-allows their free use with the attribution "Source: The Finnish Transport
-and Communications Agency (Traficom). Not for navigational purposes. Does
-not meet the requirements set for official nautical charts" (Traficom's
-copyright team, November 2026), and this project publishes the charts
-derived from them under the ODbL with that attribution. Used for the
+(`https://julkinen.traficom.fi/inspirepalvelu/rajoitettu/wfs`). Creative
+Commons Attribution 4.0 International (CC BY 4.0), Traficom's open data
+licence, as Traficom's copyright team confirmed for these charts (November
+2026). Attribution: "Source: The Finnish Transport and Communications
+Agency (Traficom). Not for navigational purposes. Does not meet the
+requirements set for official nautical charts". This project publishes the
+charts derived from them under the ODbL with that attribution. Used for the
 depths of the regions that list `traficom-depths`.
 
 ## EMODnet high-resolution DTMs (Portugal)
