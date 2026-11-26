@@ -506,7 +506,8 @@ def test_nonna_asks_for_nonna_10_only_where_nonna_100_has_data(monkeypatch, tmp_
         west, south, east, north = bounds
         step = (east - west) / 40
         heights = np.full((40, 40), 3.4e38, np.float32)
-        if (west, south) in ((-124.0, 49.0), (-124.0, 49.5)):
+        centre = (round((west + east) / 2, 3), round((south + north) / 2, 3))
+        if centre in ((-123.5, 49.5), (-123.75, 49.25), (-123.75, 49.75)):
             heights[:] = -50.0 if name == '100' else -12.0
             heights[:, 0] = 40.0  # land
         ds = gdal.GetDriverByName('GTiff').Create(path, 40, 40, 1, gdal.GDT_Float32)
@@ -538,6 +539,22 @@ def test_nonna_asks_for_nonna_10_only_where_nonna_100_has_data(monkeypatch, tmp_
     heights = band.ReadAsArray()
     assert heights[0, 0] == band.GetNoDataValue()
     assert heights[0, -1] == -12.0
+
+
+def test_nonna_water_between_close_survey_lines_is_interpolated():
+    nodata = np.float32(3.4e38)
+    heights = np.full((7, 9), nodata, np.float32)
+    heights[0, :] = -10.0
+    heights[4, :] = -30.0
+    heights[6, 0:3] = -30.0
+    heights[5, 4] = 2.0  # land below the second line
+    heights[6, 4] = -40.0
+    filled = sources.fill_between_lines(heights, nodata, 4)
+    assert filled[1:4, 6].tolist() == [-15.0, -20.0, -25.0]
+    assert filled[5, 0] == -30.0
+    # Not across land, and not where only one side has water.
+    assert filled[5, 4] == 2.0 and filled[5, 6] == nodata
+    assert (sources.fill_between_lines(heights, nodata, 3)[1:4] == nodata).all()
 
 
 def test_nonna_seams_between_source_tiles_take_the_shoaler_side():
