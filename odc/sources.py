@@ -1335,6 +1335,12 @@ NONNA_WCS = (
 # NONNA-100's tiles say which NONNA-10 tiles to ask for. Tiles stay small:
 # a request of several degrees knocks the service out for minutes.
 NONNA_COVERAGES = (('100', GRID_STEP * 8, 1.0), ('10', GRID_STEP, 0.5))
+# Away from the coast NONNA-100 often holds only the lines of single-beam
+# surveys, one to a few kilometres apart, which would chart a grid of unsurveyed
+# holes. Water between two lines this close (in NONNA-100 cells, ~2.3 to
+# 3.6 km) is interpolated along the gap; each tile is filled with this
+# margin around it, so a gap across a tile edge is filled from both sides.
+NONNA_FILL_CELLS = 32
 NONNA_ATTEMPTS = 4
 NONNA_RETRY_WAIT_S = 60
 
@@ -1355,6 +1361,51 @@ def close_seams(heights, data):
         heights[gap] = np.maximum(before[gap], after[gap])
         data = data | gap
     return heights, data
+
+
+def fill_between_lines(heights, nodata, max_cells, passes=2):
+    """Cells without data between two water cells at most max_cells apart
+    along a row or a column, with nothing else between them, take the depth
+    interpolated between the two; where both a row and a column span the
+    cell, the shoaler. A second pass fills between the cells the first one
+    filled: a grid of survey lines leaves holes bounded by both."""
+    for _ in range(passes):
+        heights = fill_pass(heights, nodata, max_cells)
+    return heights
+
+
+def fill_pass(heights, nodata, max_cells):
+    data = heights != nodata
+    water = data & (heights < 0)
+    filled = np.full(heights.shape, -np.inf, np.float32)
+    for axis in (0, 1):
+        n = heights.shape[axis]
+        shape = [1, 1]
+        shape[axis] = n
+        index = np.arange(n).reshape(shape)
+        prev_water = np.maximum.accumulate(np.where(water, index, -1), axis=axis)
+        prev_data = np.maximum.accumulate(np.where(data, index, -1), axis=axis)
+        next_water = np.flip(np.minimum.accumulate(np.flip(np.where(water, index, n), axis), axis=axis), axis)
+        next_data = np.flip(np.minimum.accumulate(np.flip(np.where(data, index, n), axis), axis=axis), axis)
+        span = next_water - prev_water
+        gap = (
+            ~data
+            & (prev_water >= 0)
+            & (next_water < n)
+            & (prev_water == prev_data)
+            & (next_water == next_data)
+            & (span <= max_cells)
+        )
+        if not gap.any():
+            continue
+        before = np.take_along_axis(heights, np.clip(prev_water, 0, n - 1), axis)
+        after = np.take_along_axis(heights, np.clip(next_water, 0, n - 1), axis)
+        t = (index - prev_water) / np.maximum(span, 1)
+        filled = np.where(gap, np.maximum(filled, before + (after - before) * t), filled)
+    out = heights.copy()
+    fill = np.isfinite(filled)
+    out[fill] = filled[fill]
+    return out
 
 
 def nonna_coverage(name, bounds, path, wait=NONNA_RETRY_WAIT_S):
@@ -1401,11 +1452,13 @@ def fetch_nonna(bounds, target, tmp):
     present = None
     for name, step, tile_deg in NONNA_COVERAGES:
         found = []
+        margin = NONNA_FILL_CELLS if name == '100' else 0
         for s, w in nonna_tiles(bounds, tile_deg):
             if present is not None and not any(ps <= s < ps + pdeg and pw <= w < pw + pdeg for ps, pw, pdeg in present):
                 continue
             raw = os.path.join(tmp, 'nonna.tif')
-            data = nonna_coverage(name, (w, s, w + tile_deg, s + tile_deg), raw)
+            m = margin * step
+            data = nonna_coverage(name, (w - m, s - m, w + tile_deg + m, s + tile_deg + m), raw)
             if not data.any():
                 continue
             found.append((s, w, tile_deg))
@@ -1416,14 +1469,17 @@ def fetch_nonna(bounds, target, tmp):
                 raw,
                 format='MEM',
                 dstSRS='EPSG:4326',
-                outputBounds=(w, s, w + tile_deg, s + tile_deg),
-                width=cells,
-                height=cells,
+                outputBounds=(w - m, s - m, w + tile_deg + m, s + tile_deg + m),
+                width=cells + 2 * margin,
+                height=cells + 2 * margin,
                 resampleAlg='max',
                 dstNodata=EMODNET_NODATA,
             )
             heights = warped.GetRasterBand(1).ReadAsArray()
             warped = None
+            if margin:
+                heights = fill_between_lines(heights, EMODNET_NODATA, NONNA_FILL_CELLS)
+                heights = heights[margin:-margin, margin:-margin]
             heights[heights > EMODNET_MAX_HEIGHT_M] = EMODNET_NODATA
             if not (heights != EMODNET_NODATA).any():
                 continue
