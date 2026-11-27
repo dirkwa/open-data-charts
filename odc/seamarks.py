@@ -13,6 +13,8 @@ passage must keep clear of.
 import math
 import re
 
+from osgeo import ogr
+
 COLOUR = {
     'white': 1,
     'black': 2,
@@ -348,6 +350,25 @@ OUTLINED = {
 }
 OUTLINED_CLASSES = {objl for objl, _, _ in OUTLINED.values()}
 DIMENSION = {'point': 0, 'line': 1, 'area': 2}
+MULTI = {0: ogr.wkbMultiPoint, 1: ogr.wkbMultiLineString, 2: ogr.wkbMultiPolygon}
+COLLECTIONS = {ogr.wkbGeometryCollection, *MULTI.values()}
+RESTRICTED_CLASSES = {
+    'ACHARE',
+    'CBLARE',
+    'DMPGRD',
+    'ISTZNE',
+    'MARCUL',
+    'MIPARE',
+    'PIPARE',
+    'PRCARE',
+    'RESARE',
+    'TSSCRS',
+    'TSSLPT',
+    'TSSRON',
+}
+# Two sources' outlines of one object lie this close; what another source
+# charts within it is taken for the same object.
+SAME_OUTLINE_DEG = 0.002
 # A lighthouse is tagged by its light alone.
 LIGHT_ONLY = {'light_major', 'light_minor', 'light'}
 # Parts an object carries, each its own S-57 object at the object's position.
@@ -429,7 +450,7 @@ def outlined_object(kind, tags):
         attrs['OBJNAM'] = name
     if category:
         put(attrs, category[0], enum_list(keys.get('category'), category[1]))
-    if objl in ('RESARE', 'MIPARE', 'TSSLPT', 'TSSCRS', 'TSSRON', 'ISTZNE', 'PRCARE', 'ACHARE', 'CBLARE', 'PIPARE'):
+    if objl in RESTRICTED_CLASSES:
         put(attrs, 'RESTRN', enum_list(keys.get('restriction'), RESTRN))
     if objl == 'TSSLPT':
         put(attrs, 'ORIENT', number(keys.get('orientation')))
@@ -440,6 +461,33 @@ def fits(kind, geom):
     """Whether geom has a dimension S-57 allows for the type's class."""
     allowed = {DIMENSION[word] for word in OUTLINED[kind][1].split()}
     return geom.GetDimension() in allowed
+
+
+def parts_of_dimension(geom, dimension):
+    """geom's parts of that dimension as one geometry, or None: cutting or
+    repairing an area can leave lines and points beside it."""
+    if geom is None or geom.IsEmpty():
+        return None
+    if ogr.GT_Flatten(geom.GetGeometryType()) not in COLLECTIONS:
+        return geom if geom.GetDimension() == dimension else None
+    multi = ogr.Geometry(MULTI[dimension])
+    for i in range(geom.GetGeometryCount()):
+        part = parts_of_dimension(geom.GetGeometryRef(i), dimension)
+        if part is None:
+            continue
+        if ogr.GT_Flatten(part.GetGeometryType()) in COLLECTIONS:
+            for j in range(part.GetGeometryCount()):
+                multi.AddGeometry(part.GetGeometryRef(j))
+        else:
+            multi.AddGeometry(part)
+    return multi if multi.GetGeometryCount() else None
+
+
+def clip(geom, bbox_geom):
+    """geom cut to bbox_geom, keeping only parts of geom's own dimension, or None."""
+    if bbox_geom.Contains(geom):
+        return geom
+    return parts_of_dimension(geom.MakeValid().Intersection(bbox_geom), geom.GetDimension())
 
 
 def part_object(objl, keys):
@@ -573,8 +621,8 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
     inside bbox_geom, each at a point of its object, leaving out aids
     charted(lon, lat) says another source has. Dangers are always kept: an
     aid nearby does not mean the other source charts the wreck or rock.
-    Outlined objects keep their geometry, cut to bbox_geom, unless
-    outlined_elsewhere(objl, geom) says another source charts them."""
+    Outlined objects keep their geometry, cut to bbox_geom, less what
+    outlined_elsewhere(objl, geom) says another source charts."""
     layers = {}
     for tags, geom in items:
         kind = tags.get('seamark:type')
@@ -582,11 +630,10 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
             if not fits(kind, geom):
                 continue
             objl, attrs = outlined_object(kind, tags)
-            if not bbox_geom.Contains(geom):
-                geom = geom.MakeValid().Intersection(bbox_geom)
-                if geom is None or geom.IsEmpty():
-                    continue
-            if outlined_elsewhere is not None and outlined_elsewhere(objl, geom):
+            geom = clip(geom, bbox_geom)
+            if geom is not None and outlined_elsewhere is not None:
+                geom = outlined_elsewhere(objl, geom)
+            if geom is None:
                 continue
             layers.setdefault(objl, []).append((geom.Clone(), {**attrs, 'INFORM': source}, None))
             continue
@@ -604,10 +651,31 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
 
 
 def outlined_in(layers):
-    """outlined_elsewhere for seamark_layers: whether an object of the same
-    class among layers meets geom."""
+    """outlined_elsewhere for seamark_layers: the part of geom that no
+    object of the same class among layers covers within SAME_OUTLINE_DEG,
+    or None. Judged point by point, so two units that both see a cell
+    agree on it whatever else their boxes hold. An object shown at some
+    zooms only covers nothing: the other source's stays at every zoom."""
+    covers = {}
 
-    def charted(objl, geom):
-        return any(other.Intersects(geom) for other, _, _ in layers.get(objl, ()))
+    def cover(objl):
+        if objl not in covers:
+            shapes = ogr.Geometry(ogr.wkbMultiPolygon)
+            for other, attrs, _ in layers.get(objl, ()):
+                if other.GetDimension() == 0 or '_minzoom' in attrs or '_maxzoom' in attrs:
+                    continue
+                grown = parts_of_dimension(other.Buffer(SAME_OUTLINE_DEG), 2)
+                if grown is not None:
+                    grown = ogr.ForceToMultiPolygon(grown)
+                    for i in range(grown.GetGeometryCount()):
+                        shapes.AddGeometry(grown.GetGeometryRef(i))
+            covers[objl] = shapes.UnionCascaded() if shapes.GetGeometryCount() else None
+        return covers[objl]
 
-    return charted
+    def uncharted(objl, geom):
+        covered = cover(objl)
+        if covered is None or not covered.Intersects(geom):
+            return geom
+        return parts_of_dimension(geom.Difference(covered), geom.GetDimension())
+
+    return uncharted

@@ -80,7 +80,11 @@ the unit, since on open water a passage is planned around them. In the
 Schleswig-Holstein extract around Kiel Bay this adds 151 restricted areas,
 14 dumping grounds, 13 fishing facilities, 10 cables and the Kiel
 lighthouse TSS. Where Shom or a published chart already charts an object
-of the same class over it, the OSM one is left out.
+of the same class, that part of the OSM one, with about 200 m around it,
+is cut out. The cut is decided point by point, so two units that share a
+cell agree on it; a cut by the whole object would depend on what each
+unit's build box holds. A chart object shown at some zooms only cuts
+nothing.
 
 A region with both, the Channel with England's south coast, charts Shom's
 aids and OpenStreetMap's on the other coast: an OSM aid within a nautical

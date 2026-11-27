@@ -244,16 +244,59 @@ def test_a_submarine_cable_stays_a_line_and_an_area_type_given_a_line_is_left_ou
     assert 'TSEZNE' not in layers
 
 
-def test_an_outlined_object_another_source_charts_is_left_to_it():
+def test_what_another_source_charts_is_cut_out_of_an_outlined_object():
     shom = {'TSEZNE': [(square(0.1, 0.1, 0.2, 0.2), {}, None)]}
     items = [
-        ({'seamark:type': 'separation_zone'}, square(0.15, 0.15, 0.25, 0.25)),
+        ({'seamark:type': 'separation_zone'}, square(0.1, 0.1, 0.2, 0.2)),
+        ({'seamark:type': 'separation_zone'}, square(0.15, 0.1, 0.3, 0.2)),
         ({'seamark:type': 'separation_zone'}, square(0.6, 0.6, 0.7, 0.7)),
         ({'seamark:type': 'separation_lane'}, square(0.15, 0.15, 0.25, 0.25)),
     ]
     layers = seamarks.seamark_layers(items, BBOX, 'OSM', None, seamarks.outlined_in(shom))
-    assert len(layers['TSEZNE']) == 1 and layers['TSEZNE'][0][0].Intersects(square(0.6, 0.6, 0.7, 0.7))
+    rest, far = (geom for geom, _, _ in layers['TSEZNE'])
+    assert abs(rest.GetArea() - (0.3 - 0.2 - seamarks.SAME_OUTLINE_DEG) * 0.1) < 1e-9
+    assert far.Equals(square(0.6, 0.6, 0.7, 0.7))
     assert len(layers['TSSLPT']) == 1
+
+
+def test_the_cut_decides_each_cell_alike_whatever_the_box_holds():
+    shom = [(square(0.9, 0.1, 1.2, 0.2), {}, None)]
+    zone = ({'seamark:type': 'separation_zone'}, square(0.2, 0.1, 1.0, 0.2))
+    west = build_unit.bbox_polygon(0.0, 0.0, 0.85, 1.0)
+    east = build_unit.bbox_polygon(0.5, 0.0, 1.0, 1.0)
+    cut = {}
+    for name, box in (('west', west), ('east', east)):
+        charted = {'TSEZNE': [(seamarks.clip(g, box), a, n) for g, a, n in shom if seamarks.clip(g, box)]}
+        ((geom, _, _),) = seamarks.seamark_layers([zone], box, 'OSM', None, seamarks.outlined_in(charted))['TSEZNE']
+        cut[name] = geom
+    shared = build_unit.bbox_polygon(0.5, 0.0, 0.85, 1.0)
+    assert cut['west'].Intersection(shared).Equals(cut['east'].Intersection(shared))
+    assert abs(cut['east'].GetArea() - (0.9 - seamarks.SAME_OUTLINE_DEG - 0.5) * 0.1) < 1e-9
+
+
+def test_an_object_charted_at_some_zooms_only_cuts_nothing():
+    chart = {'CBLSUB': [(ogr.CreateGeometryFromWkt('LINESTRING (0.1 0.5,0.9 0.5)'), {'_minzoom': 15}, None)]}
+    items = [({'seamark:type': 'cable_submarine'}, ogr.CreateGeometryFromWkt('LINESTRING (0.1 0.5,0.9 0.5)'))]
+    ((geom, _, _),) = seamarks.seamark_layers(items, BBOX, 'OSM', None, seamarks.outlined_in(chart))['CBLSUB']
+    assert abs(geom.Length() - 0.8) < 1e-9
+
+
+def test_an_area_cut_to_the_box_keeps_no_edge_it_only_touches():
+    items = [({'seamark:type': 'separation_zone'}, square(1.0, 0.2, 1.2, 0.4))]
+    assert 'TSEZNE' not in seamarks.seamark_layers(items, BBOX, 'OSM')
+    touching = square(0.5, 0.5, 1.0, 0.6).Union(ogr.CreateGeometryFromWkt('LINESTRING (1.0 0.7,1.0 0.8)'))
+    assert seamarks.parts_of_dimension(touching, 2).GetDimension() == 2
+    assert seamarks.parts_of_dimension(touching, 2).GetGeometryName() in ('POLYGON', 'MULTIPOLYGON')
+
+
+def test_a_marine_farm_keeps_its_restriction():
+    items = [
+        (
+            {'seamark:type': 'marine_farm', 'seamark:marine_farm:restriction': 'no_entry'},
+            square(0.1, 0.1, 0.2, 0.2),
+        )
+    ]
+    assert seamarks.seamark_layers(items, BBOX, 'OSM')['MARCUL'][0][1]['RESTRN'] == '7'
 
 
 def test_a_fish_trap_charted_as_a_line_is_a_fishing_facility():
