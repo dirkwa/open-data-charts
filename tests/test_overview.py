@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 import subprocess
+from concurrent.futures import Future
 
 import pytest
 
@@ -122,6 +123,26 @@ def test_collect_keeps_only_a_few_units_on_the_disk_at_once(tmp_path, monkeypatc
         most.append(len(os.listdir(work)))
         return path
 
+    class AtOnce:
+        # Runs each download as it is submitted, so one submitted early is on the disk at once.
+        def __init__(self, workers):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, *args):
+            done = Future()
+            done.set_result(fn(*args))
+            return done
+
+        def map(self, fn, items):
+            return iter([fn(item) for item in items])
+
+    monkeypatch.setattr(overview, 'ThreadPoolExecutor', AtOnce)
     monkeypatch.setattr(overview, 'fetch_unit', fetch_unit)
     monkeypatch.setattr(overview, 'unit_features', lambda path, unit: iter(()))
     overview.collect(BALTIC, {'units': units}, str(tmp_path))
