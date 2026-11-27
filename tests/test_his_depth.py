@@ -111,6 +111,24 @@ def test_an_answer_that_is_not_an_image_fails():
         his_depth.opaque(b'<html>500</html>', 10, 10)
 
 
+def test_a_cut_off_image_fails_like_an_error_page():
+    with pytest.raises(OSError):
+        his_depth.opaque(png(np.ones((50, 50), bool))[:60], 50, 50)
+
+
+def test_a_sounding_in_two_tile_margins_counts_once(monkeypatch):
+    def tile(box, get):
+        # Both tiles see the same two soundings beyond the square's north edge.
+        beyond = [(1990.0, 2005.0, 20.0, False), (2010.0, 2005.0, 20.0, False)]
+        own = [(1995.0, 1995.0, 4.0, True)] if box[0] == 0 else []
+        return own + beyond
+
+    monkeypatch.setattr(his_depth, 'tile_soundings', tile)
+    monkeypatch.setattr(his_depth, 'MIN_NEIGHBOURS', 3)
+    xyz, dropped = his_depth.block_soundings((0, 0, 4000, 2000), pause=0)
+    assert len(xyz) == 1 and dropped == 0
+
+
 def test_squares_are_found_where_the_overview_draws_anything():
     def get(layer, style, box, width, height):
         mask = np.zeros((height, width), bool)
@@ -200,7 +218,6 @@ def test_a_his_square_the_overview_missed_keeps_its_reduction(tmp_path, monkeypa
     (tmp_path / 'work' / 'discovery.json').write_text('[]')
     (tmp_path / 'assets.json').write_text(json.dumps([asset]))
     (tmp_path / 'old.json').write_text(json.dumps(old))
-    monkeypatch.setattr(mirror, 'MIN_KEPT_SHARE', 0)
     paths = (tmp_path / 'work', tmp_path / 'assets.json', tmp_path / 'old.json', tmp_path / 'out')
     mirror.build_index(*map(str, paths))
     index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())

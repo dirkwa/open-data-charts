@@ -257,20 +257,26 @@ def opaque(png, width, height):
     path = f'/vsimem/his-{uuid.uuid4().hex}.png'
     gdal.FileFromMemBuffer(path, png)
     try:
-        ds = gdal.Open(path)
-        if (ds.RasterXSize, ds.RasterYSize) != (width, height):
-            raise OSError(f'HIS WMS: {ds.RasterXSize}x{ds.RasterYSize} image, {width}x{height} asked for')
-        if ds.RasterCount in (2, 4):
-            return ds.GetRasterBand(ds.RasterCount).ReadAsArray() > 0
-        band = ds.GetRasterBand(1)
-        table = band.GetColorTable()
-        if table is None:
-            raise OSError('HIS WMS: an image without transparency')
-        alpha = np.array([table.GetColorEntry(i)[3] for i in range(table.GetCount())] + [0] * 256)
-        return alpha[band.ReadAsArray()] > 0
+        return drawn_pixels(gdal.Open(path), width, height)
+    except RuntimeError as error:
+        # A cut-off PNG passes the signature and fails in GDAL; it is as
+        # unreadable as an error page.
+        raise OSError(f'HIS WMS: {error}') from error
     finally:
-        ds = None
         gdal.Unlink(path)
+
+
+def drawn_pixels(ds, width, height):
+    if (ds.RasterXSize, ds.RasterYSize) != (width, height):
+        raise OSError(f'HIS WMS: {ds.RasterXSize}x{ds.RasterYSize} image, {width}x{height} asked for')
+    if ds.RasterCount in (2, 4):
+        return ds.GetRasterBand(ds.RasterCount).ReadAsArray() > 0
+    band = ds.GetRasterBand(1)
+    table = band.GetColorTable()
+    if table is None:
+        raise OSError('HIS WMS: an image without transparency')
+    alpha = np.array([table.GetColorEntry(i)[3] for i in range(table.GetCount())] + [0] * 256)
+    return alpha[band.ReadAsArray()] > 0
 
 
 def tile_soundings(box, get=get_map):
@@ -294,19 +300,21 @@ def block_soundings(block, get=get_map, pause=PAUSE_S):
     tiles' margins outside the square are its neighbours' and only judge
     those near its edge."""
     minx, miny, maxx, maxy = block
-    rows = []
+    rows, around = [], {}
     x = minx
     while x < maxx:
         y = miny
         while y < maxy:
             for sx, sy, depth, inside in tile_soundings((x, y, min(x + TILE_M, maxx), min(y + TILE_M, maxy)), get):
-                beyond = not (minx <= sx < maxx and miny < sy <= maxy)
-                if inside or beyond:
-                    rows.append((sx, sy, depth, inside))
+                if inside:
+                    rows.append((sx, sy, depth, True))
+                elif not (minx <= sx < maxx and miny < sy <= maxy):
+                    # Two tiles' margins can hold the same sounding beyond the square.
+                    around[(round(sx), round(sy))] = (sx, sy, depth, False)
             time.sleep(pause)
             y += TILE_M
         x += TILE_M
-    rows = np.array(rows, np.float64).reshape(-1, 4)
+    rows = np.array(rows + list(around.values()), np.float64).reshape(-1, 4)
     own = rows[:, 3] > 0
     keep = plausible(rows[:, :2], rows[:, 2]) & own
     return rows[keep, :3], int((own & ~keep).sum())

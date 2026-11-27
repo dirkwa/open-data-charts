@@ -368,7 +368,18 @@ def build_index(work, assets_path, old_index_path, out_dir):
     surveys = json.load(open(os.path.join(work, 'discovery.json'), encoding='utf-8'))
     assets = {a['name']: a for a in json.load(open(assets_path, encoding='utf-8'))}
     old = json.load(open(old_index_path, encoding='utf-8')) if old_index_path != '-' else {'surveys': {}}
-    if len(surveys) < MIN_KEPT_SHARE * len(old['surveys']):
+    # A HIS square is found only where an overview draws something; one that
+    # an overview missed this time keeps its reduction until EDITION changes.
+    found = {s['name'] for s in surveys}
+    missed_his = {
+        name: previous
+        for name, previous in old['surveys'].items()
+        if name not in found
+        and previous.get('provider') == 'vta-his-depth'
+        and previous['source'].get('edition') == his_depth.EDITION
+        and previous['reduced']['asset'] in assets
+    }
+    if len(surveys) + len(missed_his) < MIN_KEPT_SHARE * len(old['surveys']):
         raise SystemExit(f'discovery found {len(surveys)} surveys, the mirror has {len(old["surveys"])}: not replacing')
     entries, missing = {}, []
     for survey in surveys:
@@ -384,17 +395,9 @@ def build_index(work, assets_path, old_index_path, out_dir):
         if previous and previous['reduced']['asset'] in assets:
             release = assets[previous['reduced']['asset']]['release']
             entries[survey['name']] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
-    # A HIS square is found only where an overview draws something; one that
-    # an overview missed this time keeps its reduction until EDITION changes.
-    for name, previous in old['surveys'].items():
-        if (
-            name not in entries
-            and previous.get('provider') == 'vta-his-depth'
-            and previous['source'].get('edition') == his_depth.EDITION
-            and previous['reduced']['asset'] in assets
-        ):
-            release = assets[previous['reduced']['asset']]['release']
-            entries[name] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
+    for name, previous in missed_his.items():
+        release = assets[previous['reduced']['asset']]['release']
+        entries[name] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
     index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(surveys, entries)}
     footprints = {
         'type': 'FeatureCollection',

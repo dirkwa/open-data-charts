@@ -100,8 +100,10 @@ hills on land shaded.
 
 As good as the data behind them, which differs a lot from place to place:
 
-- In French waters soundings come from Shom's surveys, and in New Zealand
-  from LINZ's charts.
+- In French waters soundings come from Shom's surveys, in New Zealand from
+  LINZ's charts, and in Estonia from the Transport Administration's
+  soundings, read back from its map images (about one in ten is lost where
+  labels overlap).
 - Elsewhere depths come from a **model**, a grid of depths from a few metres
   to about 115 m apart near the coast (250 m in places off south-east
   Australia), and about 460 m in deep water far offshore. Narrow channels, rocks and wrecks smaller than the grid may be
