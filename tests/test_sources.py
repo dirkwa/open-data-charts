@@ -541,6 +541,52 @@ def test_nonna_asks_for_nonna_10_only_where_nonna_100_has_data(monkeypatch, tmp_
     assert heights[0, -1] == -12.0
 
 
+def test_nonna_waits_out_a_service_that_is_down_and_then_stops_the_region(monkeypatch, tmp_path):
+    import http.client
+    import urllib.error
+
+    from osgeo import gdal
+
+    from odc import lat_model
+
+    answers = []
+
+    def save_url(url, path, timeout=600):
+        answer = answers.pop(0)
+        if answer == 'cut':
+            raise http.client.IncompleteRead(b'', 1000)
+        if not answer:
+            raise urllib.error.HTTPError(url, 503, 'Service Unavailable', {}, None)
+        ds = gdal.GetDriverByName('GTiff').Create(path, 4, 4, 1, gdal.GDT_Float32)
+        ds.SetGeoTransform((-124.0, 0.25, 0.0, 50.0, 0.0, -0.25))
+        ds.SetProjection(lat_model.wgs84())
+        ds.GetRasterBand(1).Fill(-20.0)
+        ds = None
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    path = str(tmp_path / 'nonna.tif')
+    answers[:] = [False, 'cut', True]
+    assert sources.nonna_coverage('100', (-124.0, 49.0, -123.0, 50.0), path, wait=0).all()
+    answers[:] = [False] * sources.NONNA_ATTEMPTS
+    with pytest.raises(sources.ServiceDown, match='not built'):
+        sources.nonna_coverage('100', (-124.0, 49.0, -123.0, 50.0), path, wait=0)
+
+
+def test_a_source_that_is_down_fails_the_fetch_with_a_clear_error(monkeypatch, tmp_path, capsys):
+    region = tmp_path / 'region.json'
+    region.write_text('{}')
+
+    def down(region, out):
+        raise sources.ServiceDown("CHS's NONNA service is down")
+
+    monkeypatch.setattr(sources, 'FETCHERS', {'dem': down})
+    monkeypatch.setattr(sources.sys, 'argv', ['sources', str(region), str(tmp_path / 'inputs'), 'dem'])
+    with pytest.raises(SystemExit) as stop:
+        sources.main()
+    assert stop.value.code == 1
+    assert "::error::CHS's NONNA service is down" in capsys.readouterr().out
+
+
 def test_nonna_water_between_close_survey_lines_is_interpolated():
     nodata = np.float32(3.4e38)
     heights = np.full((7, 9), nodata, np.float32)
