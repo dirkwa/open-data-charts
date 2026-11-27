@@ -129,5 +129,5 @@ def test_a_unit_shows_the_shoalest_rock_first(tmp_path):
     vta_his.write(path, features)
     layers = build_unit.his_layers(path, (24.7, 59.4, 24.8, 59.5), 17)
     first = min(layers['UWTROC'], key=lambda item: item[1]['_minzoom'])
-    assert first[1]['VALSOU'] == 1.5 and first[1]['_minzoom'] == build_unit.SOUNDING_MINZOOM
+    assert first[1]['VALSOU'] == 1.5 and first[1]['_minzoom'] == build_unit.UNIT_ZOOM
     assert [attrs for _, attrs, _ in layers['WRECKS']] == [{'VALSOU': 7.0}]

@@ -121,8 +121,9 @@ restricted, military and wind farm area; contours and point dangers from
 z6, lights, cables, pipelines and fishing gear from z7. Soundings, buoys
 and buildings are left to the units. Its metadata carries `x-odc-overview`
 (the sea's id) and `x-odc-version`, which changes when, and only when, one
-of its units' versions does. A region whose units were published after the
-overview's last build has `overview: null` until the next one.
+of its units' versions does. A region indexed for the first time has
+`overview: null` until its sea's next overview build; a region whose units
+change keeps its overview until then, so an overview may lag its units.
 
 ## Terrain shading
 

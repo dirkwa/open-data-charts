@@ -120,6 +120,7 @@ jobs:
       changed: ${{ steps.index.outputs.changed }}
       pages-artifact: ${{ steps.index.outputs.pages-artifact }}
       baseline: ${{ steps.index.outputs.baseline }}
+      asset: ${{ steps.upload.outputs.asset }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -128,6 +129,7 @@ jobs:
       - name: Build the builder image
         run: docker build -f builder/Dockerfile -t odc-builder .
       - name: Upload the overview
+        id: upload
         run: |
           version=$(docker run --rm -v "$PWD:/src" -w /src odc-builder python3 -c \
             "import sqlite3; print(sqlite3.connect('work/overview.mbtiles').execute(\"SELECT value FROM metadata WHERE name = 'x-odc-version'\").fetchone()[0])")
@@ -135,8 +137,16 @@ jobs:
           gh release view "$tag" >/dev/null 2>&1 ||
             gh release create "$tag" --latest=false --title "Open Data Charts overview: $OVERVIEW" \
               --notes 'Overview chart built from the chart units. NOT FOR NAVIGATION. Licence: ODbL 1.0 (see LICENSE-DATA.md).'
-          cp work/overview.mbtiles "overview-$OVERVIEW.$version.mbtiles"
-          gh release upload "$tag" "overview-$OVERVIEW.$version.mbtiles" --clobber
+          asset="overview-$OVERVIEW.$version.mbtiles"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          # A released version is never replaced: an index may already list
+          # it, so a retry indexes the released file rather than a new one.
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qxF "$asset"; then
+            gh release download "$tag" --pattern "$asset" --output work/overview.mbtiles --clobber
+          else
+            cp work/overview.mbtiles "$asset"
+            gh release upload "$tag" "$asset"
+          fi
       - name: Write the index
         id: index
         run: |
@@ -175,7 +185,7 @@ jobs:
 
   # Its own job, as in build-units: a failed deployment can be re-run alone.
   deploy:
-    needs: publish
+    needs: [build, publish]
     if: always() && needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
     runs-on: ubuntu-latest
     environment:
@@ -188,6 +198,15 @@ jobs:
         env:
           BASELINE: ${{ needs.publish.outputs.baseline }}
         run: bash .github/scripts/check-served-index.sh "$BASELINE"
+      # The index this artifact holds lists the overview; a retry deploys it
+      # only while the release still has it.
+      - name: Check that the release still has the overview
+        env:
+          ASSET: ${{ needs.publish.outputs.asset }}
+          OVERVIEW: ${{ needs.build.outputs.overview }}
+        run: |
+          gh release view "overview-$OVERVIEW" --json assets --jq '.assets[].name' | grep -qxF "$ASSET" ||
+            { echo "::error::overview-$OVERVIEW has no $ASSET"; exit 1; }
       - uses: actions/deploy-pages@v5
         with:
           artifact_name: ${{ needs.publish.outputs.pages-artifact }}

@@ -16,12 +16,14 @@ Usage:
 """
 
 import hashlib
+import itertools
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 from osgeo import ogr
@@ -158,13 +160,22 @@ def collect(overview, index, work):
     units = units_of(overview, index)
     counts = {}
     with tempfile.TemporaryDirectory(dir=work) as tmp, ThreadPoolExecutor(PARALLEL_DOWNLOADS) as pool:
-        for unit, path in zip(units, pool.map(lambda u: fetch_unit(u, tmp), units), strict=True):
+        # At most PARALLEL_DOWNLOADS units wait on the disk at once.
+        pending = deque()
+        queue = iter(units)
+        for unit in itertools.islice(queue, PARALLEL_DOWNLOADS):
+            pending.append((unit, pool.submit(fetch_unit, unit, tmp)))
+        while pending:
+            unit, future = pending.popleft()
+            path = future.result()
             for name, feature in unit_features(path, Unit.parse(unit['id'])):
                 if name not in files:
                     files[name] = open(os.path.join(layers_dir, f'{name}.geojsonseq'), 'w', encoding='utf-8')
                 files[name].write(json.dumps(feature, ensure_ascii=False) + '\n')
                 counts[name] = counts.get(name, 0) + 1
             os.remove(path)
+            for following in itertools.islice(queue, 1):
+                pending.append((following, pool.submit(fetch_unit, following, tmp)))
     for fh in files.values():
         fh.close()
     print(f'{len(units)} units: {json.dumps(dict(sorted(counts.items())))}', flush=True)

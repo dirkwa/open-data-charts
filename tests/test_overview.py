@@ -108,3 +108,21 @@ def test_every_overview_names_known_regions_and_no_region_is_in_two():
             assert region_id in regions
             assert region_id not in seen, f'{region_id} is in {seen.get(region_id)} and {sea["id"]}'
             seen[region_id] = sea['id']
+
+
+def test_collect_keeps_only_a_few_units_on_the_disk_at_once(tmp_path, monkeypatch):
+    units = [
+        {'id': UNIT.id, 'region': 'a', 'url': f'u{i}', 'version': 'v'} for i in range(3 * overview.PARALLEL_DOWNLOADS)
+    ]
+    most = []
+
+    def fetch_unit(unit, work):
+        path = os.path.join(work, unit['url'])
+        open(path, 'w').close()
+        most.append(len(os.listdir(work)))
+        return path
+
+    monkeypatch.setattr(overview, 'fetch_unit', fetch_unit)
+    monkeypatch.setattr(overview, 'unit_features', lambda path, unit: iter(()))
+    overview.collect(BALTIC, {'units': units}, str(tmp_path))
+    assert len(most) == len(units) and max(most) <= overview.PARALLEL_DOWNLOADS
