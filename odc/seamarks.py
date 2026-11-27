@@ -653,8 +653,9 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
 def outlined_in(layers):
     """outlined_elsewhere for seamark_layers: the part of geom that no
     object of the same class among layers covers within SAME_OUTLINE_DEG,
-    or None. Judged point by point, so two units that both see a cell
-    agree on it whatever else their boxes hold. An object shown at some
+    or None. Judged point by point, so two units agree on every cell more
+    than SAME_OUTLINE_DEG inside both their boxes, which the build margin
+    makes every cell of each unit's own bounds. An object shown at some
     zooms only covers nothing: the other source's stays at every zoom."""
     covers = {}
 

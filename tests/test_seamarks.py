@@ -2,7 +2,7 @@ import json
 
 from osgeo import ogr
 
-from odc import build_unit, seamarks
+from odc import build_unit, grid, seamarks
 
 BBOX = build_unit.bbox_polygon(0.0, 0.0, 1.0, 1.0)
 
@@ -272,6 +272,23 @@ def test_the_cut_decides_each_cell_alike_whatever_the_box_holds():
     shared = build_unit.bbox_polygon(0.5, 0.0, 0.85, 1.0)
     assert cut['west'].Intersection(shared).Equals(cut['east'].Intersection(shared))
     assert abs(cut['east'].GetArea() - (0.9 - seamarks.SAME_OUTLINE_DEG - 0.5) * 0.1) < 1e-9
+
+
+def test_a_unit_is_cut_alike_by_every_box_that_holds_it():
+    # Just beyond the western box, within the tolerance of a cell it holds:
+    # only the cells within the tolerance of a box's edge differ, and the
+    # margin keeps those outside every unit's own bounds.
+    shom = [(square(0.851, 0.1, 0.86, 0.2), {}, None)]
+    zone = ({'seamark:type': 'separation_zone'}, square(0.2, 0.1, 1.0, 0.2))
+    cut = {}
+    for name, box in (('west', (0.0, 0.85)), ('east', (0.5, 1.0))):
+        box = build_unit.bbox_polygon(box[0], 0.0, box[1], 1.0)
+        charted = {'TSEZNE': [(seamarks.clip(g, box), a, n) for g, a, n in shom if seamarks.clip(g, box)]}
+        ((geom, _, _),) = seamarks.seamark_layers([zone], box, 'OSM', None, seamarks.outlined_in(charted))['TSEZNE']
+        cut[name] = geom
+    inner = build_unit.bbox_polygon(0.5 + seamarks.SAME_OUTLINE_DEG, 0.0, 0.85 - seamarks.SAME_OUTLINE_DEG, 1.0)
+    assert cut['west'].Intersection(inner).Equals(cut['east'].Intersection(inner))
+    assert grid.UNIT_MARGIN_CELLS * grid.GRID_STEP > seamarks.SAME_OUTLINE_DEG
 
 
 def test_an_object_charted_at_some_zooms_only_cuts_nothing():
