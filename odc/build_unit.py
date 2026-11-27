@@ -103,7 +103,7 @@ ETOPO_PIXEL_DEG = 1 / 240
 ETOPO_MIN_DEPTH_M = 200.0
 ETOPO_CLEAR_PIXELS = 2
 ETOPO_MARGIN_DEG = (ETOPO_CLEAR_PIXELS + 2) * ETOPO_PIXEL_DEG
-SURVEY_CATEGORIES = QUALITY_ORDER[:3]
+SURVEY_CATEGORIES = QUALITY_ORDER[:4]
 TECSOU = (('multi-beam', '3'), ('single-beam', '1'), ('sidescan', '2'), ('plummet', '5'), ('lidar', '7'))
 
 # Harbour structures. OSM man_made -> S-57 CATSLC (shoreline construction).
@@ -728,6 +728,8 @@ def survey_inform(name, meta):
     year = str(meta['end'])[:4]
     if meta.get('provider') == 'bsh-svdb':
         return f'BSH survey {meta["title"]} ({year}), SVDB, CC0'
+    if meta.get('provider') == 'vta-his-depth':
+        return 'Estonian Transport Administration, HIS spot soundings, read from its WMS'
     if meta.get('provider') == 'ausseabed':
         return f'Geoscience Australia survey {meta["title"]}, AusSeabed, CC BY 4.0'
     if meta.get('provider') == 'shom-litto3d':
@@ -741,10 +743,12 @@ def survey_attributes(entry, z, minzoom):
     # Round towards the shallow side (S-4: soundings are truncated).
     attrs = {
         'DEPTH': math.floor(float(z) * 10) / 10,
-        'SORDAT': str(meta['end']),
         'INFORM': survey_inform(entry[2], meta),
         '_minzoom': int(minzoom),
     }
+    # HIS soundings carry no survey date; their 'end' is the day they were read.
+    if meta.get('provider') != 'vta-his-depth':
+        attrs['SORDAT'] = str(meta['end'])
     tech = tecsou(meta.get('tecsou'))
     if tech:
         attrs['TECSOU'] = tech
@@ -1586,6 +1590,8 @@ def write_layers(out_dir, layers, classes, unit):
 
 
 def quality_category(meta):
+    if meta.get('provider') == 'vta-his-depth':
+        return 'chart'
     tech = (meta.get('tecsou') or '').lower()
     end = int(str(meta['end'])[:8])
     if end >= 20050101 and ('multi-beam' in tech or 'lidar' in tech):
@@ -1646,7 +1652,7 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
 def survey_doi(name, meta):
     if meta.get('provider') == 'shom-litto3d':
         return {'doi': f'10.17183/{meta["doi"]}'} if 'doi' in meta else {}
-    if meta.get('provider') in ('bsh-svdb', 'ausseabed'):
+    if meta.get('provider') in ('bsh-svdb', 'ausseabed', 'vta-his-depth'):
         return {}
     return {'doi': f'10.17183/{name}'}
 

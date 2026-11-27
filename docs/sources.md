@@ -75,7 +75,18 @@ Over these models, BSH's surveys from its survey database (SVDB, CC0,
 2012 on: 1 m multibeam grids and single-beam lines) are charted like Shom's
 surveys, newest on top, moved from NHN to LAT the same way.
 Estonia, with the Latvian shore of the Gulf of Riga, takes its depths from the
-EMODnet DTM alone, its shore charted as microtidal like the Mediterranean's.
+EMODnet DTM, its shore charted as microtidal like the Mediterranean's, and
+from the Estonian Transport Administration's spot soundings on top of it,
+charted like a survey. HIS shows its soundings only as WMS images, so they
+are read back from them: every digit is drawn as the same bitmap, which is
+matched exactly, at 1 m a pixel, where HIS draws a sounding about every
+30 m; a reading more than 2 m (or 15 %) from the median of its neighbours
+within 40 m is dropped, which removes labels half-hidden under another.
+On a test square off Pirita, 99.6 % of the readings next to a depth contour
+agree with it within 1 m. Labels hidden under others are lost, roughly one
+in ten. The depths are on EH2000, Estonia's chart datum. HIS gives no survey
+dates, so these soundings carry no SORDAT, count as chart depths in the
+index, and are read again when `EDITION` in `odc/his_depth.py` changes.
 Its rocks, wrecks and obstructions come from the Estonian Transport
 Administration's hydrographic information system: every wreck and
 obstruction, and the rocks up to 10 m deep or of unknown depth (charted as

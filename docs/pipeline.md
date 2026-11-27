@@ -39,7 +39,7 @@ only matters for the large metropolitan regions.
 
 `build-units.yml` builds one region a day, taking the files in `regions/` in
 turn, and skips a region until every survey of it is in the mirror. A
-region without `shom-surveys`, `bsh-surveys` or `ausseabed-surveys` in its
+region without `shom-surveys`, `bsh-surveys`, `ausseabed-surveys` or `vta-his-depth` in its
 sources (an EMODnet region) is not in the mirror and builds at once. A region has
 the units of its bbox that are not all land and that hold land or data in
 the region's bathymetric model. A survey footprint alone does not qualify a

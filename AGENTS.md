@@ -54,7 +54,7 @@ the index and the docs say so.
   masks), moved from NGF to chart datum with Shom's BathyElli surfaces and
   IGN's geoid grids, land above the highest tide left out, reduced like a
   survey.
-- `odc/mirror.py`: the survey mirror (Shom's, SVDB's, AusSeabed's and Litto3D's), one reduced `.npz` per survey,
+- `odc/mirror.py`: the survey mirror (Shom's, SVDB's, AusSeabed's, HIS's and Litto3D's), one reduced `.npz` per survey,
   named `<survey>.<md5-12>.npz`, in the draft releases `mirror-0` to
   `mirror-f` by the md5's first digit (GitHub allows 1000 assets per
   release); the draft release `mirror` holds the index.
@@ -69,6 +69,12 @@ the index and the docs say so.
   and obstructions from its HIS WFS (GML on EPSG:3301, at most 10000
   objects a request, so asked box by box), as S-57 points, for regions
   listing `vta-his`; rocks thinned per zoom like soundings.
+- `odc/his_depth.py`: the same administration's spot soundings, for regions
+  listing `vta-his-depth`. HIS publishes them only as WMS images (`sea_dp`),
+  so they are read back from its `black` style by exact glyph matching,
+  readings that disagree with their neighbours dropped. Each 10 km square
+  HIS draws in is a mirror survey; `EDITION` is its identity, since HIS
+  gives no dates.
 - `odc/sources.py`, `odc/osm.py`: a region's other inputs (Shom WFS, the
   region's bathymetric models from Shom or EMODnet, OpenStreetMap, New Caledonia's reefs and
   structures, the Allen Coral Atlas's reefs and satellite depths, Copernicus DEM, ETOPO 2022
@@ -105,8 +111,8 @@ the index and the docs say so.
 
 ## Workflows
 
-- `mirror-surveys.yml` (weekly): reduces new or changed Shom, SVDB and
-  AusSeabed surveys and Litto3D packages into the `mirror` release, at most
+- `mirror-surveys.yml` (weekly): reduces new or changed Shom, SVDB,
+  AusSeabed and HIS surveys and Litto3D packages into the `mirror` release, at most
   `MAX_SHARDS` shards a run.
 - `build-units.yml` (daily, one region a day in turn, once all of the
   region's surveys are mirrored): plans the units whose version changed, builds

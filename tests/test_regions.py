@@ -63,6 +63,10 @@ def test_every_region_names_its_extracts_and_dems():
         assert ('nonna' in region['sources']) == nonna
         assert not nonna or CHS_NOTICE in region['attribution']
         assert ('vta-his' in region['sources']) == any(VTA_NOTICE in text for text in region.get('attribution', []))
+        # The soundings come under the same notice, which then names the WMS they are read from.
+        assert ('vta-his-depth' in region['sources']) == any(
+            VTA_NOTICE in text and '/HIS/WMS' in text for text in region.get('attribution', [])
+        )
         ausseabed = any(dem.get('source') == 'ausseabed' for dem in region.get('dem', []))
         assert ('ausseabed' in region['sources']) == ausseabed
         # Litto3D's packages are moved to chart datum with surfaces of mainland France and Corsica only.

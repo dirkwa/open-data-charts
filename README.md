@@ -37,7 +37,7 @@ downloaded to your boat, and they work offline in
 | France | Channel and North Sea coast (with England's south coast), Atlantic coast, Mediterranean coast, Corsica | Shom surveys and models |
 | French overseas | New Caledonia, French Polynesia, Wallis and Futuna, Réunion, Mayotte, Guadeloupe, Martinique, Saint-Martin and Saint-Barthélemy, French Guiana, Saint-Pierre and Miquelon | Shom surveys and models |
 | British Isles | Isles of Scilly and Land's End, England and Wales with the Irish Sea, Scotland with Northern Ireland and North East England, Ireland's Atlantic coast, Cork, the Shannon Estuary and Galway Bay | EMODnet, INFOMAR in Irish waters |
-| North Sea and Baltic | Dutch Wadden Sea, German North Sea, German Baltic, Denmark, Estonia | Rijkswaterstaat, BSH and WSV, Danish Depth Model, EMODnet in Estonia |
+| North Sea and Baltic | Dutch Wadden Sea, German North Sea, German Baltic, Denmark, Estonia | Rijkswaterstaat, BSH and WSV, Danish Depth Model, EMODnet and the Transport Administration's soundings in Estonia |
 | Norway | Southern Norway, Oslofjord to Stad | Kartverket |
 | Atlantic islands and Iberia | Galicia, Portugal and the Gulf of Cadiz, Canary Islands, Madeira | EMODnet, Instituto Hidrográfico |
 | Mediterranean | Spain, the Balearics, Morocco and Algeria; Liguria; Sardinia; Tuscany and the northern Adriatic; central Italy to Albania; Sicily, Malta and the Ionian Sea | EMODnet, ICGC on the Catalan coast |
