@@ -5,10 +5,15 @@ The scheme mirrors S-57: `seamark:type` names the object class, and
 `seamark:<type>:<attribute>` holds its attributes as words for S-57's enumerated
 values. Lights, topmarks, fog signals, daymarks and radar transponders on
 an object are their own S-57 objects at its position, as in an ENC.
+Traffic separation schemes, restricted and military areas, wind farms,
+cables, pipelines, fishing gear and marine farms keep their outline: on open water they are what a
+passage must keep clear of.
 """
 
 import math
 import re
+
+from osgeo import ogr
 
 COLOUR = {
     'white': 1,
@@ -249,6 +254,121 @@ TYPES = {
     'platform': ('OFSPLF', ('CATOFP', CATOFP), None),
     'pile': ('PILPNT', None, None),
 }
+CATREA = {
+    'safety': 1,
+    'offshore_safety_zone': 1,
+    'nature_reserve': 4,
+    'bird_sanctuary': 5,
+    'game_reserve': 6,
+    'seal_sanctuary': 7,
+    'degaussing_range': 8,
+    'military': 9,
+    'historic_wreck': 10,
+    'navigational_aid_safety': 12,
+    'minefield': 14,
+    'swimming': 18,
+    'waiting': 19,
+    'research': 20,
+    'dredging': 21,
+    'fish_sanctuary': 22,
+    'ecological_reserve': 23,
+    'no_wake': 24,
+    'swinging': 25,
+}
+RESTRN = {
+    'no_anchoring': 1,
+    'restricted_anchoring': 2,
+    'no_fishing': 3,
+    'restricted_fishing': 4,
+    'no_trawling': 5,
+    'restricted_trawling': 6,
+    'no_entry': 7,
+    'restricted_entry': 8,
+    'no_dredging': 9,
+    'restricted_dredging': 10,
+    'no_diving': 11,
+    'restricted_diving': 12,
+    'no_wake': 13,
+    'area_to_be_avoided': 14,
+    'to_be_avoided': 14,
+    'no_construction': 15,
+}
+CATMPA = {
+    'torpedo_exercise': 2,
+    'submarine_exercise': 3,
+    'firing_danger_area': 4,
+    'mine-laying_practice': 5,
+    'small_arms_firing': 6,
+}
+CATPRA = {
+    'quarry': 1,
+    'mine': 2,
+    'stockpile': 3,
+    'power_station': 4,
+    'refinery': 5,
+    'timber_yard': 6,
+    'factory': 7,
+    'tank_farm': 8,
+    'wind_farm': 9,
+}
+CATCBL = {'power': 1, 'transmission': 3, 'telephone': 4, 'telegraph': 5, 'mooring': 6}
+CATPIP = {'outfall': 2, 'intake': 3, 'sewer': 4, 'bubbler': 5, 'supply': 6}
+CATFIF = {'stake': 1, 'trap': 2, 'weir': 3, 'tunny': 4}
+CATMFA = {'crustaceans': 1, 'oysters_mussels': 2, 'fish': 3, 'seaweed': 4}
+CATACH = {
+    'unrestricted': 1,
+    'deep_water': 2,
+    'tanker': 3,
+    'explosives': 4,
+    'quarantine': 5,
+    'sea-plane': 6,
+    'small_craft': 7,
+    'small_craft_mooring': 8,
+    '24_hour': 9,
+}
+# seamark:type -> (S-57 class, the geometries it may have, the class's category attribute and its values)
+OUTLINED = {
+    'separation_zone': ('TSEZNE', 'area', None),
+    'separation_line': ('TSELNE', 'line', None),
+    'separation_boundary': ('TSSBND', 'line', None),
+    'separation_lane': ('TSSLPT', 'area', None),
+    'separation_crossing': ('TSSCRS', 'area', None),
+    'separation_roundabout': ('TSSRON', 'area', None),
+    'inshore_traffic_zone': ('ISTZNE', 'area', None),
+    'precautionary_area': ('PRCARE', 'point area', None),
+    'restricted_area': ('RESARE', 'area', ('CATREA', CATREA)),
+    'military_area': ('MIPARE', 'point area', ('CATMPA', CATMPA)),
+    'production_area': ('PRDARE', 'point area', ('CATPRA', CATPRA)),
+    'cable_submarine': ('CBLSUB', 'line', ('CATCBL', CATCBL)),
+    'cable_area': ('CBLARE', 'area', ('CATCBL', CATCBL)),
+    'pipeline_submarine': ('PIPSOL', 'point line', ('CATPIP', CATPIP)),
+    'pipeline_area': ('PIPARE', 'point area', ('CATPIP', CATPIP)),
+    'anchorage': ('ACHARE', 'point area', ('CATACH', CATACH)),
+    'dumping_ground': ('DMPGRD', 'point area', None),
+    'fishing_facility': ('FSHFAC', 'point line area', ('CATFIF', CATFIF)),
+    'marine_farm': ('MARCUL', 'point line area', ('CATMFA', CATMFA)),
+}
+OUTLINED_CLASSES = {objl for objl, _, _ in OUTLINED.values()}
+DIMENSION = {'point': 0, 'line': 1, 'area': 2}
+MULTI = {0: ogr.wkbMultiPoint, 1: ogr.wkbMultiLineString, 2: ogr.wkbMultiPolygon}
+COLLECTIONS = {ogr.wkbGeometryCollection, *MULTI.values()}
+RESTRICTED_CLASSES = {
+    'ACHARE',
+    'CBLARE',
+    'DMPGRD',
+    'ISTZNE',
+    'MARCUL',
+    'MIPARE',
+    'PIPARE',
+    'PRCARE',
+    'RESARE',
+    'TSSCRS',
+    'TSSLPT',
+    'TSSRON',
+}
+# Two sources' outlines of one object lie this close; what another source
+# charts within it is taken for the same object.
+SAME_OUTLINE_DEG = 0.002
 # A lighthouse is tagged by its light alone.
 LIGHT_ONLY = {'light_major', 'light_minor', 'light'}
 # Parts an object carries, each its own S-57 object at the object's position.
@@ -319,6 +439,55 @@ def main_object(kind, tags):
         put(attrs, 'WATLEV', enum(keys.get('water_level'), WATLEV))
         put(attrs, 'VALSOU', number(keys.get('depth')))
     return objl, attrs
+
+
+def outlined_object(kind, tags):
+    objl, _, category = OUTLINED[kind]
+    keys = subkeys(tags, kind)
+    attrs = {}
+    name = tags.get('seamark:name') or tags.get('name')
+    if name:
+        attrs['OBJNAM'] = name
+    if category:
+        put(attrs, category[0], enum_list(keys.get('category'), category[1]))
+    if objl in RESTRICTED_CLASSES:
+        put(attrs, 'RESTRN', enum_list(keys.get('restriction'), RESTRN))
+    if objl == 'TSSLPT':
+        put(attrs, 'ORIENT', number(keys.get('orientation')))
+    return objl, attrs
+
+
+def fits(kind, geom):
+    """Whether geom has a dimension S-57 allows for the type's class."""
+    allowed = {DIMENSION[word] for word in OUTLINED[kind][1].split()}
+    return geom.GetDimension() in allowed
+
+
+def parts_of_dimension(geom, dimension):
+    """geom's parts of that dimension as one geometry, or None: cutting or
+    repairing an area can leave lines and points beside it."""
+    if geom is None or geom.IsEmpty():
+        return None
+    if ogr.GT_Flatten(geom.GetGeometryType()) not in COLLECTIONS:
+        return geom if geom.GetDimension() == dimension else None
+    multi = ogr.Geometry(MULTI[dimension])
+    for i in range(geom.GetGeometryCount()):
+        part = parts_of_dimension(geom.GetGeometryRef(i), dimension)
+        if part is None:
+            continue
+        if ogr.GT_Flatten(part.GetGeometryType()) in COLLECTIONS:
+            for j in range(part.GetGeometryCount()):
+                multi.AddGeometry(part.GetGeometryRef(j))
+        else:
+            multi.AddGeometry(part)
+    return multi if multi.GetGeometryCount() else None
+
+
+def clip(geom, bbox_geom):
+    """geom cut to bbox_geom, keeping only parts of geom's own dimension, or None."""
+    if bbox_geom.Contains(geom):
+        return geom
+    return parts_of_dimension(geom.MakeValid().Intersection(bbox_geom), geom.GetDimension())
 
 
 def part_object(objl, keys):
@@ -447,13 +616,27 @@ def shom_aids(wfs_layers):
     return Nearby(points, SHOM_AID_RADIUS_M)
 
 
-def seamark_layers(items, bbox_geom, source, charted=None):
+def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=None):
     """S-57 items per class from (tags, geometry) of seamark-tagged OSM objects
     inside bbox_geom, each at a point of its object, leaving out aids
     charted(lon, lat) says another source has. Dangers are always kept: an
-    aid nearby does not mean the other source charts the wreck or rock."""
+    aid nearby does not mean the other source charts the wreck or rock.
+    Outlined objects keep their geometry, cut to bbox_geom, less what
+    outlined_elsewhere(objl, geom) says another source charts."""
     layers = {}
     for tags, geom in items:
+        kind = tags.get('seamark:type')
+        if kind in OUTLINED:
+            if not fits(kind, geom):
+                continue
+            objl, attrs = outlined_object(kind, tags)
+            geom = clip(geom, bbox_geom)
+            if geom is not None and outlined_elsewhere is not None:
+                geom = outlined_elsewhere(objl, geom)
+            if geom is None:
+                continue
+            layers.setdefault(objl, []).append((geom.Clone(), {**attrs, 'INFORM': source}, None))
+            continue
         found = objects(tags)
         if not found:
             continue
@@ -465,3 +648,35 @@ def seamark_layers(items, bbox_geom, source, charted=None):
         for objl, attrs in found:
             layers.setdefault(objl, []).append((where.Clone(), {**attrs, 'INFORM': source}, None))
     return layers
+
+
+def outlined_in(layers):
+    """outlined_elsewhere for seamark_layers: the part of geom that no
+    object of the same class among layers covers within SAME_OUTLINE_DEG,
+    or None. Judged point by point, so two units agree on every cell more
+    than SAME_OUTLINE_DEG inside both their boxes, which the build margin
+    makes every cell of each unit's own bounds. An object shown at some
+    zooms only covers nothing: the other source's stays at every zoom."""
+    covers = {}
+
+    def cover(objl):
+        if objl not in covers:
+            shapes = ogr.Geometry(ogr.wkbMultiPolygon)
+            for other, attrs, _ in layers.get(objl, ()):
+                if other.GetDimension() == 0 or '_minzoom' in attrs or '_maxzoom' in attrs:
+                    continue
+                grown = parts_of_dimension(other.Buffer(SAME_OUTLINE_DEG), 2)
+                if grown is not None:
+                    grown = ogr.ForceToMultiPolygon(grown)
+                    for i in range(grown.GetGeometryCount()):
+                        shapes.AddGeometry(grown.GetGeometryRef(i))
+            covers[objl] = shapes.UnionCascaded() if shapes.GetGeometryCount() else None
+        return covers[objl]
+
+    def uncharted(objl, geom):
+        covered = cover(objl)
+        if covered is None or not covered.Intersects(geom):
+            return geom
+        return parts_of_dimension(geom.Difference(covered), geom.GetDimension())
+
+    return uncharted
