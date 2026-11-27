@@ -398,7 +398,10 @@ def build_index(work, assets_path, old_index_path, out_dir):
     for name, previous in missed_his.items():
         release = assets[previous['reduced']['asset']]['release']
         entries[name] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
-    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(surveys, entries)}
+    # A retained square counts for its regions like a discovered one, or a
+    # region whose squares the overview all missed would never be built.
+    counted = surveys + [{'name': name, 'regions': e['regions']} for name, e in missed_his.items()]
+    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(counted, entries)}
     footprints = {
         'type': 'FeatureCollection',
         'features': [

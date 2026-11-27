@@ -222,3 +222,4 @@ def test_a_his_square_the_overview_missed_keeps_its_reduction(tmp_path, monkeypa
     mirror.build_index(*map(str, paths))
     index = json.loads((tmp_path / 'out' / 'mirror-index.json').read_text())
     assert survey['name'] in index['surveys']
+    assert index['regions'] == {'estonia': {'surveys': 1, 'mirrored': 1}}
