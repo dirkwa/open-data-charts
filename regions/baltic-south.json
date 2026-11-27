@@ -1,0 +1,61 @@
+{
+  "id": "baltic-south",
+  "name": "Southern Baltic: Öland and Bornholm Basin to the Gulf of Riga",
+  "bbox": [
+    15.48,
+    53.76,
+    24.6,
+    57.32
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "emodnet-human-activities",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
+  ],
+  "osm": [
+    [
+      "https://geo2day.com/europe/sweden.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/poland/pomorskie.pbf",
+      "https://download.geofabrik.de/europe/poland/pomorskie-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/poland/pomorskie-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/poland/zachodniopomorskie.pbf",
+      "https://download.geofabrik.de/europe/poland/zachodniopomorskie-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/poland/zachodniopomorskie-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/poland/warminsko_mazurskie.pbf",
+      "https://download.geofabrik.de/europe/poland/warminsko-mazurskie-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/poland/warminsko_mazurskie-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/russia/kaliningrad-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/russia/northwestern_federal_district/kaliningrad_oblast-latest.osm.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/lithuania-latest.osm.pbf",
+      "https://geo2day.com/europe/lithuania.pbf"
+    ],
+    [
+      "https://download.geofabrik.de/europe/latvia-latest.osm.pbf",
+      "https://geo2day.com/europe/latvia.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore installations, pipelines, cables, military areas, dumped munitions, and UKHO worldwide wreck locations, CC BY 4.0; not suitable for navigation"
+  ]
+}
