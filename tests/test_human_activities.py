@@ -112,12 +112,33 @@ def test_cables_and_pipelines_are_cut_to_the_box_and_only_laid_ones_charted(tmp_
         (line, {'status': 'Active', 'name': 'Nord Stream'}),
         (line, {'status': 'Under construction'}),
         (line, {'status': 'planned'}),
+        (line, {'status': 'Proposed'}),
+        (line, {'status': 'Dismantled'}),
+        (line, {'status': 'Abandoned', 'name': 'Old line'}),
     )
     found = human_activities.layers(tmp_path, BBOX, {})
     (cable, attrs, _), (_, building, _) = found['CBLSUB']
     assert attrs == {'CATCBL': '1', 'OBJNAM': 'Baltic Cable'} and abs(cable.Length() - 0.5) < 1e-9
     assert building == {'CATCBL': '1', 'CONDTN': 1}
-    assert [attrs for _, attrs, _ in found['PIPSOL']] == [{'OBJNAM': 'Nord Stream'}, {'CONDTN': 1}]
+    assert [attrs for _, attrs, _ in found['PIPSOL']] == [
+        {'OBJNAM': 'Nord Stream'},
+        {'CONDTN': 1},
+        {'OBJNAM': 'Old line'},
+    ]
+
+
+def test_platforms_under_construction_say_so_and_disused_ones_stay(tmp_path):
+    write(
+        tmp_path,
+        'platforms',
+        (point(0.1, 0.1), {'category': 'Subsea steel', 'current_status': 'Under construction'}),
+        (point(0.2, 0.1), {'category': 'Subsea steel', 'current_status': 'Operational'}),
+        (point(0.3, 0.1), {'category': 'Fixed steel', 'current_status': 'Under construction'}),
+        (point(0.4, 0.1), {'category': 'Fixed steel', 'current_status': 'Decommissioned'}),
+    )
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a.get('CONDTN') for _, a, _ in found['OBSTRN']] == [1, None]
+    assert [a.get('CONDTN') for _, a, _ in found['OFSPLF']] == [1, None]
 
 
 def test_military_areas_in_force_and_munitions_dumps(tmp_path):
