@@ -88,3 +88,11 @@ def test_no_region_s_releases_are_taken_for_another_s_buckets():
     # units-<region>-<hex digit> are a region's bucket releases (odc.index.release_tag).
     ids = {os.path.basename(path)[: -len('.json')] for path in REGIONS}
     assert not [i for i in ids if i[-2] == '-' and i[-1] in '0123456789abcdef' and i[:-2] in ids]
+
+
+def test_a_region_with_emodnet_human_activities_credits_it():
+    from odc.human_activities import ATTRIBUTION
+
+    for path in REGIONS:
+        region = load(path)
+        assert ('emodnet-human-activities' in region['sources']) == (ATTRIBUTION in region.get('attribution', []))

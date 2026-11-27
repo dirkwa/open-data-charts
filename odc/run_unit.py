@@ -112,6 +112,7 @@ def build_args(inputs, surveys_dir, mirror_index, unit_id, work, geojson):
         '--osm': os.path.join(inputs, 'osm.geojsonseq'),
         '--seamarks': os.path.join(inputs, 'seamarks.geojsonseq'),
         '--his': os.path.join(inputs, 'his.geojsonseq'),
+        '--human-activities': os.path.join(inputs, 'human-activities'),
         '--water': os.path.join(inputs, 'water.geojsonseq'),
         '--nc-reefs': os.path.join(inputs, 'nc', 'reefs.geojson'),
         '--nc-structures': os.path.join(inputs, 'nc', 'structures.geojson'),

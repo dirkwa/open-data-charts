@@ -35,7 +35,7 @@ import time
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-from odc import chart, osm, seamarks, vta_his
+from odc import chart, human_activities, osm, seamarks, vta_his
 from odc.grid import GRID_STEP, MAX_ZOOM, UNIT_ZOOM, Unit, cell_x, cell_y, mercator_pixel
 
 gdal.UseExceptions()
@@ -1777,6 +1777,9 @@ def main():
     ap.add_argument('--surveys', help='mirror-index.json, or a JSON list of surveys (name, start, end, tecsou)')
     ap.add_argument('--maxzoom', type=int, default=MAX_ZOOM, help='max tile zoom (SOUNDG thinning)')
     ap.add_argument('--osm', help='GeoJSONSeq from osmium export of the filtered extract (odc.osm)')
+    ap.add_argument(
+        '--human-activities', help='EMODnet Human Activities layers (odc.sources): wind farms, cables, wrecks'
+    )
     ap.add_argument('--seamarks', help='GeoJSONSeq of OSM seamark:* objects (odc.sources), for waters without Shom WFS')
     ap.add_argument('--his', help='GeoJSONSeq of Estonian rocks, wrecks and obstructions (odc.vta_his)')
     ap.add_argument('--water', help='GeoJSONSeq of OSM water areas (odc.sources), cut out of the land')
@@ -1835,19 +1838,27 @@ def main():
         layers.setdefault(objl, []).extend(items)
     for objl, items in marine_layers.items():
         layers.setdefault(objl, []).extend(items)
+    # Estonia's own hydrographic office stands over EMODnet's and OSM's wrecks.
+    if args.his:
+        step('HIS rocks, wrecks and obstructions')
+        for objl, items in his_layers(args.his, args.bbox, args.maxzoom).items():
+            layers.setdefault(objl, []).extend(items)
+    if args.human_activities:
+        step('EMODnet Human Activities')
+        found = human_activities.layers(args.human_activities, bbox_geom, layers)
+        for objl, items in found.items():
+            layers.setdefault(objl, []).extend(items)
     if args.seamarks:
         step('OSM seamarks')
         charted = shom_aids_near(args.wfs, attributes, classes, args.bbox)
-        # Shom's or a chart's own traffic schemes and areas stand where they chart them.
+        # Shom's, a chart's or EMODnet's own traffic schemes, areas and wrecks stand where they chart them.
         elsewhere = seamarks.outlined_in({objl: list(layers.get(objl, ())) for objl in seamarks.OUTLINED_CLASSES})
         marks = seamarks.seamark_layers(
             osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted, elsewhere
         )
+        if 'WRECKS' in marks:
+            marks['WRECKS'] = human_activities.not_charted_wrecks(marks['WRECKS'], layers.get('WRECKS', ()))
         for objl, items in marks.items():
-            layers.setdefault(objl, []).extend(items)
-    if args.his:
-        step('HIS rocks, wrecks and obstructions')
-        for objl, items in his_layers(args.his, args.bbox, args.maxzoom).items():
             layers.setdefault(objl, []).extend(items)
     if args.nc_structures:
         step('OBLIC coastal structures')

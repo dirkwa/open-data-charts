@@ -16,7 +16,7 @@ import sys
 import numpy as np
 from osgeo import gdal, ogr
 
-from odc import attribution, build_unit, chart, seamarks, shom, sources
+from odc import attribution, build_unit, chart, human_activities, seamarks, shom, sources
 from odc.grid import Unit, units_in
 from odc.mirror import MIRROR_TAG
 
@@ -35,6 +35,7 @@ BUILDER_FILES = (
     'odc/hillshade.py',
     'odc/linz_hydro_layers.json',
     'odc/grid.py',
+    'odc/human_activities.py',
     'odc/osm.py',
     'odc/tile.py',
     'odc/run_unit.py',
@@ -246,6 +247,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
         aids = with_seamarks and build_unit.wfs_layer_class(build_unit.wfs_layer(path)) in seamarks.AID_CLASSES
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, seamarks.aid_window if aids else None)
+    for path in human_activities.layer_files(os.path.join(inputs, 'human-activities')):
+        add_feature_collection(digests, 'human-activities ' + os.path.basename(path), path)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
     for path in chart.chart_files(os.path.join(inputs, 'chart')):
