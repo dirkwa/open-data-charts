@@ -102,7 +102,7 @@ Shares of the unit's water area, by where its depths come from:
 | `multibeam` | Multibeam survey | multibeam or lidar survey ended 2005 or later |
 | `survey-recent` | Survey since 1990 | any other survey ended 1990 or later |
 | `survey-old` | Survey before 1990 | single-beam or lead-line survey before 1990 |
-| `chart` | Official chart | depth areas, contours and soundings taken from a hydrographic office's chart data (LINZ's for New Zealand) |
+| `chart` | Official chart | depth areas, contours and soundings taken from a hydrographic office's chart data (LINZ's for New Zealand, the Estonian Transport Administration's soundings) |
 | `model` | Model only | no survey; depths from a bathymetric model (100 m or coarser) |
 | `satellite` | Satellite-derived | no survey or model; coarse depth bands from satellite-derived bathymetry (Allen Coral Atlas, 10 m pixels, to about 20 m) |
 | `model-coarse` | Deep water, coarse model | no survey or finer model; deep water (200 m and more) from a global model at about 460 m |

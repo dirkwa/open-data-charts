@@ -232,22 +232,25 @@ for the depths, aids, hazards and areas of the regions that list
 
 The Estonian Transport Administration's (Transpordiamet) rocks, wrecks and
 obstructions from its hydrographic information system (HIS), through its
-open WFS (`https://his.vta.ee:8443/HIS/WFS`). The administration's
-hydrographic department allows their use for these charts with a reference
-to the data source, on three conditions: not for navigation, not for sale,
+open WFS (`https://his.vta.ee:8443/HIS/WFS`), and its spot soundings, read
+from the images of its open WMS (`https://his.vta.ee:8443/HIS/WMS`). The
+administration's hydrographic department allows the use of both services
+for these charts with a reference to the data source, on three conditions: not for navigation, not for sale,
 and not for use in derived products intended for sale (November 2026). The
 ODbL under which a chart unit is published grants no rights in these
 objects, which stay subject to those conditions. The notice every unit
 built from them carries in its attribution:
 
 > Source: Estonian Transport Administration (Transpordiamet), hydrographic
-> information system (https://his.vta.ee:8443/HIS/WFS): rocks, wrecks and
-> obstructions. Not for navigation. Not for sale; not to be used in derived
+> information system (https://his.vta.ee:8443/HIS/WFS and /HIS/WMS): rocks,
+> wrecks and obstructions, and spot soundings read from its map images. Not
+> for navigation. Not for sale; not to be used in derived
 > products intended for sale. The ODbL of these charts grants no rights in
 > this data
 
-Used by the regions that list `vta-his`. Rocks deeper than 10 m are left
-out; rocks of unknown depth are kept.
+Used by the regions that list `vta-his` (rocks, wrecks, obstructions) or
+`vta-his-depth` (soundings). Rocks deeper than 10 m are left out; rocks of
+unknown depth are kept.
 
 ## Traficom (Finland)
 

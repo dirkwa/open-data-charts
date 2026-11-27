@@ -1,13 +1,15 @@
 """The survey mirror: every survey of the configured regions, from Shom
 (`shom-surveys` in a region's sources), from BSH's SVDB (`bsh-surveys`,
 odc.svdb), from Geoscience Australia's AusSeabed (`ausseabed-surveys`,
-odc.ausseabed) and the packages of Shom and IGN's Litto3D lidar models
-(`shom-litto3d`, odc.litto3d), reduced once to the global grid and kept as a
-release asset.
+odc.ausseabed), the Estonian Transport Administration's spot soundings
+read from its WMS (`vta-his-depth`, odc.his_depth) and the packages of
+Shom and IGN's Litto3D lidar models (`shom-litto3d`, odc.litto3d), reduced
+once to the global grid and kept as a release asset.
 
 A reduced survey's asset is named after the survey and the md5 of its
 source files (for SVDB, of its metadata; for AusSeabed, of its archive's
-link, size and ETag and of its LAT separation), `<survey>.<md5-12>.npz`, so the asset list alone tells which
+link, size and ETag and of its LAT separation; for HIS, of its square and
+odc.his_depth.EDITION), `<survey>.<md5-12>.npz`, so the asset list alone tells which
 surveys are current. A run that stops halfway loses nothing: the next one
 finds the assets it already uploaded.
 
@@ -36,7 +38,7 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 
-from odc import ausseabed, litto3d, shom, svdb
+from odc import ausseabed, his_depth, litto3d, shom, svdb
 from odc.reduce_survey import reduce_stream, save
 
 INDEX_SCHEMA_VERSION = 1
@@ -109,6 +111,9 @@ def discover(regions_dir):
     australian = load_regions(regions_dir, 'ausseabed-surveys')
     if australian:
         surveys += ausseabed.discover({region['id']: region['bbox'] for region in australian})
+    estonian = load_regions(regions_dir, 'vta-his-depth')
+    if estonian:
+        surveys += his_depth.discover({region['id']: region['bbox'] for region in estonian})
     lidar = load_regions(regions_dir, 'shom-litto3d')
     if lidar:
         datums = litto3d.datums_id()
@@ -148,7 +153,9 @@ def plan(regions_dir, assets_path, work, max_bytes=SHARD_BYTES, max_shards=MAX_S
     todo = [s for s in surveys if not s.get('held') and asset_name(s) not in have]
     with open(os.path.join(work, 'discovery.json'), 'w', encoding='utf-8') as fh:
         json.dump(surveys, fh)
-    shards = shard(todo, max_bytes)
+    # HIS squares get shards of their own, read by few workers (odc.his_depth.WORKERS).
+    his = [s for s in todo if s.get('provider') == 'vta-his-depth']
+    shards = shard([s for s in todo if s.get('provider') != 'vta-his-depth'], max_bytes) + shard(his, max_bytes)
     later = shards[max_shards:]
     shards = shards[:max_shards]
     for i, s in enumerate(shards):
@@ -168,10 +175,14 @@ PROVIDERS = {'bsh-svdb': svdb, 'ausseabed': ausseabed}
 
 
 def reduce_survey(survey, out_dir, separations=None, datums=None):
-    if survey.get('provider') == 'shom-litto3d':
+    if survey.get('provider') in ('shom-litto3d', 'vta-his-depth'):
         started = time.monotonic()
         path = os.path.join(out_dir, asset_name(survey))
-        result = litto3d.reduce_survey(survey, path, datums)
+        if survey['provider'] == 'shom-litto3d':
+            result = litto3d.reduce_survey(survey, path, datums)
+        else:
+            # HIS depths are on the Estonian chart datum (EH2000) already.
+            result = his_depth.reduce_survey(survey, path)
         return {
             'name': survey['name'],
             **result,
@@ -255,6 +266,8 @@ def reduce_shard(shard_path, out_dir, budget_s=REDUCE_BUDGET_S):
     jobs = [(survey['name'], (reduce_survey, survey, out_dir, separations, datums)) for survey in surveys]
     deadline = time.monotonic() + budget_s
     workers = os.cpu_count() or 1
+    if providers == {'vta-his-depth'}:
+        workers = min(workers, his_depth.WORKERS)
     with ProcessPoolExecutor(workers) as pool:
         finished = run_until(pool, jobs, workers, deadline)
         for name, future in finished:
@@ -294,6 +307,12 @@ def index_entry(survey, asset):
             'title': survey['title'],
             'kind': survey['kind'],
             'source': {'layer': survey['layer'], 'md5': survey['md5']},
+        }
+    elif survey.get('provider') == 'vta-his-depth':
+        provider = {
+            'provider': 'vta-his-depth',
+            'title': survey['title'],
+            'source': {'block': survey['block'], 'edition': his_depth.EDITION, 'md5': survey['md5']},
         }
     elif survey.get('provider') == 'ausseabed':
         provider = {
@@ -349,7 +368,18 @@ def build_index(work, assets_path, old_index_path, out_dir):
     surveys = json.load(open(os.path.join(work, 'discovery.json'), encoding='utf-8'))
     assets = {a['name']: a for a in json.load(open(assets_path, encoding='utf-8'))}
     old = json.load(open(old_index_path, encoding='utf-8')) if old_index_path != '-' else {'surveys': {}}
-    if len(surveys) < MIN_KEPT_SHARE * len(old['surveys']):
+    # A HIS square is found only where an overview draws something; one that
+    # an overview missed this time keeps its reduction until EDITION changes.
+    found = {s['name'] for s in surveys}
+    missed_his = {
+        name: previous
+        for name, previous in old['surveys'].items()
+        if name not in found
+        and previous.get('provider') == 'vta-his-depth'
+        and previous['source'].get('edition') == his_depth.EDITION
+        and previous['reduced']['asset'] in assets
+    }
+    if len(surveys) + len(missed_his) < MIN_KEPT_SHARE * len(old['surveys']):
         raise SystemExit(f'discovery found {len(surveys)} surveys, the mirror has {len(old["surveys"])}: not replacing')
     entries, missing = {}, []
     for survey in surveys:
@@ -365,7 +395,13 @@ def build_index(work, assets_path, old_index_path, out_dir):
         if previous and previous['reduced']['asset'] in assets:
             release = assets[previous['reduced']['asset']]['release']
             entries[survey['name']] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
-    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(surveys, entries)}
+    for name, previous in missed_his.items():
+        release = assets[previous['reduced']['asset']]['release']
+        entries[name] = {**previous, 'reduced': {**previous['reduced'], 'release': release}}
+    # A retained square counts for its regions like a discovered one, or a
+    # region whose squares the overview all missed would never be built.
+    counted = surveys + [{'name': name, 'regions': e['regions']} for name, e in missed_his.items()]
+    index = {'schemaVersion': INDEX_SCHEMA_VERSION, 'surveys': entries, 'regions': region_counts(counted, entries)}
     footprints = {
         'type': 'FeatureCollection',
         'features': [
