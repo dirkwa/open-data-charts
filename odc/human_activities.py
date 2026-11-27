@@ -3,8 +3,9 @@ wind farms, platforms, cables, pipelines, military areas, dumped munitions
 and UKHO's worldwide wreck list, as S-57 objects.
 
 Only what is in the water now is charted: planned, approved and dismantled
-wind farms, planned cables and pipelines, planned or deactivated military
-areas and lifted wrecks are left out. A Shom, chart or earlier object of the
+wind farms, cables and pipelines not yet laid, planned or deactivated
+military areas and lifted wrecks are left out; what is being built is
+charted under construction. A Shom, chart or earlier object of the
 same class is cut out of an EMODnet one (see `layers`).
 """
 
@@ -37,7 +38,8 @@ LAYERS = (
     *TELECOM_CABLES,
 )
 WIND_FARM_BUILT = {'Production': None, 'Construction': 1}  # -> CONDTN, 1 = under construction
-NOT_LAID = {'planned', 'approved', 'application submitted'}
+NOT_LAID = {'planned', 'approved', 'applicationsubmitted'}
+UNDER_CONSTRUCTION = 'underconstruction'
 MILITARY_IN_FORCE = {'Active', 'Unknown'}
 CATMPA = {'Firing Area': 4, 'Mine Hunting Exercise': 5, 'Underwater Exercise': 3}
 CATWRK = {
@@ -101,19 +103,28 @@ def platform(p):
     return 'OFSPLF', attrs
 
 
-def laid(p):
-    return (text(p.get('status')) or '').lower() not in NOT_LAID
+def status(p):
+    """The status without case, spaces or separators: the layers spell one
+    status several ways (Under construction, UnderConstruction)."""
+    return ''.join(ch for ch in (text(p.get('status')) or '').lower() if ch.isalnum())
+
+
+def laid(objl, attrs, p):
+    """A cable or pipeline in the water, CONDTN 1 while it is being laid."""
+    if status(p) in NOT_LAID:
+        return None
+    if status(p) == UNDER_CONSTRUCTION:
+        attrs['CONDTN'] = 1
+    return objl, attrs
 
 
 def pipeline(p):
-    return ('PIPSOL', named({}, p.get('name'))) if laid(p) else None
+    return laid('PIPSOL', named({}, p.get('name')), p)
 
 
 def cable(category):
     def convert(p):
-        if (p.get('status') or '') in ('Planned', 'Approved'):
-            return None
-        return 'CBLSUB', named({'CATCBL': str(category)}, p.get('name_'))
+        return laid('CBLSUB', named({'CATCBL': str(category)}, p.get('name_')), p)
 
     return convert
 
@@ -183,7 +194,8 @@ def fetch(bbox, target, get_json):
         page = get_json(request(layer, bbox))
         features = page.get('features') or []
         matched = page.get('numberMatched')
-        if isinstance(matched, int) and matched != len(features):
+        # A total the service cannot give is no proof the answer is whole.
+        if not isinstance(matched, int) or matched != len(features):
             raise RuntimeError(f'EMODnet Human Activities answered {len(features)} of {matched} {layer}')
         features.sort(key=lambda f: str(f.get('id')))
         path = os.path.join(target, f'{layer}.json')

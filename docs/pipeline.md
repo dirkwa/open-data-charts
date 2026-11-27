@@ -100,8 +100,9 @@ EMODnet Human Activities' wind farms, offshore installations, pipelines,
 power and telecom cables, military areas and dumped munitions, and UKHO's
 worldwide wreck list, which EMODnet republishes (`odc/human_activities.py`).
 Only what is in the water now is charted: planned and dismantled wind
-farms, planned cables and pipelines, planned or deactivated military areas
-and lifted wrecks are left out. A wreck's depth is charted only where it is
+farms, cables and pipelines planned, approved or applied for, planned or
+deactivated military areas and lifted wrecks are left out; wind farms,
+cables and pipelines under construction are charted as such (`CONDTN`). A wreck's depth is charted only where it is
 given on a low-water datum (LAT, MLWS, LLW); one on mean sea level keeps
 its symbol without a depth. Shom's or a published chart's object of the
 same class stands over EMODnet's, and EMODnet's over OpenStreetMap's: what

@@ -96,19 +96,28 @@ def test_osm_wrecks_near_a_charted_one_are_left_out():
     assert [g.GetX() for g, _, _ in kept] == [0.2]
 
 
-def test_cables_and_pipelines_are_cut_to_the_box_and_planned_ones_left_out(tmp_path):
+def test_cables_and_pipelines_are_cut_to_the_box_and_only_laid_ones_charted(tmp_path):
     line = {'type': 'LineString', 'coordinates': [[0.5, 0.5], [2.0, 0.5]]}
     write(
         tmp_path,
         'pcablesbshcontis',
         (line, {'status': 'inUse', 'name_': 'Baltic Cable'}),
+        (line, {'status': 'UnderConstruction'}),
         (line, {'status': 'Planned'}),
+        (line, {'status': 'application submitted'}),
     )
-    write(tmp_path, 'pipelines', (line, {'status': 'Active', 'name': 'Nord Stream'}), (line, {'status': 'Planned'}))
+    write(
+        tmp_path,
+        'pipelines',
+        (line, {'status': 'Active', 'name': 'Nord Stream'}),
+        (line, {'status': 'Under construction'}),
+        (line, {'status': 'planned'}),
+    )
     found = human_activities.layers(tmp_path, BBOX, {})
-    ((cable, attrs, _),) = found['CBLSUB']
+    (cable, attrs, _), (_, building, _) = found['CBLSUB']
     assert attrs == {'CATCBL': '1', 'OBJNAM': 'Baltic Cable'} and abs(cable.Length() - 0.5) < 1e-9
-    assert [attrs for _, attrs, _ in found['PIPSOL']] == [{'OBJNAM': 'Nord Stream'}]
+    assert building == {'CATCBL': '1', 'CONDTN': 1}
+    assert [attrs for _, attrs, _ in found['PIPSOL']] == [{'OBJNAM': 'Nord Stream'}, {'CONDTN': 1}]
 
 
 def test_military_areas_in_force_and_munitions_dumps(tmp_path):
@@ -130,6 +139,12 @@ def test_a_layer_the_service_answers_in_part_fails_the_fetch(tmp_path):
 
     with pytest.raises(RuntimeError, match='0 of 3'):
         human_activities.fetch((0, 0, 1, 1), str(tmp_path), get_json)
+
+
+def test_a_layer_answered_without_a_total_fails_the_fetch(tmp_path):
+    for page in ({'features': []}, {'features': [], 'numberMatched': 'unknown'}):
+        with pytest.raises(RuntimeError):
+            human_activities.fetch((0, 0, 1, 1), str(tmp_path), lambda url, page=page: page)
 
 
 def test_the_fetch_asks_for_the_box_in_lat_lon_order(tmp_path):
