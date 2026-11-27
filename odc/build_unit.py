@@ -561,13 +561,13 @@ def shoalest(key, *cols):
     return [c[order][first] for c in cols]
 
 
-def thin_soundings(lon, lat, z, maxzoom, model=None):
+def thin_soundings(lon, lat, z, maxzoom, model=None, minzoom_from=SOUNDING_MINZOOM):
     """minzoom per sounding, -1 for the ones no zoom shows. Model soundings
     take a square only where no survey sounding is left for it."""
     minzoom = np.full(len(z), -1, np.int8)
     model = np.zeros(len(z), bool) if model is None else model
     order = np.lexsort((z, model))  # surveys first, each shoalest first
-    for zoom in range(SOUNDING_MINZOOM, maxzoom + 1):
+    for zoom in range(minzoom_from, maxzoom + 1):
         k = sounding_squares(lon, lat, zoom)
         taken = np.unique(k[minzoom >= 0])
         cand = order[minzoom[order] < 0]
@@ -581,7 +581,9 @@ def thin_soundings(lon, lat, z, maxzoom, model=None):
 
 def his_layers(path, bbox, maxzoom):
     """HIS objects per class; rocks lie by the thousand along surveyed
-    shores, so like soundings each zoom shows the shoalest rock per square."""
+    shores, so like soundings each zoom shows the shoalest rock per square,
+    from the unit's own zoom on: a rock is a danger, and the overview chart
+    is made from that zoom."""
     layers, rocks = {}, []
     for objl, lon, lat, attrs, ident in vta_his.read(path, bbox):
         point = ogr.Geometry(ogr.wkbPoint)
@@ -596,7 +598,7 @@ def his_layers(path, bbox, maxzoom):
         lat = np.array([g.GetY() for g, _, _ in rocks])
         # A rock of unknown depth may be awash, so it wins its square like the shoalest.
         z = np.array([a.get('VALSOU', 0.0) for _, a, _ in rocks], np.float32)
-        minzoom = thin_soundings(lon, lat, z, maxzoom)
+        minzoom = thin_soundings(lon, lat, z, maxzoom, minzoom_from=UNIT_ZOOM)
         layers['UWTROC'] = []
         for i in np.flatnonzero(minzoom >= 0):
             geom, attrs, ident = rocks[i]

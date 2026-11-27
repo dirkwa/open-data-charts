@@ -97,6 +97,8 @@ the index and the docs say so.
   second, raster MBTiles (z9 to z12, WebP) shaded per zoom on the global
   Web-Mercator pixel grid.
 - `odc/run_unit.py`: builds and tiles the units of one CI job.
+- `odc/overview.py` and `overviews/<id>.json`: a sea's overview chart,
+  zooms 4 to 8, made from the z9 tiles of its regions' published units.
 - `odc/index.py`: the published index, coverage and the retirement ledger.
 - `schema/open-data-index.schema.json` and `docs/index-format.md`: the
   index contract. `docs/pipeline.md`: pipeline notes and measurements.
@@ -115,6 +117,9 @@ the index and the docs say so.
   version's first hex digit) and deploys the index to Pages.
 - `aca-depth.yml` (manual, with the link of an Allen Coral Atlas download
   package): adds the package's satellite depths to the `aca-depth` release.
+- `build-overview.yml` (weekly, one sea a week in turn): rebuilds a sea's
+  overview when one of its units changed, uploads it to `overview-<id>`
+  and sets it as the overview of the sea's regions in the index.
 - `builder-image.yml`: builds the builder image. `ci.yml`: lint and tests.
 
 Scheduled runs are no-ops when nothing changed. A run that stops halfway

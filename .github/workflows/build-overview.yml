@@ -1,0 +1,212 @@
+name: Build overview
+
+# Builds a sea's overview chart (odc.overview) from the z9 tiles of every
+# published unit of its regions, uploads it to the release overview-<id> and
+# sets it as the overview of those regions in the index on Pages. A run is a
+# no-op while the overview's version (its units' versions) is the one the
+# index lists. The weekly run takes the overviews in turn. Publishing follows
+# ODC_PUBLISH like build-units, and shares its concurrency group: both write
+# the one index.
+
+on:
+  schedule:
+    - cron: '17 9 * * 0'
+  workflow_dispatch:
+    inputs:
+      overview:
+        description: Overview id (overviews/<id>.json); empty for the overview of the week
+        default: ''
+      publish:
+        description: Upload the overview and publish the index
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: mirror-and-units
+  cancel-in-progress: false
+  queue: max
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  PAGES_URL: https://dirkwa.github.io/open-data-charts
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      overview: ${{ steps.pick.outputs.overview }}
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pick the overview
+        id: pick
+        env:
+          REQUESTED: ${{ inputs.overview }}
+        run: |
+          if [ -n "$REQUESTED" ]; then
+            overview="$REQUESTED"
+          else
+            mapfile -t ids < <(ls overviews/*.json | xargs -n1 basename | sed 's/\.json$//' | sort)
+            overview="${ids[$(( $(date -u +%s) / 604800 % ${#ids[@]} ))]}"
+          fi
+          [ -f "overviews/$overview.json" ] || { echo "::error::no overviews/$overview.json"; exit 1; }
+          echo "overview=$overview" >> "$GITHUB_OUTPUT"
+          echo "OVERVIEW=$overview" >> "$GITHUB_ENV"
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Download the published site
+        run: |
+          mkdir -p old
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
+            status=$(curl -sSL --retry 3 -o "old/$f" -w '%{http_code}' "$PAGES_URL/$f")
+            case "$status" in
+              200) ;;
+              404) rm -f "old/$f" ;;
+              *) echo "::error::$PAGES_URL/$f answered $status"; exit 1 ;;
+            esac
+          done
+      - name: Compare with the listed overview
+        id: version
+        run: |
+          if [ ! -f old/open-data-index.json ]; then
+            echo "No index yet"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.overview version "overviews/$OVERVIEW.json" old/open-data-index.json)
+          # Every listed region must carry this version: one published since the last run has none yet.
+          listed=$(jq -r --slurpfile o "overviews/$OVERVIEW.json" \
+            '[.regions[] | select(.id as $id | $o[0].regions | index($id)) | .overview.version // ""] | unique | join(" ")' \
+            old/open-data-index.json)
+          echo "$OVERVIEW: version ${version:-none}, listed ${listed:-none}"
+          if [ -z "$version" ] || [ "$listed" = "$version" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Collect the units' z9 tiles and tile the overview
+        if: steps.version.outputs.build == 'true'
+        run: |
+          mkdir -p work && chmod 777 work
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src odc-builder sh -c "
+            python3 -m odc.overview collect overviews/$OVERVIEW.json old/open-data-index.json work &&
+            python3 -m odc.overview tile overviews/$OVERVIEW.json old/open-data-index.json work work/overview.mbtiles"
+      - if: steps.version.outputs.build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: overview
+          path: |
+            work/overview.mbtiles
+            old
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: needs.build.outputs.build == 'true' && (vars.ODC_PUBLISH == 'true' || inputs.publish)
+    runs-on: ubuntu-latest
+    env:
+      OVERVIEW: ${{ needs.build.outputs.overview }}
+    # The branch policy of github-pages also gates the release uploads and deletions below.
+    environment:
+      name: github-pages
+    outputs:
+      changed: ${{ steps.index.outputs.changed }}
+      pages-artifact: ${{ steps.index.outputs.pages-artifact }}
+      baseline: ${{ steps.index.outputs.baseline }}
+      asset: ${{ steps.upload.outputs.asset }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: overview
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Upload the overview
+        id: upload
+        run: |
+          version=$(docker run --rm -v "$PWD:/src" -w /src odc-builder python3 -c \
+            "import sqlite3; print(sqlite3.connect('work/overview.mbtiles').execute(\"SELECT value FROM metadata WHERE name = 'x-odc-version'\").fetchone()[0])")
+          tag="overview-$OVERVIEW"
+          gh release view "$tag" >/dev/null 2>&1 ||
+            gh release create "$tag" --latest=false --title "Open Data Charts overview: $OVERVIEW" \
+              --notes 'Overview chart built from the chart units. NOT FOR NAVIGATION. Licence: ODbL 1.0 (see LICENSE-DATA.md).'
+          asset="overview-$OVERVIEW.$version.mbtiles"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          # A released version is never replaced: an index may already list
+          # it, so a retry indexes the released file rather than a new one.
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qxF "$asset"; then
+            gh release download "$tag" --pattern "$asset" --output work/overview.mbtiles --clobber
+          else
+            cp work/overview.mbtiles "$asset"
+            gh release upload "$tag" "$asset"
+          fi
+      - name: Write the index
+        id: index
+        run: |
+          mkdir -p site && chmod 777 site
+          gh release view "overview-$OVERVIEW" --json assets --jq '[.assets[].name]' > released.json
+          docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src \
+            odc-builder python3 -m odc.index overview "overviews/$OVERVIEW.json" work/overview.mbtiles old released.json site
+          # Pages serves the whole site from this artifact: carry over what an overview does not change.
+          if [ -f old/coverage.geojson ]; then cp old/coverage.geojson site/; fi
+          cp schema/open-data-index.schema.json site/
+          changed=false
+          for f in open-data-index.json retired.json coverage.geojson open-data-index.schema.json; do
+            cmp -s "site/$f" "old/$f" || changed=true
+          done
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          # A re-run attempt uploads its own artifact: deploy-pages refuses a run with two of one name.
+          echo "pages-artifact=github-pages-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+          echo "baseline=$(sha256sum old/open-data-index.json | cut -c1-64)" >> "$GITHUB_OUTPUT"
+      - if: steps.index.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+          name: ${{ steps.index.outputs.pages-artifact }}
+          retention-days: 14
+      # A retry that starts from a baseline another run has since replaced may
+      # retire an asset that run brought back: delete nothing then.
+      - name: Check that the served index is still the one this run started from
+        env:
+          BASELINE: ${{ steps.index.outputs.baseline }}
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
+      - name: Remove overviews past their grace period
+        run: |
+          for name in $(jq -r '.[]' site/delete-assets.json); do
+            gh release delete-asset "overview-$OVERVIEW" "$name" --yes || true
+          done
+
+  # Its own job, as in build-units: a failed deployment can be re-run alone.
+  deploy:
+    needs: [build, publish]
+    if: always() && needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Check that the served index is still the one this artifact was built on
+        env:
+          BASELINE: ${{ needs.publish.outputs.baseline }}
+        run: bash .github/scripts/check-served-index.sh "$BASELINE"
+      # The index this artifact holds lists the overview; a retry deploys it
+      # only while the release still has it.
+      - name: Check that the release still has the overview
+        env:
+          ASSET: ${{ needs.publish.outputs.asset }}
+          OVERVIEW: ${{ needs.build.outputs.overview }}
+        run: |
+          gh release view "overview-$OVERVIEW" --json assets --jq '.assets[].name' | grep -qxF "$ASSET" ||
+            { echo "::error::overview-$OVERVIEW has no $ASSET"; exit 1; }
+      - uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.publish.outputs.pages-artifact }}

@@ -1,0 +1,15 @@
+{
+  "id": "baltic",
+  "name": "Baltic Sea",
+  "regions": [
+    "baltic-south",
+    "baltic-stockholm-gotland",
+    "denmark",
+    "estonia",
+    "finland-central",
+    "finland-north",
+    "finland-south",
+    "germany-baltic",
+    "sweden-roslagen"
+  ]
+}

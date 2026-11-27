@@ -48,6 +48,23 @@ Polynesia with a sounding every few miles. Where neither a survey nor a model gi
 charts the satellite-derived depth bands where they cover the water (see
 *Satellite depths*), and marks the rest as unsurveyed.
 
+## Overviews
+
+`build-overview.yml` (weekly, one sea a week in turn, or by hand) makes a
+sea's overview (`odc/overview.py`) from the units the index publishes for
+the regions in `overviews/<id>.json`. A unit's z9 tile is already the unit
+at its coarsest, with every source's priority applied, so the overview
+downloads each unit, decodes that one tile, cuts it back to the unit (a
+tile reaches a buffer into its neighbours), keeps the classes a passage
+plan needs and tiles them again at zooms 4 to 8. Each unit's file is
+deleted once read. The run is a no-op while every region of the sea lists
+the overview's version, a hash of its units' versions and of the code.
+
+### Measured: 46 Danish and German units (2026-11-26)
+
+The overview of 46 units is 8.8 MB, 1.6 MB of it z4 to z6, in 31 s on a
+4-CPU machine, downloads included. No seam shows at the unit edges.
+
 ## Land and inland water
 
 The land comes from OpenStreetMap's land polygons, which follow the
