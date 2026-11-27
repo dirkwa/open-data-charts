@@ -542,6 +542,7 @@ def test_nonna_asks_for_nonna_10_only_where_nonna_100_has_data(monkeypatch, tmp_
 
 
 def test_nonna_waits_out_a_service_that_is_down_and_then_stops_the_region(monkeypatch, tmp_path):
+    import http.client
     import urllib.error
 
     from osgeo import gdal
@@ -551,7 +552,10 @@ def test_nonna_waits_out_a_service_that_is_down_and_then_stops_the_region(monkey
     answers = []
 
     def save_url(url, path, timeout=600):
-        if not answers.pop(0):
+        answer = answers.pop(0)
+        if answer == 'cut':
+            raise http.client.IncompleteRead(b'', 1000)
+        if not answer:
             raise urllib.error.HTTPError(url, 503, 'Service Unavailable', {}, None)
         ds = gdal.GetDriverByName('GTiff').Create(path, 4, 4, 1, gdal.GDT_Float32)
         ds.SetGeoTransform((-124.0, 0.25, 0.0, 50.0, 0.0, -0.25))
@@ -561,7 +565,7 @@ def test_nonna_waits_out_a_service_that_is_down_and_then_stops_the_region(monkey
 
     monkeypatch.setattr(sources, 'save_url', save_url)
     path = str(tmp_path / 'nonna.tif')
-    answers[:] = [False, False, True]
+    answers[:] = [False, 'cut', True]
     assert sources.nonna_coverage('100', (-124.0, 49.0, -123.0, 50.0), path, wait=0).all()
     answers[:] = [False] * sources.NONNA_ATTEMPTS
     with pytest.raises(sources.ServiceDown, match='not built'):

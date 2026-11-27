@@ -45,6 +45,7 @@ Usage: python3 -m odc.sources <region.json> <out dir> [source ...]
 import datetime
 import glob
 import hashlib
+import http.client
 import io
 import json
 import math
@@ -1428,7 +1429,7 @@ def nonna_coverage(name, bounds, path, wait=NONNA_RETRY_WAIT_S):
             time.sleep(wait * attempt)
         try:
             save_url(url, path, timeout=900)
-        except OSError as error:
+        except (OSError, http.client.HTTPException) as error:
             if shom.is_client_error(error):
                 raise
             print(f'NONNA-{name} {bounds}: {error}', flush=True)
