@@ -2,10 +2,10 @@
 wind farms, platforms, cables, pipelines, military areas, dumped munitions
 and UKHO's worldwide wreck list, as S-57 objects.
 
-Only what is in the water now is charted: planned, approved and dismantled
-wind farms, cables and pipelines not yet laid, planned or deactivated
-military areas and lifted wrecks are left out; what is being built is
-charted under construction. A Shom, chart or earlier object of the
+Planned, approved and dismantled wind farms, cables and pipelines not on
+the seabed, planned or deactivated military areas and lifted wrecks are
+left out; what is being built is charted under construction. Disused
+cables, pipelines and platforms are charted: they may still be there. A Shom, chart or earlier object of the
 same class is cut out of an EMODnet one (see `layers`).
 """
 
@@ -38,7 +38,9 @@ LAYERS = (
     *TELECOM_CABLES,
 )
 WIND_FARM_BUILT = {'Production': None, 'Construction': 1}  # -> CONDTN, 1 = under construction
-NOT_LAID = {'planned', 'approved', 'applicationsubmitted'}
+# Statuses of a cable or pipeline not on the seabed. One abandoned, out
+# of use or not in use still lies there and is charted: it fouls anchors.
+NOT_LAID = {'planned', 'proposed', 'approved', 'applicationsubmitted', 'dismantled', 'removed'}
 UNDER_CONSTRUCTION = 'underconstruction'
 MILITARY_IN_FORCE = {'Active', 'Unknown'}
 CATMPA = {'Firing Area': 4, 'Mine Hunting Exercise': 5, 'Underwater Exercise': 3}
@@ -95,12 +97,16 @@ def wind_farm(p):
 
 
 def platform(p):
+    """A platform or subsea structure, decommissioned and closed down ones
+    too: EMODnet does not say whether one was removed, and a structure that
+    still stands is the danger."""
     if p.get('category') == 'Subsea steel':
-        return 'OBSTRN', named({'CATOBS': str(CATOBS_WELLHEAD), 'WATLEV': 3}, p.get('name'))
-    attrs = named({}, p.get('name'))
+        objl, attrs = 'OBSTRN', named({'CATOBS': str(CATOBS_WELLHEAD), 'WATLEV': 3}, p.get('name'))
+    else:
+        objl, attrs = 'OFSPLF', named({}, p.get('name'))
     if p.get('current_status') == 'Under construction':
         attrs['CONDTN'] = 1
-    return 'OFSPLF', attrs
+    return objl, attrs
 
 
 def status(p):
