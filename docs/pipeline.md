@@ -104,9 +104,9 @@ farms, planned cables and pipelines, planned or deactivated military areas
 and lifted wrecks are left out. A wreck's depth is charted only where it is
 given on a low-water datum (LAT, MLWS, LLW); one on mean sea level keeps
 its symbol without a depth. Shom's or a published chart's object of the
-same class stands over EMODnet's, and EMODnet's over OpenStreetMap's: an
-outline that meets one charted in the same class, or a wreck within 150 m
-of a charted one, is left out. Between Bornholm and Gotland (54-58° N,
+same class stands over EMODnet's, and EMODnet's over OpenStreetMap's: what
+is charted in the same class is cut out of an outline, as for seamarks, and
+a wreck within 150 m of a charted one is left out. Between Bornholm and Gotland (54-58° N,
 14-21° E) this gives 1,394 wrecks, 23 military areas in force and the
 wind farms in production or under construction.
 

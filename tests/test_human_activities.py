@@ -3,7 +3,7 @@ import json
 import pytest
 from osgeo import ogr
 
-from odc import build_unit, human_activities
+from odc import build_unit, human_activities, seamarks
 
 BBOX = build_unit.bbox_polygon(0.0, 0.0, 1.0, 1.0)
 
@@ -59,22 +59,31 @@ def test_a_wreck_keeps_its_category_and_its_depth_only_on_a_low_water_datum(tmp_
     ]
 
 
-def test_what_another_source_charts_stands(tmp_path):
+def test_what_another_source_charts_stands_and_is_cut_out(tmp_path):
     write(
         tmp_path,
         'wwshipwrecks',
         (point(0.1, 0.1), {'wreck_cate': 'Dangerous wreck'}),
         (point(0.5, 0.5), {'wreck_cate': 'Dangerous wreck'}),
     )
-    write(tmp_path, 'windfarmspoly', (square(0.1, 0.1, 0.2, 0.2), {'status': 'Production'}))
+    write(
+        tmp_path,
+        'windfarmspoly',
+        (square(0.1, 0.1, 0.2, 0.2), {'status': 'Production'}),
+        (square(0.4, 0.1, 0.6, 0.2), {'status': 'Production'}),
+    )
     charted = {
         # About 110 m from the first wreck.
         'WRECKS': [(ogr.CreateGeometryFromWkt('POINT (0.101 0.1)'), {}, None)],
-        'PRDARE': [(ogr.CreateGeometryFromJson(json.dumps(square(0.15, 0.15, 0.3, 0.3))), {}, None)],
+        'PRDARE': [
+            (ogr.CreateGeometryFromJson(json.dumps(square(0.1, 0.1, 0.2, 0.2))), {}, None),
+            (ogr.CreateGeometryFromJson(json.dumps(square(0.5, 0.1, 0.7, 0.2))), {}, None),
+        ],
     }
     found = human_activities.layers(tmp_path, BBOX, charted)
     assert [(g.GetX(), g.GetY()) for g, _, _ in found['WRECKS']] == [(0.5, 0.5)]
-    assert 'PRDARE' not in found
+    ((rest, _, _),) = found['PRDARE']
+    assert abs(rest.GetArea() - (0.5 - seamarks.SAME_OUTLINE_DEG - 0.4) * 0.1) < 1e-9
 
 
 def test_osm_wrecks_near_a_charted_one_are_left_out():

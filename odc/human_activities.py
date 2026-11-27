@@ -5,7 +5,7 @@ and UKHO's worldwide wreck list, as S-57 objects.
 Only what is in the water now is charted: planned, approved and dismantled
 wind farms, planned cables and pipelines, planned or deactivated military
 areas and lifted wrecks are left out. A Shom, chart or earlier object of the
-same class stands over an EMODnet one (see `layers`).
+same class is cut out of an EMODnet one (see `layers`).
 """
 
 import glob
@@ -208,9 +208,10 @@ def not_charted_wrecks(items, charted):
 
 
 def layers(directory, bbox_geom, charted):
-    """S-57 items per class from the fetched layers, cut to bbox_geom. An
-    outline another source charts in the same class is left to it, and a
-    wreck within SAME_WRECK_M of a charted one; charted is {class: items}."""
+    """S-57 items per class from the fetched layers, cut to bbox_geom. What
+    another source charts in the same class is cut out of an outline
+    (seamarks.outlined_in), and a wreck within SAME_WRECK_M of a charted one
+    is left out; charted is {class: items}."""
     by_class = {}
     elsewhere = seamarks.outlined_in(charted)
     wrecks = wreck_positions(charted.get('WRECKS', ()))
@@ -228,15 +229,15 @@ def layers(directory, bbox_geom, charted):
             if found is None:
                 continue
             objl, attrs = found
-            geom = ogr.CreateGeometryFromJson(json.dumps(feature['geometry']))
-            if not bbox_geom.Contains(geom):
-                geom = geom.MakeValid().Intersection(bbox_geom)
-                if geom is None or geom.IsEmpty():
-                    continue
+            geom = seamarks.clip(ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])), bbox_geom)
+            if geom is None:
+                continue
             if objl == 'WRECKS':
                 if wrecks(geom.GetX(), geom.GetY()):
                     continue
-            elif geom.GetDimension() > 0 and elsewhere(objl, geom):
-                continue
+            elif geom.GetDimension() > 0:
+                geom = elsewhere(objl, geom)
+                if geom is None:
+                    continue
             by_class.setdefault(objl, []).append((geom, attrs, f'EMODNET-HA {feature.get("id")}'))
     return by_class
