@@ -148,11 +148,12 @@ def add_feature_collection(digests, label, path, grow=None):
             digests.add(grow(bbox) if grow else bbox, f'{label} {canonical(feature)}')
 
 
-def add_geojsonseq(digests, label, path):
+def add_geojsonseq(digests, label, path, grow=None):
     with open(path, encoding='utf-8') as fh:
         for line in fh:
             feature = json.loads(line.lstrip('\x1e'))
-            digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
+            bbox = shom.bbox_of(feature['geometry'])
+            digests.add(grow(bbox) if grow else bbox, f'{label} {canonical(feature)}')
 
 
 def add_aca(digests, paths):
@@ -258,7 +259,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
     if os.path.exists(seamarks_path):
-        add_geojsonseq(digests, 'seamarks', seamarks_path)
+        # An OSM light or farm just beyond the build box decides whether EMODnet's stays.
+        add_geojsonseq(digests, 'seamarks', seamarks_path, human_activities.give_way_window)
     his_path = os.path.join(inputs, 'his.geojsonseq')
     if os.path.exists(his_path):
         add_geojsonseq(digests, 'his', his_path)

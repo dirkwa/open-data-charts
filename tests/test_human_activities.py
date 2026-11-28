@@ -286,3 +286,21 @@ def test_extraction_areas_in_use_and_standing_wells(tmp_path):
     assert [a for _, a, _ in found['OBSTRN']] == [
         {'CATOBS': '2', 'WATLEV': 3, 'OBJNAM': 'B28S-1', 'INFORM': 'Well (suspended)'}
     ]
+
+
+def test_munitions_at_one_spot_keep_each_description(tmp_path):
+    write(
+        tmp_path,
+        'munitions',
+        (point(0.6, 0.6), {'munition_type': 'Chemical'}),
+        (point(0.6, 0.6), {'munition_type': 'Conventional'}),
+    )
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a['INFORM'] for _, a, _ in found['DMPGRD']] == ['Chemical', 'Conventional']
+
+
+def test_the_give_way_window_reaches_the_widest_radius_beyond_the_box():
+    minlon, minlat, maxlon, maxlat = human_activities.give_way_window((10.0, 60.0, 11.0, 61.0))
+    reach = human_activities.SAME_LIGHTHOUSE_M / seamarks.METRES_PER_DEGREE
+    assert minlat == pytest.approx(60.0 - reach) and maxlat == pytest.approx(61.0 + reach)
+    assert 10.0 - minlon > reach * 2  # a degree of longitude is short up there

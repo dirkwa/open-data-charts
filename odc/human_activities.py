@@ -15,6 +15,7 @@ near it (see `give_way`).
 
 import glob
 import json
+import math
 import os
 import urllib.parse
 
@@ -102,6 +103,7 @@ AT_SEA = 'At sea'
 # keeps its wellhead.
 WELL_STANDING = {'Active', 'Suspended'}
 EXTRACTION_IN_USE = {'Active'}
+SPOIL_LAYERS = ('dredgespoilpoly', 'dredgespoil')
 # The layers EMODnet places roughly, the classes another source charts the
 # same object as, and how near that one must be.
 GIVE_WAY = {
@@ -344,8 +346,8 @@ def layers(directory, bbox_geom, charted):
                 geom = elsewhere(objl, geom)
                 if geom is None:
                     continue
-            if objl == 'DMPGRD':
-                key = (objl, attrs.get('OBJNAM'), bytes(geom.ExportToWkb()))
+            if layer in SPOIL_LAYERS:
+                key = (attrs.get('OBJNAM'), bytes(geom.ExportToWkb()))
                 if key in seen:
                     continue
                 seen.add(key)
@@ -368,10 +370,20 @@ def charted_near(charted, classes, radius_m):
     return lambda geom: near(geom.GetX(), geom.GetY()) or any(outline.Contains(geom) for outline in outlines)
 
 
+def give_way_window(bbox):
+    """bbox grown by the widest give-way radius, so another source's object
+    just beyond it still counts."""
+    minlon, minlat, maxlon, maxlat = bbox
+    radius = max(r for _, r in GIVE_WAY.values())
+    dlat = radius / seamarks.METRES_PER_DEGREE
+    dlon = dlat / max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.01)
+    return minlon - dlon, minlat - dlat, maxlon + dlon, maxlat + dlat
+
+
 def give_way(layers, marks):
     """Leaves out of layers the EMODnet lighthouses and farms that marks
-    (OSM seamarks, {class: items}) chart near them: OSM's position is the
-    surveyed one, EMODnet's often approximate."""
+    (OSM seamarks, {class: items}, read over give_way_window) chart near
+    them: OSM's position is the surveyed one, EMODnet's often approximate."""
     for layer, (classes, radius) in GIVE_WAY.items():
         near = charted_near(marks, classes, radius)
         prefix = f'{SOURCE} {layer}.'
