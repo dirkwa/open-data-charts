@@ -31,7 +31,9 @@ vector tile) that all lie inside that tile, so no tile at z ≥ 9 belongs to two
 on the boat is the union of its units' `tiles` rows, plus the region
 overview's rows for z < 9 when the index has one. An overview covers a whole
 sea (`overviews/<id>.json`), so the regions of one sea list the same file:
-a set takes it once. Serve a set as that one chart, not as
+a set takes it once. A set with regions of two seas takes both overviews;
+near the seas' edge both hold the same z4 to z8 tiles, so a tile in both is
+merged, its layers' features joined, rather than one replacing the other. Serve a set as that one chart, not as
 one chart per unit: a renderer draws a label from the tile that holds its
 point and clips each chart to its own bounds, so labels next to a unit edge
 would be cut in half.
@@ -121,7 +123,9 @@ restricted, military and wind farm area; contours and point dangers from
 z6, lights, cables, pipelines and fishing gear from z7. Soundings, buoys
 and buildings are left to the units. Its metadata carries `x-odc-overview`
 (the sea's id) and `x-odc-version`, which changes when, and only when, one
-of its units' versions does. A region indexed for the first time has
+of its units' versions does. An overview may also draw the part of another
+sea's region that faces its own sea (Jutland's west coast in the North Sea
+overview); that region's `overview` stays its own sea's. A region indexed for the first time has
 `overview: null` until its sea's next overview build; a region whose units
 change keeps its overview until then, so an overview may lag its units.
 

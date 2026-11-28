@@ -77,9 +77,22 @@ def load(path):
         return json.load(fh)
 
 
+def drawn(overview, unit):
+    """Whether the overview draws the unit: every unit of its own regions, and
+    those of a region another sea's overview serves that lie in the box the
+    overview shares of it (`shared`, region id -> bbox), so a coast that
+    faces both seas shows in both."""
+    if unit['region'] in overview['regions']:
+        return True
+    box = overview.get('shared', {}).get(unit['region'])
+    if box is None:
+        return False
+    w, s, e, n = Unit.parse(unit['id']).bounds
+    return w < box[2] and e > box[0] and s < box[3] and n > box[1]
+
+
 def units_of(overview, index):
-    regions = set(overview['regions'])
-    return sorted((u for u in index['units'] if u['region'] in regions), key=lambda u: u['id'])
+    return sorted((u for u in index['units'] if drawn(overview, u)), key=lambda u: u['id'])
 
 
 def version(overview, units):
@@ -183,7 +196,8 @@ def collect(overview, index, work):
 
 
 def attribution_of(overview, index):
-    texts = [r.get('attribution', '') for r in index['regions'] if r['id'] in overview['regions']]
+    regions = set(overview['regions']) | set(overview.get('shared', {}))
+    texts = [r.get('attribution', '') for r in index['regions'] if r['id'] in regions]
     return attribution.merge(t for t in texts if t)
 
 

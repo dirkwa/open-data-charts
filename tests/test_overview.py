@@ -10,7 +10,7 @@ pytest.importorskip('osgeo')
 
 from osgeo import ogr  # noqa: E402
 
-from odc import index, overview  # noqa: E402
+from odc import attribution, index, overview  # noqa: E402
 from odc.grid import Unit  # noqa: E402
 
 UNIT = Unit(274, 164)
@@ -101,6 +101,7 @@ def test_every_overview_names_known_regions_and_no_region_is_in_two():
     root = os.path.join(os.path.dirname(__file__), '..')
     regions = {name[:-5] for name in os.listdir(os.path.join(root, 'regions'))}
     seen = {}
+    shared = []
     for name in sorted(os.listdir(os.path.join(root, 'overviews'))):
         with open(os.path.join(root, 'overviews', name), encoding='utf-8') as fh:
             sea = json.load(fh)
@@ -109,6 +110,32 @@ def test_every_overview_names_known_regions_and_no_region_is_in_two():
             assert region_id in regions
             assert region_id not in seen, f'{region_id} is in {seen.get(region_id)} and {sea["id"]}'
             seen[region_id] = sea['id']
+        shared.extend((sea['id'], region_id) for region_id in sea.get('shared', {}))
+    # A shared region is another sea's, which sets the region's overview.
+    for sea_id, region_id in shared:
+        assert seen.get(region_id) not in (None, sea_id)
+
+
+def test_a_shared_region_is_drawn_only_inside_its_box():
+    sea = {**BALTIC, 'shared': {'c': list(UNIT.bounds)}}
+    inside = {'id': UNIT.id, 'region': 'c'}
+    outside = {'id': Unit(UNIT.x + 2, UNIT.y).id, 'region': 'c'}
+    own_far = {'id': Unit(UNIT.x + 5, UNIT.y).id, 'region': 'a'}
+    other = {'id': UNIT.id, 'region': 'd'}
+    found = overview.units_of(sea, {'units': [inside, outside, own_far, other]})
+    assert found == sorted([inside, own_far], key=lambda u: u['id'])
+
+
+def test_a_shared_region_is_credited_but_keeps_its_own_overview():
+    sea = {**BALTIC, 'shared': {'c': [0, 0, 1, 1]}}
+    regions = [
+        {**region('a'), 'attribution': 'A'},
+        {**region('c'), 'attribution': 'C'},
+        {**region('d'), 'attribution': 'D'},
+    ]
+    assert overview.attribution_of(sea, {'regions': regions}) == attribution.merge(['A', 'C'])
+    new, _ = index.with_overview({'units': [], 'regions': regions}, sea, entry())
+    assert [r['overview'] for r in new['regions']] == [entry(), None, None]
 
 
 def test_collect_keeps_only_a_few_units_on_the_disk_at_once(tmp_path, monkeypatch):
