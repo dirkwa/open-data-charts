@@ -157,7 +157,9 @@ def region_entry(region, text, overview=None):
 def build_index(region, plan, built_dir, old, today):
     old = old or {'units': [], 'regions': []}
     kept = {u['id']: u for u in old['units'] if u['region'] == region['id'] and u['id'] in plan['kept']}
-    units = [u for u in old['units'] if u['region'] != region['id']]
+    # A unit a region publishes is its own, even where another region listed
+    # it before a bbox moved it: the index lists each unit once.
+    units = [u for u in old['units'] if u['region'] != region['id'] and u['id'] not in plan['versions']]
     for unit_id, version in plan['versions'].items():
         units.append(kept.get(unit_id) or unit_entry(region, unit_id, version, built_dir, today))
     units.sort(key=lambda u: (u['region'], u['id']))

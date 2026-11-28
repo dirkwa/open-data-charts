@@ -113,7 +113,8 @@ def test_every_overview_names_known_regions_and_no_region_is_in_two():
 
 def test_collect_keeps_only_a_few_units_on_the_disk_at_once(tmp_path, monkeypatch):
     units = [
-        {'id': UNIT.id, 'region': 'a', 'url': f'u{i}', 'version': 'v'} for i in range(3 * overview.PARALLEL_DOWNLOADS)
+        {'id': Unit(UNIT.x + i, UNIT.y).id, 'region': 'a', 'url': f'u{i}', 'version': 'v'}
+        for i in range(3 * overview.PARALLEL_DOWNLOADS)
     ]
     most = []
 
@@ -147,3 +148,26 @@ def test_collect_keeps_only_a_few_units_on_the_disk_at_once(tmp_path, monkeypatc
     monkeypatch.setattr(overview, 'unit_features', lambda path, unit: iter(()))
     overview.collect(BALTIC, {'units': units}, str(tmp_path))
     assert len(most) == len(units) and max(most) <= overview.PARALLEL_DOWNLOADS
+
+
+def test_a_unit_listed_by_two_regions_is_taken_once_from_the_latest_build():
+    units = [
+        {'id': UNIT.id, 'region': 'b', 'version': 'new', 'built': '2026-11-28'},
+        {'id': UNIT.id, 'region': 'a', 'version': 'old', 'built': '2026-11-26'},
+    ]
+    assert [u['version'] for u in overview.units_of(BALTIC, {'units': units})] == ['new']
+
+
+def test_a_region_taking_a_unit_over_drops_the_other_region_s_entry():
+    old = {
+        'units': [
+            {'id': UNIT.id, 'region': 'a', 'version': 'old', 'url': 'https://x/u.old.mbtiles'},
+            {'id': 'z9-1-1', 'region': 'a', 'version': 'v', 'url': 'https://x/v.mbtiles'},
+        ],
+        'regions': [region('a')],
+    }
+    kept = {'id': UNIT.id, 'region': 'b', 'version': 'new', 'url': 'https://x/u.new.mbtiles'}
+    old['units'].append(kept)
+    plan = {'versions': {UNIT.id: 'new'}, 'kept': [UNIT.id]}
+    new, _ = index.build_index({'id': 'b', 'name': 'b', 'bbox': [0, 0, 1, 1]}, plan, '/nonexistent', old, 'today')
+    assert sorted((u['region'], u['id']) for u in new['units']) == [('a', 'z9-1-1'), ('b', UNIT.id)]
