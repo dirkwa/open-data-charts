@@ -1738,7 +1738,9 @@ def computed_depths(args, box, unit, land, inland, water, charted=None):
         clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom, charted
     )
     del from_survey
-    soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom, model)
+    # A chart's own soundings stand in the water it covers.
+    blocked = land_cells if charted is None else land_cells | charted
+    soundings = build_soundings(entries, rank, blocked, box, unit, args.maxzoom, model)
     del rank, model
 
     step('Depth areas + contours')
