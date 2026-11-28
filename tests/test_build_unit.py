@@ -101,6 +101,20 @@ def test_a_measured_cell_counts_for_the_survey_that_sounded_it():
     assert used == [0, 1]
 
 
+def test_charted_water_is_the_chart_s_and_the_model_has_only_the_rest():
+    unit = Unit(492, 288)
+    box = unit.build_box
+    r, c = unit.cells.iy0 - box.iy0 + 100, unit.cells.ix0 - box.ix0 + 100
+    land = np.ones((box.nrows, box.ncols), bool)
+    land[r : r + 100, c : c + 100] = False
+    from_model = np.zeros_like(land)
+    from_model[r : r + 100, c : c + 100] = True
+    charted = np.zeros_like(land)
+    charted[r : r + 100, c : c + 60] = True
+    quality, _ = depth_quality([], None, None, from_model, land, box, unit, charted=charted)
+    assert quality == {'best': 'chart', 'share': {'chart': 0.6, 'model': 0.4}}
+
+
 def test_water_without_a_survey_or_model_depth_is_not_model():
     unit = Unit(492, 288)
     box = unit.build_box
