@@ -131,6 +131,21 @@ a wreck within 150 m of a charted one is left out. Between Bornholm and Gotland 
 14-21° E) this gives 1,394 wrecks, 23 military areas in force and the
 wind farms in production or under construction.
 
+The same source charts lighthouses (the Amateur Radio Lighthouse Society's
+list, as light towers), fish and shellfish farms at sea (`MARCUL`), dredge
+spoil grounds (`DMPGRD`, once per site though EMODnet lists every year of
+use), aggregate extraction areas in use (`CTNARE`) and oil and gas wells
+that keep a wellhead (active or suspended, as wellhead obstructions; an
+abandoned well is plugged and cut below the seabed). Removed lighthouses,
+farms on land and expired or exploration areas are left out. EMODnet's
+lighthouse and farm positions are often approximate, so one gives way to
+a light or landmark another source charts within 500 m, or a farm within
+300 m or inside its outline, OpenSeaMap's included. Ocean energy test
+devices are not charted: the list holds finished test projects. For the
+southern Baltic (`baltic-south`) this adds 78 lighthouses, about 800 spoil
+grounds and munitions dumps, 14 extraction areas and 33 standing wells; on
+the Norwegian coast (`norway-south`) 1,225 fish and mussel farms.
+
 ## Satellite depths
 
 The Allen Coral Atlas publishes satellite-derived bathymetry only in

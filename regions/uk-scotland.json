@@ -235,6 +235,6 @@
     "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
     "Contains Irish Public Sector Data (Geological Survey Ireland & Marine Institute) licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) licence: INFOMAR bathymetry",
     "British Geological Survey (BGS), high-resolution multibeam DTMs from EMODnet Bathymetry (https://emodnet.ec.europa.eu)",
-    "EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore installations, pipelines, cables, military areas, dumped munitions, and UKHO worldwide wreck locations, CC BY 4.0; not suitable for navigation"
+    "EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore installations, pipelines, cables, military areas, dumped munitions, UKHO worldwide wreck locations, lighthouses (Amateur Radio Lighthouse Society list), aquaculture, dredge spoil grounds, aggregate extraction areas and oil and gas wells, CC BY 4.0; not suitable for navigation"
   ]
 }

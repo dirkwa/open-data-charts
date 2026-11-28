@@ -1866,6 +1866,7 @@ def main():
         )
         if 'WRECKS' in marks:
             marks['WRECKS'] = human_activities.not_charted_wrecks(marks['WRECKS'], layers.get('WRECKS', ()))
+        human_activities.give_way(layers, marks)
         for objl, items in marks.items():
             layers.setdefault(objl, []).extend(items)
     if args.nc_structures:
