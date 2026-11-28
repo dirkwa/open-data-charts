@@ -40,6 +40,10 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/belgium/flanders/antwerp-latest.osm.pbf",
       "https://download.geofabrik.de/europe/belgium-latest.osm.pbf"
+    ],
+    [
+      "https://download.openstreetmap.fr/extracts/europe/belgium/flanders/east_flanders-latest.osm.pbf",
+      "https://download.geofabrik.de/europe/belgium-latest.osm.pbf"
     ]
   ],
   "attribution": [
