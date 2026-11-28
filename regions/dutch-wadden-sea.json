@@ -32,6 +32,9 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/netherlands/flevoland-latest.osm.pbf",
       "https://download.geofabrik.de/europe/netherlands/flevoland-latest.osm.pbf"
+    ],
+    [
+      "https://github.com/dirkwa/open-data-charts/releases/download/osm-offshore/north-sea.osm.pbf"
     ]
   ],
   "attribution": [

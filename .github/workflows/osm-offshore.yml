@@ -1,0 +1,50 @@
+name: Offshore OSM extract
+
+# Builds each sea's offshore OpenStreetMap extract (odc.osm_offshore) from
+# the Overpass API and publishes it in the release osm-offshore as
+# <sea>.osm.pbf, where the regions of that sea read it as one of their
+# extracts. Country extracts end about 12 nm out; this one holds the
+# seamarks, cables, pipelines and wind turbines beyond them. An extract
+# replaces the published one only once it is whole, so a failed run leaves
+# the last one in place.
+
+on:
+  schedule:
+    - cron: '41 4 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: osm-offshore
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  RELEASE: osm-offshore
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the builder image
+        run: docker build -f builder/Dockerfile -t odc-builder .
+      - name: Make sure the release exists
+        run: |
+          gh release view "$RELEASE" >/dev/null 2>&1 ||
+            gh release create "$RELEASE" --title 'Offshore OpenStreetMap extracts' \
+              --notes 'OpenStreetMap seamarks, submarine cables and pipelines and wind turbines of each sea, from the Overpass API, for the unit builds. (c) OpenStreetMap contributors, ODbL 1.0. Not for navigation.'
+      - name: Build and publish each sea's extract
+        run: |
+          mkdir -p out && chmod 777 out
+          for config in offshore/*.json; do
+            sea=$(basename "$config" .json)
+            docker run --rm -v "$PWD:/src" -w /src -e PYTHONPATH=/src odc-builder \
+              python3 -m odc.osm_offshore "$config" "out/$sea.osm.pbf"
+            cp "out/$sea.osm.pbf" "next-$sea.osm.pbf"
+            gh release upload "$RELEASE" "next-$sea.osm.pbf" --clobber
+            sh .github/scripts/replace-release-asset.sh "$sea.osm.pbf"
+          done

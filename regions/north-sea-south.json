@@ -21,12 +21,7 @@
   ],
   "osm": [
     [
-      "https://download.openstreetmap.fr/extracts/europe/netherlands/zuid_holland-latest.osm.pbf",
-      "https://download.geofabrik.de/europe/netherlands/zuid-holland-latest.osm.pbf"
-    ],
-    [
-      "https://download.openstreetmap.fr/extracts/europe/netherlands/noord_holland-latest.osm.pbf",
-      "https://download.geofabrik.de/europe/netherlands/noord-holland-latest.osm.pbf"
+      "https://github.com/dirkwa/open-data-charts/releases/download/osm-offshore/north-sea.osm.pbf"
     ]
   ],
   "attribution": [

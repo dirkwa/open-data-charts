@@ -41,6 +41,9 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/netherlands/zeeland-latest.osm.pbf",
       "https://download.geofabrik.de/europe/netherlands/zeeland-latest.osm.pbf"
+    ],
+    [
+      "https://github.com/dirkwa/open-data-charts/releases/download/osm-offshore/north-sea.osm.pbf"
     ]
   ],
   "attribution": [

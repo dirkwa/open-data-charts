@@ -229,6 +229,9 @@
     [
       "https://download.openstreetmap.fr/extracts/europe/ireland-latest.osm.pbf",
       "https://download.geofabrik.de/europe/ireland-and-northern-ireland-latest.osm.pbf"
+    ],
+    [
+      "https://github.com/dirkwa/open-data-charts/releases/download/osm-offshore/north-sea.osm.pbf"
     ]
   ],
   "attribution": [
