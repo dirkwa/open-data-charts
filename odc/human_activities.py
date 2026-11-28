@@ -113,7 +113,6 @@ GIVE_WAY = {
     'finfish': (('MARCUL',), SAME_FARM_M),
     'shellfish': (('MARCUL',), SAME_FARM_M),
 }
-GIVE_WAY_CLASSES = {objl for classes, _ in GIVE_WAY.values() for objl in classes}
 
 
 def text(value):
@@ -375,22 +374,25 @@ def charted_near(charted, classes, radius_m):
     return lambda geom: near(geom.GetX(), geom.GetY()) or any(outline.Contains(geom) for outline in outlines)
 
 
-def give_way_window(bbox):
-    """bbox grown by the widest give-way radius, so another source's object
-    just beyond it still counts."""
+def give_way_window(bbox, radius=None):
+    """bbox grown by radius, the widest give-way radius by default, so
+    another source's object just beyond it still counts."""
     minlon, minlat, maxlon, maxlat = bbox
-    radius = max(r for _, r in GIVE_WAY.values())
+    radius = radius or max(r for _, r in GIVE_WAY.values())
     dlat = radius / seamarks.METRES_PER_DEGREE
     dlon = dlat / max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.01)
     return minlon - dlon, minlat - dlat, maxlon + dlon, maxlat + dlat
 
 
-def gives_way_to(tags):
-    """Whether an OSM object with these tags is one an EMODnet lighthouse or
-    farm gives way to, and so matters beyond the build box."""
+def gives_way_within(tags):
+    """How near an EMODnet lighthouse or farm must be to the OSM object with
+    these tags to give way to it, or None for an object none gives way to."""
     if tags.get('seamark:type') == 'marine_farm':
-        return True
-    return any(objl in GIVE_WAY_CLASSES for objl, _ in seamarks.objects(tags))
+        found = {'MARCUL'}
+    else:
+        found = {objl for objl, _ in seamarks.objects(tags)}
+    radii = [radius for classes, radius in GIVE_WAY.values() if found.intersection(classes)]
+    return max(radii) if radii else None
 
 
 def give_way(layers, marks):

@@ -308,10 +308,10 @@ def test_the_give_way_window_reaches_the_widest_radius_beyond_the_box():
     assert 10.0 - minlon > reach * 2  # a degree of longitude is short up there
 
 
-def test_only_osm_lights_landmarks_and_farms_are_what_emodnet_gives_way_to():
-    assert human_activities.gives_way_to({'seamark:type': 'light_major'})
-    assert human_activities.gives_way_to({'seamark:type': 'landmark'})
-    assert human_activities.gives_way_to({'seamark:type': 'marine_farm'})
-    assert human_activities.gives_way_to({'seamark:type': 'buoy_lateral', 'seamark:light:colour': 'green'})
-    assert not human_activities.gives_way_to({'seamark:type': 'wreck'})
-    assert not human_activities.gives_way_to({'seamark:type': 'buoy_lateral'})
+def test_emodnet_gives_way_to_osm_lights_and_landmarks_within_500_m_and_farms_within_300_m():
+    assert human_activities.gives_way_within({'seamark:type': 'light_major'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'landmark'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'marine_farm'}) == 300
+    assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral', 'seamark:light:colour': 'green'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'wreck'}) is None
+    assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral'}) is None

@@ -162,8 +162,8 @@ def seamark_reach(with_human_activities):
     EMODnet's stays; every other OSM mark counts only inside it."""
 
     def reach(feature, bbox):
-        tags = feature.get('properties') or {}
-        return human_activities.give_way_window(bbox) if human_activities.gives_way_to(tags) else bbox
+        radius = human_activities.gives_way_within(feature.get('properties') or {})
+        return human_activities.give_way_window(bbox, radius) if radius else bbox
 
     return reach if with_human_activities else None
 
