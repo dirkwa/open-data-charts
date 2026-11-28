@@ -140,12 +140,13 @@ def canonical(value):
 
 
 def add_feature_collection(digests, label, path, grow=None):
+    """grow(feature, bbox), if given, is the area a feature reaches."""
     with open(path, encoding='utf-8') as fh:
         data = json.load(fh)
     for feature in data.get('features') or []:
         if feature.get('geometry'):
             bbox = shom.bbox_of(feature['geometry'])
-            digests.add(grow(bbox) if grow else bbox, f'{label} {canonical(feature)}')
+            digests.add(grow(feature, bbox) if grow else bbox, f'{label} {canonical(feature)}')
 
 
 def add_geojsonseq(digests, label, path, grow=None):
@@ -172,8 +173,8 @@ def wfs_aid_window(with_human_activities):
     """How far beyond the build box a Shom aid counts: a mile for the OSM
     aids in the box, and as far again as the OSM marks EMODnet gives way to."""
     if with_human_activities:
-        return lambda bbox: seamarks.aid_window(human_activities.give_way_window(bbox))
-    return seamarks.aid_window
+        return lambda _, bbox: seamarks.aid_window(human_activities.give_way_window(bbox))
+    return lambda _, bbox: seamarks.aid_window(bbox)
 
 
 def add_aca(digests, paths):

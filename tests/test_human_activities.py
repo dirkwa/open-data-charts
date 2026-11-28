@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 from osgeo import ogr
@@ -341,8 +342,18 @@ def test_a_safety_zone_reaching_into_the_unit_from_beyond_it_is_charted_and_vers
     zones = human_activities.layers(tmp_path, BBOX, {})['RESARE']
     assert len(zones) == 1 and zones[0][0].GetEnvelope()[1] <= 1.0
     grow = human_activities.grown_for(str(tmp_path / 'platforms.json'))
-    assert grow([1.003, 0.5, 1.003, 0.5])[0] < 1.003 - 500 / 111320
+    platform = {'geometry': point(1.003, 0.5), 'properties': {'category': 'Fixed steel'}}
+    assert grow(platform, [1.003, 0.5, 1.003, 0.5])[0] < 1.003 - 500 / 111320
     assert human_activities.grown_for(str(tmp_path / 'wwshipwrecks.json')) is None
+
+
+def test_a_platform_reaches_only_as_far_as_its_own_zone():
+    grow = human_activities.grown_for('platforms.json')
+    at_55 = [5.0, 55.0, 5.0, 55.0]
+    reach = 5.0 - grow({'geometry': point(5.0, 55.0), 'properties': {}}, at_55)[0]
+    assert reach == pytest.approx(500 / 111320 / math.cos(math.radians(55)), rel=1e-3)
+    subsea = {'geometry': point(5.0, 55.0), 'properties': {'category': 'Subsea steel'}}
+    assert grow(subsea, at_55) == at_55
 
 
 def test_a_safety_zone_another_source_charts_is_not_drawn_twice(tmp_path):

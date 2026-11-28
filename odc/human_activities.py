@@ -119,9 +119,6 @@ GIVE_WAY = {
 # the zone is drawn from its position, as charts show it.
 SAFETY_ZONE_M = 500.0
 SAFETY_ZONE_VERTICES = 36
-METRES_PER_DEGREE = 111320.0
-# A unit's version covers a platform this far beyond its build box, whose zone reaches into it.
-SAFETY_ZONE_DEG = 2 * SAFETY_ZONE_M / METRES_PER_DEGREE
 CATREA_SAFETY_ZONE = 1
 RESTRN_ENTRY_PROHIBITED = 7
 NO_SURFACE_STRUCTURE = {'Subsea steel', 'BUOY', 'MONITOR BUOY'}
@@ -170,7 +167,7 @@ def safety_zone(p, point):
     if p.get('current_status') == 'Removed' or point.GetDimension() != 0:
         return None
     lon, lat = point.GetX(), point.GetY()
-    dlat = SAFETY_ZONE_M / METRES_PER_DEGREE
+    dlat = SAFETY_ZONE_M / seamarks.METRES_PER_DEGREE
     dlon = dlat / math.cos(math.radians(lat))
     ring = ogr.Geometry(ogr.wkbLinearRing)
     for i in range(SAFETY_ZONE_VERTICES + 1):
@@ -340,11 +337,19 @@ def layer_files(directory):
 
 
 def grown_for(path):
-    """How far a layer file's features reach past their own bbox in a unit's build."""
+    """grow(feature, bbox): the area a layer file's feature reaches in a
+    unit's build, a platform's safety zone included."""
     if os.path.basename(path) != 'platforms.json':
         return None
-    m = SAFETY_ZONE_DEG
-    return lambda bbox: [bbox[0] - 2 * m, bbox[1] - m, bbox[2] + 2 * m, bbox[3] + m]
+
+    def grow(feature, bbox):
+        zone = safety_zone(feature.get('properties') or {}, ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])))
+        if zone is None:
+            return bbox
+        minx, maxx, miny, maxy = zone[0].GetEnvelope()
+        return [min(bbox[0], minx), min(bbox[1], miny), max(bbox[2], maxx), max(bbox[3], maxy)]
+
+    return grow
 
 
 def wreck_positions(items):
