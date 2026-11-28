@@ -103,6 +103,8 @@ AT_SEA = 'At sea'
 # keeps its wellhead.
 WELL_STANDING = {'Active', 'Suspended'}
 EXTRACTION_IN_USE = {'Active'}
+# A status that says the area is out of use stands over a site type saying "in use".
+EXTRACTION_UNUSED = {'Expired', 'Not Active'}
 SPOIL_LAYERS = ('dredgespoilpoly', 'dredgespoil')
 # The layers EMODnet places roughly, the classes another source charts the
 # same object as, and how near that one must be.
@@ -111,6 +113,7 @@ GIVE_WAY = {
     'finfish': (('MARCUL',), SAME_FARM_M),
     'shellfish': (('MARCUL',), SAME_FARM_M),
 }
+GIVE_WAY_CLASSES = {objl for classes, _ in GIVE_WAY.values() for objl in classes}
 
 
 def text(value):
@@ -222,6 +225,8 @@ def spoil_ground(p):
 
 
 def extraction_area(p):
+    if p.get('status') in EXTRACTION_UNUSED:
+        return None
     in_use = p.get('status') in EXTRACTION_IN_USE or 'in use' in (p.get('site_type') or '')
     if not in_use:
         return None
@@ -378,6 +383,14 @@ def give_way_window(bbox):
     dlat = radius / seamarks.METRES_PER_DEGREE
     dlon = dlat / max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.01)
     return minlon - dlon, minlat - dlat, maxlon + dlon, maxlat + dlat
+
+
+def gives_way_to(tags):
+    """Whether an OSM object with these tags is one an EMODnet lighthouse or
+    farm gives way to, and so matters beyond the build box."""
+    if tags.get('seamark:type') == 'marine_farm':
+        return True
+    return any(objl in GIVE_WAY_CLASSES for objl, _ in seamarks.objects(tags))
 
 
 def give_way(layers, marks):

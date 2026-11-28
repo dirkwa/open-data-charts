@@ -314,6 +314,32 @@ def test_with_seamarks_a_shom_aid_a_mile_past_the_build_box_reaches_the_unit_and
     assert versions('wrecks', 'one') == versions('wrecks', 'two')
 
 
+def test_with_emodnet_an_osm_light_just_past_the_build_box_reaches_the_unit_and_a_wreck_does_not(tmp_path):
+    (tmp_path / 'dem').mkdir()
+    (tmp_path / 'human-activities').mkdir()
+    (tmp_path / 'human-activities' / 'lighthouses.json').write_text('{"type": "FeatureCollection", "features": []}')
+    write_land(tmp_path / 'land.gpkg', [box_wkt(166.2, -22.3, 166.21, -22.29)])
+    write_grid(tmp_path / 'dem' / 'emodnet_a.tif', A.bounds[0], A.bounds[3], 0.01, 50)
+    box = A.build_box.bbox
+    lon, lat = box[0] - 0.003, (box[1] + box[3]) / 2  # about 300 m west
+
+    def versions(kind, name):
+        tags = {'seamark:type': kind, 'seamark:name': name}
+        if kind == 'light_major':
+            tags['seamark:light:colour'] = 'white'
+        feature = {
+            'type': 'Feature',
+            'id': 'n1',
+            'properties': tags,
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+        }
+        (tmp_path / 'seamarks.geojsonseq').write_text(json.dumps(feature) + '\n')
+        return units.unit_versions([A], str(tmp_path), {'surveys': {}}, 'b', 'x')[A.id]
+
+    assert versions('light_major', 'one') != versions('light_major', 'two')
+    assert versions('wreck', 'one') == versions('wreck', 'two')
+
+
 def test_a_dated_attribution_names_the_date_without_changing_versions(tmp_path):
     import json
 

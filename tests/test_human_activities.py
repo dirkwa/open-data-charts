@@ -271,6 +271,8 @@ def test_extraction_areas_in_use_and_standing_wells(tmp_path):
         (square(0.1, 0.1, 0.2, 0.2), {'name': 'Gyldenløves Flak', 'status': 'Active', 'material': 'Sand and gravel'}),
         (square(0.3, 0.3, 0.4, 0.4), {'status': 'Unknown', 'site_type': 'Extraction area (in use)\n'}),
         (square(0.5, 0.5, 0.6, 0.6), {'status': 'Expired', 'site_type': 'Extraction area'}),
+        (square(0.5, 0.1, 0.6, 0.2), {'status': 'Expired', 'site_type': 'Extraction area (in use)'}),
+        (square(0.1, 0.5, 0.2, 0.6), {'status': 'Not Active', 'site_type': 'Extraction area (in use)'}),
     )
     write(
         tmp_path,
@@ -304,3 +306,12 @@ def test_the_give_way_window_reaches_the_widest_radius_beyond_the_box():
     reach = human_activities.SAME_LIGHTHOUSE_M / seamarks.METRES_PER_DEGREE
     assert minlat == pytest.approx(60.0 - reach) and maxlat == pytest.approx(61.0 + reach)
     assert 10.0 - minlon > reach * 2  # a degree of longitude is short up there
+
+
+def test_only_osm_lights_landmarks_and_farms_are_what_emodnet_gives_way_to():
+    assert human_activities.gives_way_to({'seamark:type': 'light_major'})
+    assert human_activities.gives_way_to({'seamark:type': 'landmark'})
+    assert human_activities.gives_way_to({'seamark:type': 'marine_farm'})
+    assert human_activities.gives_way_to({'seamark:type': 'buoy_lateral', 'seamark:light:colour': 'green'})
+    assert not human_activities.gives_way_to({'seamark:type': 'wreck'})
+    assert not human_activities.gives_way_to({'seamark:type': 'buoy_lateral'})

@@ -540,7 +540,13 @@ def wfs_bounds(region):
     """With OSM seamarks, a mile wider: an OSM aid gives way to a Shom aid
     up to a mile beyond the region's edge as well."""
     bounds = fetch_bounds(region)
-    return seamarks.aid_window(bounds) if 'openseamap' in region.get('sources', []) else bounds
+    sources = region.get('sources', [])
+    if 'openseamap' not in sources:
+        return bounds
+    if 'emodnet-human-activities' in sources:
+        # The OSM marks EMODnet's lighthouses and farms give way to reach further.
+        bounds = human_activities.give_way_window(bounds)
+    return seamarks.aid_window(bounds)
 
 
 def fetch_wfs(region, out):
