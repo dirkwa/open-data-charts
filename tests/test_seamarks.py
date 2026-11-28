@@ -321,3 +321,30 @@ def test_a_fish_trap_charted_as_a_line_is_a_fishing_facility():
     items = [({'seamark:type': 'fishing_facility', 'seamark:fishing_facility:category': 'trap'}, net)]
     ((geom, attrs, _),) = seamarks.seamark_layers(items, BBOX, 'OSM')['FSHFAC']
     assert geom.GetGeometryName() == 'LINESTRING' and attrs == {'CATFIF': '2', 'INFORM': 'OSM'}
+
+
+def line(*points):
+    return ogr.CreateGeometryFromWkt('LINESTRING (' + ', '.join(f'{x} {y}' for x, y in points) + ')')
+
+
+def test_cables_pipelines_and_turbines_without_seamark_tags_are_charted_in_the_water():
+    items = [
+        ({'power': 'cable', 'location': 'submarine', 'name': 'NorNed'}, line((0.1, 0.1), (0.9, 0.1))),
+        ({'power': 'cable', 'location': 'underground'}, line((0.1, 0.2), (0.9, 0.2))),
+        ({'man_made': 'pipeline', 'location': 'underwater'}, line((0.1, 0.3), (0.9, 0.3))),
+        ({'man_made': 'pipeline'}, line((0.1, 0.4), (0.9, 0.4))),
+        ({'power': 'generator', 'generator:source': 'wind'}, node(0.5, 0.5)),
+        ({'power': 'generator', 'generator:source': 'wind'}, node(0.5, 0.9)),
+    ]
+    land = build_unit.bbox_polygon(0.0, 0.8, 1.0, 1.0)
+    layers = seamarks.seamark_layers(items, BBOX, 'OSM', on_land=land.Intersects)
+    assert [attrs for _, attrs, _ in layers['CBLSUB']] == [{'CATCBL': '1', 'OBJNAM': 'NorNed', 'INFORM': 'OSM'}]
+    assert len(layers['PIPSOL']) == 1
+    turbines = layers['LNDMRK']
+    assert [(g.GetX(), g.GetY(), attrs['CATLMK']) for g, attrs, _ in turbines] == [(0.5, 0.5, '19')]
+
+
+def test_seamark_tags_win_over_the_plain_tags():
+    tags = {'seamark:type': 'landmark', 'seamark:landmark:category': 'tower', 'generator:source': 'wind'}
+    assert seamarks.as_seamark(tags) is tags
+    assert seamarks.as_seamark({'power': 'line'}) is None

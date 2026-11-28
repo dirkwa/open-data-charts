@@ -103,6 +103,13 @@ cell agree on it; a cut by the whole object would depend on what each
 unit's build box holds. A chart object shown at some zooms only cuts
 nothing.
 
+Submarine cables, pipelines and wind turbines are mapped far more often
+without seamark tags than with them: power cables and pipelines whose
+`location` is `underwater` or `submarine` read as `cable_submarine` and
+`pipeline_submarine`, and a wind turbine (`generator:source=wind`) off the
+land as a `windmotor` landmark. Turbines on land are left out, as are
+cables and pipelines on land.
+
 A region with both, the Channel with England's south coast, charts Shom's
 aids and OpenStreetMap's on the other coast: an OSM aid within a nautical
 mile of a Shom aid, inside the unit or just beyond it, is left out as one

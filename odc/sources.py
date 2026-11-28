@@ -1689,7 +1689,7 @@ def fetch_osm(region, out):
         os.replace(target + '.part', target)
         target = os.path.join(out, 'seamarks.geojsonseq')
         if 'openseamap' in region.get('sources', []):
-            export_filtered(extract, (osm.SEAMARK_FILTER,), target + '.part', tmp)
+            export_filtered(extract, osm.SEAMARK_FILTER, target + '.part', tmp)
             os.replace(target + '.part', target)
         elif os.path.exists(target):
             os.remove(target)

@@ -7,7 +7,8 @@ values. Lights, topmarks, fog signals, daymarks and radar transponders on
 an object are their own S-57 objects at its position, as in an ENC.
 Traffic separation schemes, restricted and military areas, wind farms,
 cables, pipelines, fishing gear and marine farms keep their outline: on open water they are what a
-passage must keep clear of.
+passage must keep clear of. Cables and pipelines in the water and wind
+turbines off the land that carry no seamark tags are charted too.
 """
 
 import math
@@ -378,6 +379,8 @@ PARTS = {
     'fog_signal': 'FOGSIG',
     'radar_transponder': 'RTPBCN',
 }
+WATER_LOCATIONS = {'underwater', 'submarine'}
+TURBINE = 'odc:wind_turbine'
 DANGERS = {'WRECKS', 'UWTROC', 'OBSTRN', 'OFSPLF', 'PILPNT', 'MORFAC'}
 AID_CLASSES = ({objl for objl, _, _ in TYPES.values()} - DANGERS) | set(PARTS.values()) | {'LIGHTS'}
 # A unit holding French and foreign coast has Shom's aids and OSM's; an OSM
@@ -616,7 +619,24 @@ def shom_aids(wfs_layers):
     return Nearby(points, SHOM_AID_RADIUS_M)
 
 
-def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=None):
+def as_seamark(tags):
+    """The tags in the seamark scheme: a cable or pipeline in the water or a
+    wind turbine mapped without seamark tags reads as the seamark it is.
+    None for an object that is no seamark (a cable on land), and a turbine
+    is marked TURBINE, since only one off the land is charted."""
+    if 'seamark:type' in tags:
+        return tags
+    in_water = tags.get('location') in WATER_LOCATIONS
+    if tags.get('power') == 'cable' and in_water:
+        return {**tags, 'seamark:type': 'cable_submarine', 'seamark:cable_submarine:category': 'power'}
+    if tags.get('man_made') == 'pipeline' and in_water:
+        return {**tags, 'seamark:type': 'pipeline_submarine'}
+    if tags.get('generator:source') == 'wind':
+        return {**tags, 'seamark:type': 'landmark', 'seamark:landmark:category': 'windmotor', TURBINE: True}
+    return None
+
+
+def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=None, on_land=None):
     """S-57 items per class from (tags, geometry) of seamark-tagged OSM objects
     inside bbox_geom, each at a point of its object, leaving out aids
     charted(lon, lat) says another source has. Dangers are always kept: an
@@ -624,7 +644,10 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
     Outlined objects keep their geometry, cut to bbox_geom, less what
     outlined_elsewhere(objl, geom) says another source charts."""
     layers = {}
-    for tags, geom in items:
+    for osm_tags, geom in items:
+        tags = as_seamark(osm_tags)
+        if tags is None:
+            continue
         kind = tags.get('seamark:type')
         if kind in OUTLINED:
             if not fits(kind, geom):
@@ -644,6 +667,8 @@ def seamark_layers(items, bbox_geom, source, charted=None, outlined_elsewhere=No
         if where is None or where.IsEmpty() or not bbox_geom.Contains(where):
             continue
         if found[0][0] in AID_CLASSES and charted is not None and charted(where.GetX(), where.GetY()):
+            continue
+        if TURBINE in tags and on_land is not None and on_land(where):
             continue
         for objl, attrs in found:
             layers.setdefault(objl, []).append((where.Clone(), {**attrs, 'INFORM': source}, None))

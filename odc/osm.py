@@ -23,7 +23,9 @@ OSMIUM_FILTER = (
 )
 # Kept apart from the filter above: only regions without Shom's aids to
 # navigation chart them (odc.seamarks).
-SEAMARK_FILTER = 'nwr/seamark:type'
+# Submarine cables and pipelines and wind turbines are mapped far more often
+# without seamark tags than with them; odc.seamarks reads them as seamarks.
+SEAMARK_FILTER = ('nwr/seamark:type', 'w/power=cable', 'w/man_made=pipeline', 'n/generator:source=wind')
 # Harbour basins, docks, canals, rivers and lakes behind the coastline: the
 # land polygons follow the coastline only, so these are cut out of the land.
 WATER_FILTER = ('nwr/natural=water', 'nwr/waterway=riverbank,dock', 'nwr/landuse=basin,reservoir')

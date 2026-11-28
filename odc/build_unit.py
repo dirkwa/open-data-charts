@@ -1861,8 +1861,16 @@ def main():
         charted = shom_aids_near(args.wfs, attributes, classes, args.bbox)
         # Shom's, a chart's or EMODnet's own traffic schemes, areas and wrecks stand where they chart them.
         elsewhere = seamarks.outlined_in({objl: list(layers.get(objl, ())) for objl in seamarks.OUTLINED_CLASSES})
+        land_index = None
+
+        def on_land(point):
+            nonlocal land_index
+            if land_index is None:
+                land_index = tiled_parts(land, args.bbox)
+            return any(overlapping(land_index, point))
+
         marks = seamarks.seamark_layers(
-            osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted, elsewhere
+            osm.read_features(args.seamarks, args.bbox), bbox_geom, OSM_SRC, charted, elsewhere, on_land
         )
         if 'WRECKS' in marks:
             marks['WRECKS'] = human_activities.not_charted_wrecks(marks['WRECKS'], layers.get('WRECKS', ()))
