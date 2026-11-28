@@ -78,8 +78,14 @@ def load(path):
 
 
 def units_of(overview, index):
+    """One entry per unit, the latest built: an index served before its
+    region took a unit over from another lists it twice."""
     regions = set(overview['regions'])
-    return sorted((u for u in index['units'] if u['region'] in regions), key=lambda u: u['id'])
+    latest = {}
+    for unit in sorted(index['units'], key=lambda u: (u.get('built', ''), u['region'])):
+        if unit['region'] in regions:
+            latest[unit['id']] = unit
+    return [latest[unit_id] for unit_id in sorted(latest)]
 
 
 def version(overview, units):
