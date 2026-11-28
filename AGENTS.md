@@ -66,6 +66,11 @@ the index and the docs say so.
 - `odc/seamarks.py`: aids to navigation from OpenStreetMap's `seamark:*`
   tags (OpenSeaMap), as S-57 objects, for regions listing `openseamap`
   (those without Shom's WFS).
+- `odc/osm_offshore.py` and `offshore/<id>.json`: a sea's OpenStreetMap
+  seamarks, submarine cables, pipelines and wind turbines from the
+  Overpass API, as one extract (`<id>.osm.pbf` in the release
+  `osm-offshore`) that the sea's regions list beside their country
+  extracts, which end about 12 nm offshore.
 - `odc/vta_his.py`: the Estonian Transport Administration's rocks, wrecks
   and obstructions from its HIS WFS (GML on EPSG:3301, at most 10000
   objects a request, so asked box by box), as S-57 points, for regions
@@ -127,6 +132,8 @@ the index and the docs say so.
 - `build-overview.yml` (weekly, one sea a week in turn): rebuilds a sea's
   overview when one of its units changed, uploads it to `overview-<id>`
   and sets it as the overview of the sea's regions in the index.
+- `osm-offshore.yml` (weekly): rebuilds each sea's offshore OSM extract and
+  replaces it in `osm-offshore` once whole.
 - `builder-image.yml`: builds the builder image. `ci.yml`: lint and tests.
 
 Scheduled runs are no-ops when nothing changed. A run that stops halfway

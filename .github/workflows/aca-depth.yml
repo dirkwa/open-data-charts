@@ -44,7 +44,7 @@ jobs:
           # before it replaced <square>.
           gh release view "$RELEASE" --json assets --jq '.assets[].name' > assets.txt
           { grep '^next-depth_.*\.tif$' assets.txt || true; } | while read -r staged; do
-            sh .github/scripts/aca-depth-publish.sh "${staged#next-}" recover
+            sh .github/scripts/replace-release-asset.sh "${staged#next-}" recover
           done
       - name: Fetch the squares the release has
         run: |
@@ -85,5 +85,5 @@ jobs:
           while read -r square; do
             cp "squares/$square" "next-$square"
             gh release upload "$RELEASE" "next-$square" --clobber
-            sh .github/scripts/aca-depth-publish.sh "$square"
+            sh .github/scripts/replace-release-asset.sh "$square"
           done < written.txt

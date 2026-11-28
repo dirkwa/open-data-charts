@@ -21,8 +21,7 @@
   ],
   "osm": [
     [
-      "https://download.geofabrik.de/europe/norway-latest.osm.pbf",
-      "https://download.openstreetmap.fr/extracts/europe/norway-latest.osm.pbf"
+      "https://github.com/dirkwa/open-data-charts/releases/download/osm-offshore/north-sea.osm.pbf"
     ]
   ],
   "attribution": [
