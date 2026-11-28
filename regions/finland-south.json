@@ -18,6 +18,16 @@
     [
       "https://download.geofabrik.de/europe/finland-latest.osm.pbf",
       "https://download.openstreetmap.fr/extracts/europe/finland-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/stockholm.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/uppsala.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
     ]
   ],
   "attribution": [

@@ -37,6 +37,26 @@
     [
       "https://geo2day.com/europe/germany/mecklenburg_vorpommern.pbf",
       "https://download.geofabrik.de/europe/germany/mecklenburg-vorpommern/mecklenburg-vorpommern-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/skane.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/halland.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/vastra_gotaland.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/blekinge.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
     ]
   ],
   "attribution": [
