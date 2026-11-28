@@ -237,7 +237,8 @@ def fetch(layer_id, path):
 def read_metadata(text):
     """The CSV's single record (rows: types, names, values) as a dict."""
     rows = list(csv.reader(io.StringIO(text), delimiter=';'))
-    return dict(zip(rows[1], rows[2], strict=False))
+    # Some datasets pad their values ("7837 ").
+    return {name.strip(): value.strip() for name, value in zip(rows[1], rows[2], strict=False)}
 
 
 class Separation:

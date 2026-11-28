@@ -116,6 +116,12 @@ def test_a_layer_on_dhhn92_reduces_like_one_on_dhhn2016(tmp_path):
     assert sorted(np.round(reduced['z'], 2)) == [13.1, 13.6]
 
 
+def test_a_padded_datum_reads_like_its_code(tmp_path):
+    sep = svdb.Separation(separation_tif(tmp_path / 'sep.tif', 0.4))
+    reduced, _, _ = svdb.reduce_zip(layer_zip(tmp_path / 'layer.zip', vertdat='7837 '), sep)
+    assert sorted(np.round(reduced['z'], 2)) == [13.1, 13.6]
+
+
 def test_a_layer_on_another_datum_is_refused(tmp_path):
     sep = svdb.Separation(separation_tif(tmp_path / 'sep.tif', 0.4))
     with pytest.raises(ValueError, match='vertical datum'):
