@@ -1,0 +1,19 @@
+{
+  "id": "north-sea",
+  "name": "North Sea",
+  "regions": [
+    "belgium",
+    "dutch-wadden-sea",
+    "germany-north-sea",
+    "netherlands-coast",
+    "north-sea-central",
+    "north-sea-north",
+    "north-sea-south",
+    "norway-south",
+    "uk-england-wales",
+    "uk-scotland"
+  ],
+  "shared": {
+    "denmark": [7.6, 54.45, 10.7, 57.85]
+  }
+}

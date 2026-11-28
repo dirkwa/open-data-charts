@@ -52,7 +52,8 @@ charts the satellite-derived depth bands where they cover the water (see
 
 `build-overview.yml` (weekly, one sea a week in turn, or by hand) makes a
 sea's overview (`odc/overview.py`) from the units the index publishes for
-the regions in `overviews/<id>.json`. A unit's z9 tile is already the unit
+the regions in `overviews/<id>.json`, and from the units inside the box
+it lists for a region another sea's overview serves (`shared`). A unit's z9 tile is already the unit
 at its coarsest, with every source's priority applied, so the overview
 downloads each unit, decodes that one tile, cuts it back to the unit (a
 tile reaches a buffer into its neighbours), keeps the classes a passage
