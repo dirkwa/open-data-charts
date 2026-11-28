@@ -1630,14 +1630,19 @@ def fetch_dem(region, out):
     print('dem:', sorted(os.listdir(target)), flush=True)
 
 
-def download_extract(alternatives, path, wait=OSM_RETRY_WAIT_S):
+def download_extract(alternatives, path, wait=OSM_RETRY_WAIT_S, downloaded=()):
+    """Downloads the first alternative that answers to path and returns its
+    URL, or returns None when the next one to try is already in downloaded:
+    several county extracts fall back to the same country extract."""
     for attempt in range(OSM_ATTEMPTS):
         if attempt:
             time.sleep(wait * attempt)
         for url in alternatives:
+            if url in downloaded:
+                return None
             try:
                 save_url(url, path)
-                return
+                return url
             except (OSError, urllib.error.URLError) as exc:
                 print(f'osm: {url} failed ({exc})', flush=True)
     raise RuntimeError(f'no OSM extract could be downloaded from {alternatives}')
@@ -1682,10 +1687,13 @@ def fetch_osm(region, out):
     """region['osm']: the extracts covering the region, each a list of
     alternative URLs for the same extract."""
     with tempfile.TemporaryDirectory(dir=out) as tmp:
-        parts = []
+        parts, downloaded = [], set()
         for i, alternatives in enumerate(region['osm']):
-            parts.append(os.path.join(tmp, f'part{i}.osm.pbf'))
-            download_extract(alternatives, parts[-1])
+            part = os.path.join(tmp, f'part{i}.osm.pbf')
+            url = download_extract(alternatives, part, downloaded=downloaded)
+            if url is not None:
+                parts.append(part)
+                downloaded.add(url)
         extract = os.path.join(tmp, 'extract.osm.pbf')
         merge_extracts(parts, extract, tmp)
         exported = os.path.join(tmp, 'exported.geojsonseq')

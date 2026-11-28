@@ -1,0 +1,49 @@
+{
+  "id": "sweden-bothnian-sea",
+  "name": "Sweden: Bothnian Sea, Gävle to the High Coast",
+  "bbox": [
+    16.88,
+    60.25,
+    18.97,
+    64.15
+  ],
+  "sources": [
+    "emodnet-dtm",
+    "emodnet-human-activities",
+    "osm",
+    "openseamap",
+    "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
+  ],
+  "osm": [
+    [
+      "https://geo2day.com/europe/sweden/uppsala.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/gavleborg.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/vasternorrland.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/vasterbotten.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
+    ]
+  ],
+  "attribution": [
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
+    "EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore installations, pipelines, cables, military areas, dumped munitions, UKHO worldwide wreck locations, lighthouses (Amateur Radio Lighthouse Society list), aquaculture, dredge spoil grounds, aggregate extraction areas and oil and gas wells, CC BY 4.0; not suitable for navigation"
+  ]
+}

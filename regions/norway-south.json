@@ -24,6 +24,11 @@
     [
       "https://download.geofabrik.de/europe/norway-latest.osm.pbf",
       "https://download.openstreetmap.fr/extracts/europe/norway-latest.osm.pbf"
+    ],
+    [
+      "https://geo2day.com/europe/sweden/vastra_gotaland.pbf",
+      "https://download.geofabrik.de/europe/sweden-latest.osm.pbf",
+      "https://download.openstreetmap.fr/extracts/europe/sweden-latest.osm.pbf"
     ]
   ],
   "attribution": [
