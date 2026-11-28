@@ -386,6 +386,31 @@ def test_an_osm_extract_is_tried_again_after_a_dropped_connection(monkeypatch, t
     assert (tmp_path / 'malta.osm.pbf').exists()
 
 
+def test_county_extracts_falling_back_to_one_country_extract_download_it_once(monkeypatch, tmp_path):
+    calls = []
+
+    def save_url(url, path, timeout=600):
+        calls.append(url)
+        if 'county' in url:
+            raise OSError(101, 'Network is unreachable')
+        open(path, 'wb').close()
+
+    monkeypatch.setattr(sources, 'save_url', save_url)
+    downloaded = set()
+    country = 'https://example.org/sweden.osm.pbf'
+    for county in ('skane', 'halland'):
+        url = sources.download_extract(
+            [f'https://example.org/county/{county}.osm.pbf', country],
+            str(tmp_path / f'{county}.osm.pbf'),
+            wait=0,
+            downloaded=downloaded,
+        )
+        if url:
+            downloaded.add(url)
+    assert calls.count(country) == 1
+    assert downloaded == {country}
+
+
 def test_an_emodnet_hr_grid_keeps_the_shoalest_depth_on_its_own_cells():
     import numpy as np
 
