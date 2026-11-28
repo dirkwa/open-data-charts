@@ -1,11 +1,11 @@
 {
   "id": "dutch-wadden-sea",
-  "name": "Dutch Wadden Sea",
+  "name": "Dutch Wadden Sea and its offshore approaches",
   "bbox": [
-    4.7,
+    3.52,
     52.9,
     6.05,
-    53.55
+    54.16
   ],
   "sources": [
     "vaklodingen",
