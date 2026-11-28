@@ -148,11 +148,32 @@ def add_feature_collection(digests, label, path, grow=None):
             digests.add(grow(bbox) if grow else bbox, f'{label} {canonical(feature)}')
 
 
-def add_geojsonseq(digests, label, path):
+def add_geojsonseq(digests, label, path, grow=None):
+    """grow(feature, bbox), if given, is the area a feature reaches."""
     with open(path, encoding='utf-8') as fh:
         for line in fh:
             feature = json.loads(line.lstrip('\x1e'))
-            digests.add(shom.bbox_of(feature['geometry']), f'{label} {canonical(feature)}')
+            bbox = shom.bbox_of(feature['geometry'])
+            digests.add(grow(feature, bbox) if grow else bbox, f'{label} {canonical(feature)}')
+
+
+def seamark_reach(with_human_activities):
+    """An OSM light or farm just beyond the build box decides whether
+    EMODnet's stays; every other OSM mark counts only inside it."""
+
+    def reach(feature, bbox):
+        radius = human_activities.gives_way_within(feature.get('properties') or {})
+        return human_activities.give_way_window(bbox, radius) if radius else bbox
+
+    return reach if with_human_activities else None
+
+
+def wfs_aid_window(with_human_activities):
+    """How far beyond the build box a Shom aid counts: a mile for the OSM
+    aids in the box, and as far again as the OSM marks EMODnet gives way to."""
+    if with_human_activities:
+        return lambda bbox: seamarks.aid_window(human_activities.give_way_window(bbox))
+    return seamarks.aid_window
 
 
 def add_aca(digests, paths):
@@ -244,9 +265,11 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     seamarks_path = os.path.join(inputs, 'seamarks.geojsonseq')
     # OSM aids give way to Shom aids up to a mile beyond the build box.
     with_seamarks = os.path.exists(seamarks_path)
+    with_human_activities = bool(human_activities.layer_files(os.path.join(inputs, 'human-activities')))
+    aid_window = wfs_aid_window(with_human_activities)
     for path in sorted(glob.glob(os.path.join(inputs, 'wfs', '*.json'))):
         aids = with_seamarks and build_unit.wfs_layer_class(build_unit.wfs_layer(path)) in seamarks.AID_CLASSES
-        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, seamarks.aid_window if aids else None)
+        add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, aid_window if aids else None)
     for path in human_activities.layer_files(os.path.join(inputs, 'human-activities')):
         add_feature_collection(digests, 'human-activities ' + os.path.basename(path), path)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
@@ -258,7 +281,7 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
     if os.path.exists(osm_path):
         add_geojsonseq(digests, 'osm', osm_path)
     if os.path.exists(seamarks_path):
-        add_geojsonseq(digests, 'seamarks', seamarks_path)
+        add_geojsonseq(digests, 'seamarks', seamarks_path, seamark_reach(with_human_activities))
     his_path = os.path.join(inputs, 'his.geojsonseq')
     if os.path.exists(his_path):
         add_geojsonseq(digests, 'his', his_path)

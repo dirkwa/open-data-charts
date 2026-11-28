@@ -179,3 +179,139 @@ def test_the_fetch_asks_for_the_box_in_lat_lon_order(tmp_path):
     assert len(urls) == len(human_activities.LAYERS)
     assert 'bbox=54.0%2C10.5%2C54.5%2C11.0' in urls[0]
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted(f'{layer}.json' for layer in human_activities.LAYERS)
+
+
+def test_standing_lighthouses_are_charted_as_light_towers(tmp_path):
+    write(
+        tmp_path,
+        'lighthouses',
+        (point(0.1, 0.1), {'name': 'Anholt', 'status': 'Not removed, relocated or destroyed'}),
+        (point(0.2, 0.2), {'name': 'Un-assigned', 'status': 'Not removed, relocated or destroyed'}),
+        (point(0.3, 0.3), {'name': 'Old', 'status': 'Removed, relocated or destroyed'}),
+    )
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a for _, a, _ in found['LNDMRK']] == [
+        {'CATLMK': '17', 'FUNCTN': '33', 'OBJNAM': 'Anholt'},
+        {'CATLMK': '17', 'FUNCTN': '33'},
+    ]
+
+
+def test_a_lighthouse_another_source_charts_nearby_is_left_out(tmp_path):
+    write(
+        tmp_path,
+        'lighthouses',
+        (point(0.1, 0.1), {'name': 'Charted', 'status': 'Not removed, relocated or destroyed'}),
+        (point(0.5, 0.5), {'name': 'Alone', 'status': 'Not removed, relocated or destroyed'}),
+    )
+    # About 330 m from the first lighthouse.
+    charted = {'LIGHTS': [(ogr.CreateGeometryFromWkt('POINT (0.103 0.1)'), {}, None)]}
+    found = human_activities.layers(tmp_path, BBOX, charted)
+    assert [a['OBJNAM'] for _, a, _ in found['LNDMRK']] == ['Alone']
+
+
+def test_only_farms_at_sea_are_charted(tmp_path):
+    write(
+        tmp_path,
+        'finfish',
+        (point(0.1, 0.1), {'position_c': 'At sea'}),
+        (point(0.2, 0.2), {'position_c': 'Within the coastline'}),
+    )
+    write(tmp_path, 'shellfish', (point(0.3, 0.3), {'costal_inland': 'At sea'}))
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a for _, a, _ in found['MARCUL']] == [{'CATMFA': '3'}, {'CATMFA': '2'}]
+
+
+def test_osm_lighthouses_and_farms_stand_over_emodnet_ones(tmp_path):
+    write(
+        tmp_path,
+        'lighthouses',
+        (point(0.1, 0.1), {'name': 'Near', 'status': 'Not removed, relocated or destroyed'}),
+        (point(0.5, 0.5), {'name': 'Far', 'status': 'Not removed, relocated or destroyed'}),
+    )
+    write(
+        tmp_path,
+        'finfish',
+        (point(0.75, 0.75), {'position_c': 'At sea'}),
+        (point(0.9, 0.9), {'position_c': 'At sea'}),
+    )
+    layers = human_activities.layers(tmp_path, BBOX, {})
+    osm_tower = (ogr.CreateGeometryFromWkt('POINT (0.102 0.1)'), {'INFORM': 'OSM'}, None)
+    layers['LNDMRK'].append(osm_tower)
+    marks = {
+        'LNDMRK': [osm_tower],
+        'MARCUL': [(ogr.CreateGeometryFromJson(json.dumps(square(0.7, 0.7, 0.8, 0.8))), {}, None)],
+    }
+    human_activities.give_way(layers, marks)
+    assert [a.get('OBJNAM', a.get('INFORM')) for _, a, _ in layers['LNDMRK']] == ['Far', 'OSM']
+    assert [g.GetX() for g, _, _ in layers['MARCUL']] == [0.9]
+
+
+def test_a_spoil_ground_used_in_several_years_is_charted_once(tmp_path):
+    ground = square(0.1, 0.1, 0.2, 0.2)
+    write(
+        tmp_path,
+        'dredgespoilpoly',
+        (ground, {'site_name': 'Rövargrundet', 'year_opera': '2017'}),
+        (ground, {'site_name': 'Rövargrundet', 'year_opera': '2018'}),
+        (square(0.3, 0.3, 0.4, 0.4), {'site_name': None}),
+    )
+    write(tmp_path, 'dredgespoil', (point(0.6, 0.6), {'site_name': 'Bay Of Gdansk'}))
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a for _, a, _ in found['DMPGRD']] == [
+        {'CATDPG': '5', 'OBJNAM': 'Bay Of Gdansk'},
+        {'CATDPG': '5', 'OBJNAM': 'Rövargrundet'},
+        {'CATDPG': '5'},
+    ]
+
+
+def test_extraction_areas_in_use_and_standing_wells(tmp_path):
+    write(
+        tmp_path,
+        'aggregateareas',
+        (square(0.1, 0.1, 0.2, 0.2), {'name': 'Gyldenløves Flak', 'status': 'Active', 'material': 'Sand and gravel'}),
+        (square(0.3, 0.3, 0.4, 0.4), {'status': 'Unknown', 'site_type': 'Extraction area (in use)\n'}),
+        (square(0.5, 0.5, 0.6, 0.6), {'status': 'Expired', 'site_type': 'Extraction area'}),
+        (square(0.5, 0.1, 0.6, 0.2), {'status': 'Expired', 'site_type': 'Extraction area (in use)'}),
+        (square(0.1, 0.5, 0.2, 0.6), {'status': 'Not Active', 'site_type': 'Extraction area (in use)'}),
+    )
+    write(
+        tmp_path,
+        'hydrocarbons',
+        (point(0.7, 0.7), {'name': 'B28S-1', 'status': 'Suspended'}),
+        (point(0.8, 0.8), {'name': 'STINA-1', 'status': 'Abandoned'}),
+    )
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a for _, a, _ in found['CTNARE']] == [
+        {'OBJNAM': 'Gyldenløves Flak', 'INFORM': 'Aggregate extraction area: Sand and gravel'},
+        {'INFORM': 'Aggregate extraction area'},
+    ]
+    assert [a for _, a, _ in found['OBSTRN']] == [
+        {'CATOBS': '2', 'WATLEV': 3, 'OBJNAM': 'B28S-1', 'INFORM': 'Well (suspended)'}
+    ]
+
+
+def test_munitions_at_one_spot_keep_each_description(tmp_path):
+    write(
+        tmp_path,
+        'munitions',
+        (point(0.6, 0.6), {'munition_type': 'Chemical'}),
+        (point(0.6, 0.6), {'munition_type': 'Conventional'}),
+    )
+    found = human_activities.layers(tmp_path, BBOX, {})
+    assert [a['INFORM'] for _, a, _ in found['DMPGRD']] == ['Chemical', 'Conventional']
+
+
+def test_the_give_way_window_reaches_the_widest_radius_beyond_the_box():
+    minlon, minlat, maxlon, maxlat = human_activities.give_way_window((10.0, 60.0, 11.0, 61.0))
+    reach = human_activities.SAME_LIGHTHOUSE_M / seamarks.METRES_PER_DEGREE
+    assert minlat == pytest.approx(60.0 - reach) and maxlat == pytest.approx(61.0 + reach)
+    assert 10.0 - minlon > reach * 2  # a degree of longitude is short up there
+
+
+def test_emodnet_gives_way_to_osm_lights_and_landmarks_within_500_m_and_farms_within_300_m():
+    assert human_activities.gives_way_within({'seamark:type': 'light_major'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'landmark'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'marine_farm'}) == 300
+    assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral', 'seamark:light:colour': 'green'}) == 500
+    assert human_activities.gives_way_within({'seamark:type': 'wreck'}) is None
+    assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral'}) is None

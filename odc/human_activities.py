@@ -1,16 +1,21 @@
 """Offshore structures and hazards from EMODnet Human Activities (CC BY 4.0):
-wind farms, platforms, cables, pipelines, military areas, dumped munitions
-and UKHO's worldwide wreck list, as S-57 objects.
+wind farms, platforms, cables, pipelines, military areas, dumped munitions,
+UKHO's worldwide wreck list, lighthouses, fish and shellfish farms, dredge
+spoil grounds, aggregate extraction areas and oil and gas wells, as S-57
+objects.
 
 Planned, approved and dismantled wind farms, cables and pipelines not on
 the seabed, planned or deactivated military areas and lifted wrecks are
 left out; what is being built is charted under construction. Disused
 cables, pipelines and platforms are charted: they may still be there. A Shom, chart or earlier object of the
-same class is cut out of an EMODnet one (see `layers`).
+same class is cut out of an EMODnet one (see `layers`). A lighthouse or a
+farm EMODnet places only roughly gives way to one another source charts
+near it (see `give_way`).
 """
 
 import glob
 import json
+import math
 import os
 import urllib.parse
 
@@ -19,10 +24,12 @@ from osgeo import ogr
 from odc import seamarks
 
 WFS = 'https://ows.emodnet-humanactivities.eu/wfs'
+SOURCE = 'EMODNET-HA'
 ATTRIBUTION = (
     'EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore '
-    'installations, pipelines, cables, military areas, dumped munitions, and UKHO worldwide wreck locations, '
-    'CC BY 4.0; not suitable for navigation'
+    'installations, pipelines, cables, military areas, dumped munitions, UKHO worldwide wreck locations, '
+    'lighthouses (Amateur Radio Lighthouse Society list), aquaculture, dredge spoil grounds, aggregate '
+    'extraction areas and oil and gas wells, CC BY 4.0; not suitable for navigation'
 )
 POWER_CABLES = ('pcablesbshcontis', 'pcablesshom', 'pcablesnve')
 TELECOM_CABLES = ('bshcontiscables', 'cicacables', 'shomcables', 'sigcables', 'maltacables', 'ukfibrecables')
@@ -34,6 +41,13 @@ LAYERS = (
     'munitionspoly',
     'munitions',
     'wwshipwrecks',
+    'lighthouses',
+    'finfish',
+    'shellfish',
+    'dredgespoilpoly',
+    'dredgespoil',
+    'aggregateareas',
+    'hydrocarbons',
     *POWER_CABLES,
     *TELECOM_CABLES,
 )
@@ -74,6 +88,31 @@ CATCBL_POWER = 1
 CATCBL_TELEPHONE = 4
 # Two sources' positions of one wreck differ by up to this much.
 SAME_WRECK_M = 150.0
+# ARLHS positions are approximate, and a harbour's lights stand closer than
+# this to each other, so another source's light this near is the same one.
+SAME_LIGHTHOUSE_M = 500.0
+SAME_FARM_M = 300.0
+CATLMK_TOWER = 17
+FUNCTN_LIGHT_SUPPORT = 33
+CATMFA_OYSTERS_MUSSELS = 2
+CATMFA_FISH = 3
+CATDPG_SPOIL = 5
+LIGHTHOUSE_GONE = 'Removed, relocated or destroyed'
+AT_SEA = 'At sea'
+# An abandoned well is plugged and cut below the seabed; a suspended one
+# keeps its wellhead.
+WELL_STANDING = {'Active', 'Suspended'}
+EXTRACTION_IN_USE = {'Active'}
+# A status that says the area is out of use stands over a site type saying "in use".
+EXTRACTION_UNUSED = {'Expired', 'Not Active'}
+SPOIL_LAYERS = ('dredgespoilpoly', 'dredgespoil')
+# The layers EMODnet places roughly, the classes another source charts the
+# same object as, and how near that one must be.
+GIVE_WAY = {
+    'lighthouses': (('LIGHTS', 'LNDMRK'), SAME_LIGHTHOUSE_M),
+    'finfish': (('MARCUL',), SAME_FARM_M),
+    'shellfish': (('MARCUL',), SAME_FARM_M),
+}
 
 
 def text(value):
@@ -163,6 +202,47 @@ def wreck(p):
     return 'WRECKS', attrs
 
 
+def lighthouse(p):
+    if p.get('status') == LIGHTHOUSE_GONE:
+        return None
+    attrs = {'CATLMK': str(CATLMK_TOWER), 'FUNCTN': str(FUNCTN_LIGHT_SUPPORT)}
+    name = text(p.get('name'))
+    return 'LNDMRK', named(attrs, None if name == 'Un-assigned' else name)
+
+
+def farm(category, position_key):
+    def convert(p):
+        if p.get(position_key) != AT_SEA:
+            return None
+        return 'MARCUL', {'CATMFA': str(category)}
+
+    return convert
+
+
+def spoil_ground(p):
+    return 'DMPGRD', named({'CATDPG': str(CATDPG_SPOIL)}, p.get('site_name'))
+
+
+def extraction_area(p):
+    if p.get('status') in EXTRACTION_UNUSED:
+        return None
+    in_use = p.get('status') in EXTRACTION_IN_USE or 'in use' in (p.get('site_type') or '')
+    if not in_use:
+        return None
+    attrs = named({}, p.get('name'))
+    material = text(p.get('material'))
+    attrs['INFORM'] = f'Aggregate extraction area: {material}' if material else 'Aggregate extraction area'
+    return 'CTNARE', attrs
+
+
+def well(p):
+    if p.get('status') not in WELL_STANDING:
+        return None
+    attrs = named({'CATOBS': str(CATOBS_WELLHEAD), 'WATLEV': 3}, p.get('name'))
+    attrs['INFORM'] = f'Well ({p["status"].lower()})'
+    return 'OBSTRN', attrs
+
+
 CONVERT = {
     'windfarmspoly': wind_farm,
     'platforms': platform,
@@ -171,6 +251,13 @@ CONVERT = {
     'munitionspoly': munitions,
     'munitions': munitions,
     'wwshipwrecks': wreck,
+    'lighthouses': lighthouse,
+    'finfish': farm(CATMFA_FISH, 'position_c'),
+    'shellfish': farm(CATMFA_OYSTERS_MUSSELS, 'costal_inland'),
+    'dredgespoilpoly': spoil_ground,
+    'dredgespoil': spoil_ground,
+    'aggregateareas': extraction_area,
+    'hydrocarbons': well,
     **{layer: cable(CATCBL_POWER) for layer in POWER_CABLES},
     **{layer: cable(CATCBL_TELEPHONE) for layer in TELECOM_CABLES},
 }
@@ -233,6 +320,9 @@ def layers(directory, bbox_geom, charted):
     by_class = {}
     elsewhere = seamarks.outlined_in(charted)
     wrecks = wreck_positions(charted.get('WRECKS', ()))
+    near_charted = {layer: charted_near(charted, classes, radius) for layer, (classes, radius) in GIVE_WAY.items()}
+    # A spoil ground is listed once for every year it was used.
+    seen = set()
     for path in layer_files(directory):
         layer = os.path.splitext(os.path.basename(path))[0]
         convert = CONVERT.get(layer)
@@ -253,9 +343,69 @@ def layers(directory, bbox_geom, charted):
             if objl == 'WRECKS':
                 if wrecks(geom.GetX(), geom.GetY()):
                     continue
+            elif layer in near_charted:
+                if near_charted[layer](geom):
+                    continue
             elif geom.GetDimension() > 0:
                 geom = elsewhere(objl, geom)
                 if geom is None:
                     continue
-            by_class.setdefault(objl, []).append((geom, attrs, f'EMODNET-HA {feature.get("id")}'))
+            if layer in SPOIL_LAYERS:
+                key = (attrs.get('OBJNAM'), bytes(geom.ExportToWkb()))
+                if key in seen:
+                    continue
+                seen.add(key)
+            by_class.setdefault(objl, []).append((geom, attrs, f'{SOURCE} {feature.get("id")}'))
     return by_class
+
+
+def charted_near(charted, classes, radius_m):
+    """Whether a point lies within radius_m of an object of one of classes
+    among charted ({class: items}), or inside one's outline."""
+    points, outlines = [], []
+    for objl in classes:
+        for geom, _, _ in charted.get(objl, ()):
+            if geom.GetDimension() == 2:
+                outlines.append(geom)
+            centre = geom if geom.GetDimension() == 0 else geom.PointOnSurface()
+            if centre is not None and not centre.IsEmpty():
+                points.append((centre.GetX(), centre.GetY()))
+    near = seamarks.Nearby(points, radius_m)
+    return lambda geom: near(geom.GetX(), geom.GetY()) or any(outline.Contains(geom) for outline in outlines)
+
+
+def give_way_window(bbox, radius=None):
+    """bbox grown by radius, the widest give-way radius by default, so
+    another source's object just beyond it still counts."""
+    minlon, minlat, maxlon, maxlat = bbox
+    radius = radius or max(r for _, r in GIVE_WAY.values())
+    dlat = radius / seamarks.METRES_PER_DEGREE
+    dlon = dlat / max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.01)
+    return minlon - dlon, minlat - dlat, maxlon + dlon, maxlat + dlat
+
+
+def gives_way_within(tags):
+    """How near an EMODnet lighthouse or farm must be to the OSM object with
+    these tags to give way to it, or None for an object none gives way to."""
+    if tags.get('seamark:type') == 'marine_farm':
+        found = {'MARCUL'}
+    else:
+        found = {objl for objl, _ in seamarks.objects(tags)}
+    radii = [radius for classes, radius in GIVE_WAY.values() if found.intersection(classes)]
+    return max(radii) if radii else None
+
+
+def give_way(layers, marks):
+    """Leaves out of layers the EMODnet lighthouses and farms that marks
+    (OSM seamarks, {class: items}, read over give_way_window) chart near
+    them: OSM's position is the surveyed one, EMODnet's often approximate."""
+    for layer, (classes, radius) in GIVE_WAY.items():
+        near = charted_near(marks, classes, radius)
+        prefix = f'{SOURCE} {layer}.'
+        for objl in classes:
+            if objl in layers:
+                layers[objl] = [
+                    item
+                    for item in layers[objl]
+                    if not (isinstance(item[2], str) and item[2].startswith(prefix) and near(item[0]))
+                ]

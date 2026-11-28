@@ -1866,6 +1866,16 @@ def main():
         )
         if 'WRECKS' in marks:
             marks['WRECKS'] = human_activities.not_charted_wrecks(marks['WRECKS'], layers.get('WRECKS', ()))
+        window = human_activities.give_way_window(args.bbox)
+        # The OSM marks EMODnet gives way to are the ones charted, read wider.
+        near = seamarks.seamark_layers(
+            osm.read_features(args.seamarks, window),
+            bbox_polygon(*window),
+            OSM_SRC,
+            shom_aids_near(args.wfs, attributes, classes, window),
+            elsewhere,
+        )
+        human_activities.give_way(layers, near)
         for objl, items in marks.items():
             layers.setdefault(objl, []).extend(items)
     if args.nc_structures:
