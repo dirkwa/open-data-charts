@@ -113,6 +113,19 @@ GIVE_WAY = {
     'finfish': (('MARCUL',), SAME_FARM_M),
     'shellfish': (('MARCUL',), SAME_FARM_M),
 }
+# UK, Norwegian, Dutch and Danish law each put a 500 m safety zone round an
+# offshore installation that stands above the water, entry prohibited to
+# ships not serving it. EMODnet gives the installation, not the zone, so
+# the zone is drawn from its position, as charts show it.
+SAFETY_ZONE_M = 500.0
+SAFETY_ZONE_VERTICES = 36
+METRES_PER_DEGREE = 111320.0
+# A unit's version covers a platform this far beyond its build box, whose zone reaches into it.
+SAFETY_ZONE_DEG = 2 * SAFETY_ZONE_M / METRES_PER_DEGREE
+CATREA_SAFETY_ZONE = 1
+RESTRN_ENTRY_PROHIBITED = 7
+NO_SURFACE_STRUCTURE = {'Subsea steel', 'BUOY', 'MONITOR BUOY'}
+SAFETY_ZONE_INFORM = '500 m safety zone drawn round the installation; not from a chart'
 
 
 def text(value):
@@ -146,6 +159,30 @@ def platform(p):
     if p.get('current_status') == 'Under construction':
         attrs['CONDTN'] = 1
     return objl, attrs
+
+
+def safety_zone(p, point):
+    """The 500 m zone round a platform that stands above the water and is
+    still there, or None. Decommissioned and closed down ones keep it: the
+    zone lasts as long as the structure stands."""
+    if p.get('category') in NO_SURFACE_STRUCTURE or p.get('function') == 'Subsea':
+        return None
+    if p.get('current_status') == 'Removed' or point.GetDimension() != 0:
+        return None
+    lon, lat = point.GetX(), point.GetY()
+    dlat = SAFETY_ZONE_M / METRES_PER_DEGREE
+    dlon = dlat / math.cos(math.radians(lat))
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    for i in range(SAFETY_ZONE_VERTICES + 1):
+        angle = 2 * math.pi * (i % SAFETY_ZONE_VERTICES) / SAFETY_ZONE_VERTICES
+        ring.AddPoint_2D(lon + dlon * math.cos(angle), lat + dlat * math.sin(angle))
+    zone = ogr.Geometry(ogr.wkbPolygon)
+    zone.AddGeometry(ring)
+    attrs = named(
+        {'CATREA': str(CATREA_SAFETY_ZONE), 'RESTRN': str(RESTRN_ENTRY_PROHIBITED), 'INFORM': SAFETY_ZONE_INFORM},
+        p.get('name'),
+    )
+    return zone, attrs
 
 
 def status(p):
@@ -302,6 +339,14 @@ def layer_files(directory):
     return sorted(glob.glob(os.path.join(directory, '*.json')))
 
 
+def grown_for(path):
+    """How far a layer file's features reach past their own bbox in a unit's build."""
+    if os.path.basename(path) != 'platforms.json':
+        return None
+    m = SAFETY_ZONE_DEG
+    return lambda bbox: [bbox[0] - 2 * m, bbox[1] - m, bbox[2] + 2 * m, bbox[3] + m]
+
+
 def wreck_positions(items):
     return seamarks.Nearby([(g.GetX(), g.GetY()) for g, _, _ in items if g.GetDimension() == 0], SAME_WRECK_M)
 
@@ -337,7 +382,17 @@ def layers(directory, bbox_geom, charted):
             if found is None:
                 continue
             objl, attrs = found
-            geom = seamarks.clip(ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])), bbox_geom)
+            source = ogr.CreateGeometryFromJson(json.dumps(feature['geometry']))
+            if layer == 'platforms':
+                zone = safety_zone(feature.get('properties') or {}, source)
+                if zone is not None:
+                    clipped = seamarks.clip(zone[0], bbox_geom)
+                    if clipped is not None:
+                        clipped = elsewhere('RESARE', clipped)
+                    if clipped is not None:
+                        ident = f'EMODNET-HA {feature.get("id")} safety zone'
+                        by_class.setdefault('RESARE', []).append((clipped, zone[1], ident))
+            geom = seamarks.clip(source, bbox_geom)
             if geom is None:
                 continue
             if objl == 'WRECKS':

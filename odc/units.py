@@ -271,7 +271,8 @@ def unit_versions(units, inputs, mirror_index, builder, attribution_text):
         aids = with_seamarks and build_unit.wfs_layer_class(build_unit.wfs_layer(path)) in seamarks.AID_CLASSES
         add_feature_collection(digests, 'wfs ' + os.path.basename(path), path, aid_window if aids else None)
     for path in human_activities.layer_files(os.path.join(inputs, 'human-activities')):
-        add_feature_collection(digests, 'human-activities ' + os.path.basename(path), path)
+        grow = human_activities.grown_for(path)
+        add_feature_collection(digests, 'human-activities ' + os.path.basename(path), path, grow)
     for path in sorted(glob.glob(os.path.join(inputs, 'nc', '*.geojson'))):
         add_feature_collection(digests, 'nc ' + os.path.basename(path), path)
     for path in chart.chart_files(os.path.join(inputs, 'chart')):
