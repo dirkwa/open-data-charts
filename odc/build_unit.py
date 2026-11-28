@@ -633,11 +633,11 @@ def point_parts(geom):
     return [geom.GetGeometryRef(i).Clone() for i in range(geom.GetGeometryCount())]
 
 
-def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom):
+def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom, charted=None):
     """Candidate soundings from the bathymetric model's own pixels (never
     the near-shore fill or the chart-grid resampling): water depths of at
     least a decimetre at pixel centres inside the unit, off land, inland
-    water and surveyed cells, where the depth areas chart water too (not a
+    water, surveyed and charted cells, where the depth areas chart water too (not a
     drying bank the grid's smoothing or fill drew there); the shoalest per
     square of the finest zoom model numbers thin to, where it is at least
     MODEL_MIN_NUMBER_M deep."""
@@ -658,7 +658,7 @@ def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, bo
     inside = box.contains(ix, iy)
     lon, lat, z, ix, iy = lon[inside], lat[inside], z[inside], ix[inside], iy[inside]
     blocked = land_cells
-    for mask in (inland_cells, surveyed):
+    for mask in (inland_cells, surveyed, charted):
         if mask is not None:
             blocked = blocked | mask
     cell = box.flat_index(ix, iy)
@@ -1734,7 +1734,9 @@ def computed_depths(args, box, unit, land, inland, water, charted=None):
     del in_sdb
     del from_model, from_deep
     step('Soundings')
-    model = model_soundings(clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom)
+    model = model_soundings(
+        clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom, charted
+    )
     del from_survey
     soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom, model)
     del rank, model
@@ -1850,8 +1852,6 @@ def main():
                 args, box, unit, land, inland, rest, land_mask(charted, args.bbox) if charted is not None else None
             )
             for objl, items in model_layers.items():
-                if objl == 'SOUNDG':
-                    items = [item for item in items if rest.Contains(item[0])]
                 depth_layers.setdefault(objl, []).extend(items)
         else:
             quality = chart_quality(areas, land_cells, box, unit)
