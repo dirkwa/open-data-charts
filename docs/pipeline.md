@@ -146,6 +146,16 @@ southern Baltic (`baltic-south`) this adds 78 lighthouses, about 800 spoil
 grounds and munitions dumps, 14 extraction areas and 33 standing wells; on
 the Norwegian coast (`norway-south`) 1,225 fish and mussel farms.
 
+An installation that stands above the water and is still there gets the
+500 m safety zone that UK, Norwegian, Dutch and Danish law put round it,
+drawn from its position as a restricted area (`RESARE`, `CATREA` 1, entry
+prohibited) whose `INFORM` says it is not from a chart. Decommissioned and
+closed-down platforms keep it, since the zone lasts while the structure
+stands. Subsea structures and buoys get none. A unit's version covers the
+platforms within a zone's reach of its build box. In the North Sea
+(51-62° N, 4° W-12° E) EMODnet lists 1,212 installations, and 879 of them
+get a zone.
+
 ## Satellite depths
 
 The Allen Coral Atlas publishes satellite-derived bathymetry only in

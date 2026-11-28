@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 from osgeo import ogr
@@ -315,3 +316,48 @@ def test_emodnet_gives_way_to_osm_lights_and_landmarks_within_500_m_and_farms_wi
     assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral', 'seamark:light:colour': 'green'}) == 500
     assert human_activities.gives_way_within({'seamark:type': 'wreck'}) is None
     assert human_activities.gives_way_within({'seamark:type': 'buoy_lateral'}) is None
+
+
+def test_a_platform_above_the_water_gets_a_500_m_safety_zone(tmp_path):
+    write(
+        tmp_path,
+        'platforms',
+        (point(0.5, 0.5), {'name': 'Alpha', 'category': 'Fixed steel', 'current_status': 'Operational'}),
+        (point(0.6, 0.6), {'name': 'Old', 'category': 'Fixed steel', 'current_status': 'Decommissioned'}),
+        (point(0.7, 0.7), {'name': 'Template', 'category': 'Subsea steel', 'current_status': 'Operational'}),
+        (point(0.8, 0.8), {'name': 'Gone', 'category': 'Fixed steel', 'current_status': 'Removed'}),
+        (point(0.2, 0.2), {'name': 'Manifold', 'category': None, 'function': 'Subsea'}),
+    )
+    zones = human_activities.layers(tmp_path, BBOX, {})['RESARE']
+    assert [attrs['OBJNAM'] for _, attrs, _ in zones] == ['Alpha', 'Old']
+    zone, attrs, _ = zones[0]
+    assert (attrs['CATREA'], attrs['RESTRN']) == ('1', '7')
+    minx, maxx, miny, maxy = zone.GetEnvelope()
+    assert maxy - miny == pytest.approx(2 * 500 / 111320, rel=1e-3)
+    assert zone.Contains(ogr.CreateGeometryFromWkt('POINT (0.5 0.5)'))
+
+
+def test_a_safety_zone_reaching_into_the_unit_from_beyond_it_is_charted_and_versioned(tmp_path):
+    write(tmp_path, 'platforms', (point(1.003, 0.5), {'category': 'Fixed steel', 'current_status': 'Operational'}))
+    zones = human_activities.layers(tmp_path, BBOX, {})['RESARE']
+    assert len(zones) == 1 and zones[0][0].GetEnvelope()[1] <= 1.0
+    grow = human_activities.grown_for(str(tmp_path / 'platforms.json'))
+    platform = {'geometry': point(1.003, 0.5), 'properties': {'category': 'Fixed steel'}}
+    assert grow(platform, [1.003, 0.5, 1.003, 0.5])[0] < 1.003 - 500 / 111320
+    assert human_activities.grown_for(str(tmp_path / 'wwshipwrecks.json')) is None
+
+
+def test_a_platform_reaches_only_as_far_as_its_own_zone():
+    grow = human_activities.grown_for('platforms.json')
+    at_55 = [5.0, 55.0, 5.0, 55.0]
+    reach = 5.0 - grow({'geometry': point(5.0, 55.0), 'properties': {}}, at_55)[0]
+    assert reach == pytest.approx(500 / 111320 / math.cos(math.radians(55)), rel=1e-3)
+    subsea = {'geometry': point(5.0, 55.0), 'properties': {'category': 'Subsea steel'}}
+    assert grow(subsea, at_55) == at_55
+
+
+def test_a_safety_zone_another_source_charts_is_not_drawn_twice(tmp_path):
+    write(tmp_path, 'platforms', (point(0.5, 0.5), {'category': 'Fixed steel', 'current_status': 'Operational'}))
+    charted = ogr.CreateGeometryFromJson(json.dumps(square(0.49, 0.49, 0.51, 0.51)))
+    found = human_activities.layers(tmp_path, BBOX, {'RESARE': [(charted, {'CATREA': '1'}, 'OSM')]})
+    assert 'RESARE' not in found
