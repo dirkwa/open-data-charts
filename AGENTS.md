@@ -90,7 +90,8 @@ the index and the docs say so.
   Zealand Hydro layers, listed in `odc/linz_hydro_layers.json`, for regions
   with `linz-hydro`), each chart scale from its zoom and giving way to a
   larger scale where that one has coverage. Such a unit takes its depths
-  from the chart, not from a model.
+  from the chart; a region that also lists a model fills only the water
+  no chart covers from it.
 - `odc/aca_depth.py`: an Allen Coral Atlas download package's satellite-derived
   bathymetry, cut into 1-degree squares on the chart grid for the release
   `aca-depth`.

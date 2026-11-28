@@ -633,11 +633,11 @@ def point_parts(geom):
     return [geom.GetGeometryRef(i).Clone() for i in range(geom.GetGeometryCount())]
 
 
-def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom):
+def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, box, unit, maxzoom, charted=None):
     """Candidate soundings from the bathymetric model's own pixels (never
     the near-shore fill or the chart-grid resampling): water depths of at
     least a decimetre at pixel centres inside the unit, off land, inland
-    water and surveyed cells, where the depth areas chart water too (not a
+    water, surveyed and charted cells, where the depth areas chart water too (not a
     drying bank the grid's smoothing or fill drew there); the shoalest per
     square of the finest zoom model numbers thin to, where it is at least
     MODEL_MIN_NUMBER_M deep."""
@@ -658,7 +658,7 @@ def model_soundings(dem_path, depth_grid, surveyed, land_cells, inland_cells, bo
     inside = box.contains(ix, iy)
     lon, lat, z, ix, iy = lon[inside], lat[inside], z[inside], ix[inside], iy[inside]
     blocked = land_cells
-    for mask in (inland_cells, surveyed):
+    for mask in (inland_cells, surveyed, charted):
         if mask is not None:
             blocked = blocked | mask
     cell = box.flat_index(ix, iy)
@@ -1601,7 +1601,9 @@ def quality_category(meta):
     return 'survey-recent' if end >= 19900101 else 'survey-old'
 
 
-def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep=None, from_satellite=None):
+def depth_quality(
+    entries, rank, from_survey, from_model, land_cells, box, unit, from_deep=None, from_satellite=None, charted=None
+):
     """Share of the unit's water by where its depths come from (see
     docs/index-format.md), and the ranks of the surveys that reach the unit.
 
@@ -1610,9 +1612,10 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
     reject the interpolation). A measured cell counts for the survey that
     sounded it, an interpolated one for the best category within reach. A
     survey reaches the unit when it sounded a cell within INTERP_CELLS of it.
-    Water no survey covers is the model's where the bathymetric model has a
-    depth, then satellite-derived bathymetry's, and 'none' (charted
-    unsurveyed) elsewhere."""
+    Charted cells (a mask, or None) are the chart's. Water no survey or
+    chart covers is the model's where the bathymetric model has a depth,
+    then satellite-derived bathymetry's, and 'none' (charted unsurveyed)
+    elsewhere."""
     cells = unit.cells
     rows = slice(cells.iy0 - box.iy0, cells.iy1 - box.iy0)
     cols = slice(cells.ix0 - box.ix0, cells.ix1 - box.ix0)
@@ -1622,6 +1625,9 @@ def depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit,
         return None, []
     taken = np.zeros_like(water)
     share = {}
+    if charted is not None:
+        taken = charted[rows, cols] & water
+        share['chart'] = int(taken.sum())
     if rank is not None and entries:
         categories = np.array([quality_category(e[4]) for e in entries])
         # A measured cell belongs to the survey that won it; an interpolated one
@@ -1695,9 +1701,11 @@ def survey_inputs(leves_dir, surveys_json, box):
     return out
 
 
-def computed_depths(args, box, unit, land, inland, water):
+def computed_depths(args, box, unit, land, inland, water, charted=None):
     """Depth areas, contours and soundings computed from the surveys and the
-    bathymetric models, with the unit's depth quality."""
+    bathymetric models, with the unit's depth quality. Depth areas and
+    contours are cut to water; the cells of charted (a mask, or None) count
+    as charted in the quality, ahead of the models."""
     step('DEM: clip + fill near-shore gaps')
     clipped, filled = prepare_dem(args.dem, args.bbox, args.work)
 
@@ -1720,13 +1728,19 @@ def computed_depths(args, box, unit, land, inland, water):
     from_model = gdal.Open(os.path.join(args.work, 'dem_grid.tif')).ReadAsArray() != NODATA
     satellite = satellite_bands(args.satellite_depth, args.bbox)
     in_sdb = None if satellite is None else satellite > 0
-    quality, used = depth_quality(entries, rank, from_survey, from_model, land_cells, box, unit, from_deep, in_sdb)
+    quality, used = depth_quality(
+        entries, rank, from_survey, from_model, land_cells, box, unit, from_deep, in_sdb, charted
+    )
     del in_sdb
     del from_model, from_deep
     step('Soundings')
-    model = model_soundings(clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom)
+    model = model_soundings(
+        clipped, depth_grid, from_survey, land_cells, inland_cells, box, unit, args.maxzoom, charted
+    )
     del from_survey
-    soundings = build_soundings(entries, rank, land_cells, box, unit, args.maxzoom, model)
+    # A chart's own soundings stand in the water it covers.
+    blocked = land_cells if charted is None else land_cells | charted
+    soundings = build_soundings(entries, rank, blocked, box, unit, args.maxzoom, model)
     del rank, model
 
     step('Depth areas + contours')
@@ -1830,11 +1844,21 @@ def main():
         depth_layers = chart.chart_layers(args.chart, lambda p: s57_props(p, attributes), classes, bbox_geom, areas)
         if 'SOUNDG' in depth_layers:
             depth_layers['SOUNDG'] = thin_chart_soundings(depth_layers['SOUNDG'], args.maxzoom)
-        quality = chart_quality(areas, land_cells, box, unit)
         unsare = uncharted_water(water, areas)
-        if unsare:
-            depth_layers.setdefault('UNSARE', []).extend(unsare)
         entries, used = [], []
+        if unsare and args.dem:
+            step('Bathymetric model beyond the charts')
+            charted = chart_cover(areas)
+            rest = multipolygon([p for p, _, _ in unsare]).UnaryUnion()
+            quality, _, _, model_layers, _ = computed_depths(
+                args, box, unit, land, inland, rest, land_mask(charted, args.bbox) if charted is not None else None
+            )
+            for objl, items in model_layers.items():
+                depth_layers.setdefault(objl, []).extend(items)
+        else:
+            quality = chart_quality(areas, land_cells, box, unit)
+            if unsare:
+                depth_layers.setdefault('UNSARE', []).extend(unsare)
     else:
         quality, entries, used, depth_layers, land_cells = computed_depths(args, box, unit, land, inland, water)
 

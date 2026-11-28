@@ -150,8 +150,11 @@ charts themselves, each chart scale from its own zoom, with land and
 buildings from OpenStreetMap. Finland's sea and lakes take their depth
 areas, contours, soundings and unsurveyed areas from Traficom's chart
 depths the same way, at one scale from the first zoom; its aids to
-navigation come from OpenStreetMap. Water outside Traficom's depth areas
-is charted as unsurveyed.
+navigation come from OpenStreetMap. Traficom charts Finnish waters only:
+the Swedish side of the Bothnian Bay, the Quark and the Åland Sea, and
+open water beyond Traficom's depth areas, take their depths from the
+EMODnet model, like any model region, and the unit's quality counts that
+water as `model`. Water neither reaches stays unsurveyed.
 
 Where no survey sounding is near, depth numbers come from the bathymetric
 model's own pixels, the shoalest of each area thinned per zoom like the

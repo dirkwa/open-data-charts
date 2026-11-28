@@ -101,6 +101,20 @@ def test_a_measured_cell_counts_for_the_survey_that_sounded_it():
     assert used == [0, 1]
 
 
+def test_charted_water_is_the_chart_s_and_the_model_has_only_the_rest():
+    unit = Unit(492, 288)
+    box = unit.build_box
+    r, c = unit.cells.iy0 - box.iy0 + 100, unit.cells.ix0 - box.ix0 + 100
+    land = np.ones((box.nrows, box.ncols), bool)
+    land[r : r + 100, c : c + 100] = False
+    from_model = np.zeros_like(land)
+    from_model[r : r + 100, c : c + 100] = True
+    charted = np.zeros_like(land)
+    charted[r : r + 100, c : c + 60] = True
+    quality, _ = depth_quality([], None, None, from_model, land, box, unit, charted=charted)
+    assert quality == {'best': 'chart', 'share': {'chart': 0.6, 'model': 0.4}}
+
+
 def test_water_without_a_survey_or_model_depth_is_not_model():
     unit = Unit(492, 288)
     box = unit.build_box
@@ -420,6 +434,31 @@ def test_model_soundings_come_from_the_models_own_water_pixels(tmp_path):
     centres = (lon - minlon) / step - 0.5
     assert np.allclose(centres, np.round(centres))
     assert unit.owns(lon, lat).all()
+
+
+def test_a_charted_pixel_leaves_its_square_to_the_uncharted_ones(tmp_path):
+    from odc.grid import cell_x, cell_y
+
+    unit = Unit(492, 288)
+    box = unit.build_box
+    minlon, minlat, maxlon, maxlat = unit.bounds
+    step = 0.001
+    shape = (int((maxlat - minlat) / step), int((maxlon - minlon) / step))
+    land = np.zeros((box.nrows, box.ncols), bool)
+    grid = model_dem(
+        tmp_path / 'grid.tif', *box.bbox[::3], GRID_STEP, np.full((box.nrows, box.ncols), -12.0, np.float32)
+    )
+    deep = np.full(shape, -12.34, np.float32)
+    dem = model_dem(tmp_path / 'deep.tif', minlon, maxlat, step, deep)
+    _, _, all_deep = model_soundings(dem, grid, np.zeros_like(land), land, None, box, unit, 17)
+    shoal = deep.copy()
+    shoal[0, 0] = -1.5  # shallower than its square's other pixels, under a chart
+    charted = np.zeros_like(land)
+    charted[cell_y(maxlat - step / 2) - box.iy0, cell_x(minlon + step / 2) - box.ix0] = True
+    dem = model_dem(tmp_path / 'shoal.tif', minlon, maxlat, step, shoal)
+    _, _, z = model_soundings(dem, grid, np.zeros_like(land), land, None, box, unit, 17, charted)
+    assert len(z) == len(all_deep)
+    assert np.allclose(z, 12.34)
 
 
 def test_a_square_shallower_than_half_a_metre_shows_no_model_number(tmp_path):

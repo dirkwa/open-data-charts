@@ -9,10 +9,17 @@
   ],
   "sources": [
     "traficom-depths",
+    "emodnet-dtm",
     "emodnet-human-activities",
     "osm",
     "openseamap",
     "copernicus"
+  ],
+  "dem": [
+    {
+      "source": "emodnet",
+      "microtidal": true
+    }
   ],
   "osm": [
     [
@@ -22,6 +29,7 @@
   ],
   "attribution": [
     "Source: The Finnish Transport and Communications Agency (Traficom). Not for navigational purposes. Does not meet the requirements set for official nautical charts. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+    "EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM 2024), doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1, created by EMODnet (https://emodnet.ec.europa.eu), owned by the EU, CC BY 4.0",
     "EMODnet Human Activities (https://emodnet.ec.europa.eu/en/human-activities): wind farms, offshore installations, pipelines, cables, military areas, dumped munitions, UKHO worldwide wreck locations, lighthouses (Amateur Radio Lighthouse Society list), aquaculture, dredge spoil grounds, aggregate extraction areas and oil and gas wells, CC BY 4.0; not suitable for navigation"
   ]
 }
